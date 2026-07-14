@@ -1,4 +1,4 @@
-import { rgbToLab, type Lab, type RGB } from './color'
+import { deltaE2000, rgbToLab, type Lab, type RGB } from './color'
 
 /**
  * Simple k-means quantization in Lab space (perceptually closer results than
@@ -75,4 +75,74 @@ function sqDist(a: Lab, b: Lab): number {
   const da = a.a - b.a
   const db = a.b - b.b
   return dl * dl + da * da + db * db
+}
+
+export interface MergeResult {
+  centroids: Lab[]
+  counts: number[]
+  /** original centroid index -> merged cluster index, for reassigning pixels without redoing the distance search. */
+  mapping: number[]
+}
+
+interface ClusterNode {
+  centroid: Lab
+  count: number
+  members: number[]
+}
+
+/**
+ * Collapses k-means clusters that are perceptually indistinguishable
+ * (CIEDE2000 below `threshold`) into one, count-weighted centroid —
+ * greedy single-link agglomeration, repeatedly merging the closest
+ * surviving pair until none are within threshold. k-means alone tends to
+ * split a single flat color's anti-aliased edge pixels into their own
+ * spurious clusters when `k` is set generously; this pulls those back
+ * into the real color they're a blend artifact of.
+ *
+ * 6 (CIEDE2000) is comfortably above the ~1 "just noticeable difference"
+ * threshold but still well under the gap between genuinely distinct hues —
+ * picked empirically against synthetic anti-aliased test patterns rather
+ * than a cited standard (there isn't one for this exact use case).
+ */
+export function mergeSimilarColors(centroids: Lab[], counts: number[], threshold = 6): MergeResult {
+  let nodes: ClusterNode[] = centroids.map((c, i) => ({ centroid: c, count: counts[i], members: [i] }))
+
+  while (nodes.length > 1) {
+    let bestI = -1
+    let bestJ = -1
+    let bestDist = Infinity
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const d = deltaE2000(nodes[i].centroid, nodes[j].centroid)
+        if (d < bestDist) {
+          bestDist = d
+          bestI = i
+          bestJ = j
+        }
+      }
+    }
+    if (bestDist >= threshold) break
+
+    const a = nodes[bestI]
+    const b = nodes[bestJ]
+    const total = a.count + b.count
+    const merged: ClusterNode = {
+      centroid: {
+        l: (a.centroid.l * a.count + b.centroid.l * b.count) / total,
+        a: (a.centroid.a * a.count + b.centroid.a * b.count) / total,
+        b: (a.centroid.b * a.count + b.centroid.b * b.count) / total,
+      },
+      count: total,
+      members: [...a.members, ...b.members],
+    }
+    nodes = nodes.filter((_, idx) => idx !== bestI && idx !== bestJ)
+    nodes.push(merged)
+  }
+
+  const mapping = new Array(centroids.length).fill(0)
+  nodes.forEach((node, clusterIdx) => {
+    for (const origIdx of node.members) mapping[origIdx] = clusterIdx
+  })
+
+  return { centroids: nodes.map((n) => n.centroid), counts: nodes.map((n) => n.count), mapping }
 }
