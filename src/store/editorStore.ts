@@ -3,6 +3,7 @@ import type { ColorMap, PatternDoc, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
+import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { letterForIndex, paletteFromCells, replaceColorInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
@@ -74,6 +75,12 @@ interface EditorState {
   cloneDirection: CloneDirection
   setCloneDirection: (dir: CloneDirection) => void
   cloneSelection: (direction: CloneDirection, times: number) => void
+
+  /** Symmetry-assisted drawing: every stroked cell also paints its mirror counterpart (see engine/mirror.ts). */
+  mirrorMode: MirrorMode
+  setMirrorMode: (mode: MirrorMode) => void
+  /** Flips the current selection's contents in place — the one-shot counterpart to live mirror-mode drawing. */
+  reflectSelection: (axis: 'horizontal' | 'vertical') => void
 
   loadPattern: (doc: PatternDoc) => void
   setTool: (tool: Tool) => void
@@ -164,6 +171,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   cloneDirection: 'horizontal',
   setCloneDirection: (dir) => set({ cloneDirection: dir }),
+
+  mirrorMode: 'off',
+  setMirrorMode: (mode) => set((s) => ({ mirrorMode: s.mirrorMode === mode ? 'off' : mode })),
+  reflectSelection: (axis) => {
+    const { selection, cells } = get()
+    if (!selection) return
+    get().commit(reflectRegion(cells, selection, axis))
+  },
 
   loadPattern: (doc) => {
     const defaultSlots = ['#1c1c1e', '#c9a227', '#8da2b0', '#ffffff']
@@ -272,14 +287,26 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   strokeStart: () => set({ strokeBase: get().cells }),
 
   strokeCell: (row, col, hex) => {
-    const { cells, cols, rows } = get()
-    if (row < 0 || col < 0 || row >= rows || col >= cols) return
-    const key = cellKey(row, col)
-    if (cells[key] === (hex ?? undefined)) return
+    const { cells, cols, rows, mirrorMode } = get()
     const next = { ...cells }
-    if (hex) next[key] = hex
-    else delete next[key]
-    set({ cells: next })
+    let changed = false
+
+    const paintOne = (r: number, c: number) => {
+      if (r < 0 || c < 0 || r >= rows || c >= cols) return
+      const key = cellKey(r, c)
+      if (cells[key] === (hex ?? undefined)) return
+      if (hex) next[key] = hex
+      else delete next[key]
+      changed = true
+    }
+
+    paintOne(row, col)
+    if (mirrorMode !== 'off') {
+      const mirrored = mirroredCell(row, col, cols, rows, mirrorMode)
+      paintOne(mirrored.row, mirrored.col)
+    }
+
+    if (changed) set({ cells: next })
   },
 
   strokeEnd: () => {

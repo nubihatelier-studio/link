@@ -56,6 +56,8 @@ export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
     toggleFlipH,
     toggleFlipV,
     eraseSelection,
+    mirrorMode,
+    setMirrorMode,
   } = useEditorStore()
 
   return (
@@ -73,6 +75,25 @@ export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
           </IconButton>
         )
       })}
+
+      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
+
+      <IconButton
+        label={t.editor.mirror.horizontal}
+        active={mirrorMode === 'horizontal'}
+        onClick={() => setMirrorMode('horizontal')}
+      >
+        <FlipHorizontal2 size={18} />
+      </IconButton>
+      <IconButton
+        label={t.editor.mirror.vertical}
+        active={mirrorMode === 'vertical'}
+        onClick={() => setMirrorMode('vertical')}
+      >
+        <FlipVertical2 size={18} />
+      </IconButton>
+
+      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
 
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
         <ClipboardPaste size={18} />

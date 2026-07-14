@@ -75,6 +75,11 @@ export const t = {
     activeColor: 'Color activo',
     weaveMode: 'Modo tejido',
     zoom: 'Zoom',
+    mirror: {
+      horizontal: 'Espejo horizontal',
+      vertical: 'Espejo vertical',
+      reflect: 'Reflejar',
+    },
   },
   weave: {
     title: 'Modo tejido',

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, Merge, Plus } from 'lucide-react'
+import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
@@ -23,6 +23,7 @@ export function ColorPanel() {
     cloneSelection,
     colorLetters,
     mergeColors,
+    reflectSelection,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
@@ -77,6 +78,26 @@ export function ColorPanel() {
                 ×{n}
               </button>
             ))}
+          </div>
+
+          <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-text-muted">
+            {t.editor.mirror.reflect}
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => reflectSelection('horizontal')}
+              title={t.editor.mirror.horizontal}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 py-2 text-sm font-semibold text-text transition-colors hover:bg-surface-3"
+            >
+              <FlipHorizontal2 size={16} />
+            </button>
+            <button
+              onClick={() => reflectSelection('vertical')}
+              title={t.editor.mirror.vertical}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 py-2 text-sm font-semibold text-text transition-colors hover:bg-surface-3"
+            >
+              <FlipVertical2 size={16} />
+            </button>
           </div>
         </section>
       )}
