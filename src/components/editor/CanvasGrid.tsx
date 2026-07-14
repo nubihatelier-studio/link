@@ -512,12 +512,12 @@ export function CanvasGrid() {
     <div className="relative h-full w-full">
       {pasteArmed && clipboard && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/90 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-          Tocá una celda para pegar · H/V voltear · Esc cancelar
+          Toca una celda para pegar · H/V voltear · Esc cancelar
         </div>
       )}
       {!pasteArmed && tool === 'line' && lineStart && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/90 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-          Tocá otra celda para terminar la línea · Esc cancelar
+          Toca otra celda para terminar la línea · Esc cancelar
         </div>
       )}
       <div
