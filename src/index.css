@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  --color-accent-50: #fbf3de;
+  --color-accent-100: #f5e6be;
+  --color-accent-300: #e4c777;
+  --color-accent-400: #d4b24e;
+  --color-accent-500: #c9a227;
+  --color-accent-600: #ab881f;
+  --color-accent-700: #8a6f19;
+  --color-accent-ink: #241d06;
+
+  --color-brand-teal: #2f5b66;
+  --color-brand-teal-dark: #203f47;
+
+  --color-surface: var(--nb-surface);
+  --color-surface-2: var(--nb-surface-2);
+  --color-surface-3: var(--nb-surface-3);
+  --color-canvas: var(--nb-canvas);
+  --color-border: var(--nb-border);
+  --color-text: var(--nb-text);
+  --color-text-muted: var(--nb-text-muted);
+  --color-text-soft: var(--nb-text-soft);
+}
+
+:root {
+  color-scheme: light;
+
+  --nb-surface: #ffffff;
+  --nb-surface-2: #f6f5f7;
+  --nb-surface-3: #efedf0;
+  --nb-canvas: #fbfafc;
+  --nb-border: #e6e3e8;
+  --nb-text: #17151a;
+  --nb-text-muted: #6b6773;
+  --nb-text-soft: #a09cab;
+  /* Canvas grid cell lines — same as --nb-border in light mode (already
+     reads clearly against --nb-surface-3), but given its own dark-mode
+     value below since --nb-border there matches --nb-surface-3 exactly
+     and would make every empty cell blend into its own edge. */
+  --nb-grid-line: var(--nb-border);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --nb-surface: #1c1c1e;
+  --nb-surface-2: #2c2c2e;
+  --nb-surface-3: #3a3a3d;
+  --nb-canvas: #000000;
+  --nb-border: #3a3a3d;
+  --nb-text: #f5f4f6;
+  --nb-text-muted: #a3a0a8;
+  --nb-text-soft: #6f6c76;
+  --nb-grid-line: #59595f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+
+    --nb-surface: #1c1c1e;
+    --nb-surface-2: #2c2c2e;
+    --nb-surface-3: #3a3a3d;
+    --nb-canvas: #000000;
+    --nb-border: #3a3a3d;
+    --nb-text: #f5f4f6;
+    --nb-text-muted: #a3a0a8;
+    --nb-text-soft: #6f6c76;
+    --nb-grid-line: #59595f;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--nb-canvas);
+  color: var(--nb-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--color-accent-500);
+  color: var(--color-accent-ink);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/*
+ * Safe-area utilities for the native (Capacitor) build. On web these all
+ * resolve to 0 (env() falls back when there's no notch/home-indicator to
+ * avoid), so applying them everywhere doesn't change anything in the
+ * browser — only on an actual iPhone with a notch/Dynamic Island or a
+ * gesture-bar home indicator.
+ */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
