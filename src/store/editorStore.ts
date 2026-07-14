@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ColorMap, PatternDoc, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
-import { letterForIndex, paletteFromCells } from '@/lib/palette'
+import { letterForIndex, paletteFromCells, replaceColorInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
 export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select'
@@ -84,6 +84,8 @@ interface EditorState {
   paintCell: (row: number, col: number, hex: string | null) => void
   paintLine: (r0: number, c0: number, r1: number, c1: number, hex: string | null) => void
   pickColor: (row: number, col: number) => void
+  /** Repaints every cell of `fromHex` to `toHex` in one undo step — used by both "fusionar colores" and "reemplazar en todo el patrón". */
+  mergeColors: (fromHex: string, toHex: string) => void
 
   /** Stroke = one drag gesture (pencil/eraser) collapsed into a single undo step. */
   strokeBase: ColorMap | null
@@ -251,6 +253,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       })
       get().registerColor(hex)
     }
+  },
+
+  mergeColors: (fromHex, toHex) => {
+    get().registerColor(toHex)
+    get().commit(replaceColorInCells(get().cells, fromHex, toHex))
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),

@@ -26,3 +26,18 @@ export function letterForIndex(i: number): string {
   } while (n >= 0)
   return s
 }
+
+/**
+ * Repaints every cell currently `fromHex` to `toHex` — the shared mechanism
+ * behind both "fusionar colores" (merge into an existing palette color) and
+ * "reemplazar en todo el patrón" (recolor to an arbitrary new hex): the only
+ * difference between the two is where the caller sources `toHex` from.
+ */
+export function replaceColorInCells(cells: ColorMap, fromHex: string, toHex: string): ColorMap {
+  if (fromHex === toHex) return cells
+  const next: ColorMap = {}
+  for (const [key, hex] of Object.entries(cells)) {
+    next[key] = hex === fromHex ? toHex : hex
+  }
+  return next
+}

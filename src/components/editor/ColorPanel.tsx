@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, Plus } from 'lucide-react'
+import { ArrowDown, ArrowRight, Merge, Plus } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
-import { contrastTextColor } from '@/lib/color'
+import { catalogMatchForHex, contrastTextColor } from '@/lib/color'
 import { ColorPicker } from './ColorPicker'
 import { t } from '@/i18n/es'
 
@@ -22,8 +22,10 @@ export function ColorPanel() {
     setCloneDirection,
     cloneSelection,
     colorLetters,
+    mergeColors,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
+  const [mergeTarget, setMergeTarget] = useState<string | null>(null)
 
   // Sorted by letter (not usage count) so this list reads in the same
   // obvious A, B, C… order as the slot row above it, instead of jumping
@@ -141,18 +143,61 @@ export function ColorPanel() {
           {t.editor.palette} ({palette.length})
         </h3>
         <ul className="flex flex-col gap-1.5">
-          {palette.map((p) => (
-            <li key={p.hex} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2">
-              <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border text-[10px] font-bold"
-                style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
-              >
-                {colorLetters[p.hex] ?? ''}
-              </span>
-              <span className="flex-1 truncate font-mono text-xs text-text-muted">{p.hex}</span>
-              <span className="text-xs font-semibold">{p.count}</span>
-            </li>
-          ))}
+          {palette.map((p) => {
+            const match = catalogMatchForHex(p.hex)
+            const isMergeOpen = mergeTarget === p.hex
+            const otherColors = palette.filter((o) => o.hex !== p.hex)
+            return (
+              <li key={p.hex} className="rounded-lg hover:bg-surface-2">
+                <div className="flex items-center gap-2 px-2 py-1.5">
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border text-[10px] font-bold"
+                    style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
+                  >
+                    {colorLetters[p.hex] ?? ''}
+                  </span>
+                  <span className="flex-1 truncate text-xs text-text-muted" title={p.hex}>
+                    {match.exact ? '' : '~'}
+                    {match.color.code}
+                    <span className="ml-1 text-text-soft">· {match.color.name}</span>
+                  </span>
+                  <span className="text-xs font-semibold">{p.count}</span>
+                  {otherColors.length > 0 && (
+                    <button
+                      aria-label={t.advancedColor.merge}
+                      title={t.advancedColor.merge}
+                      onClick={() => setMergeTarget(isMergeOpen ? null : p.hex)}
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
+                        ${isMergeOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
+                    >
+                      <Merge size={13} />
+                    </button>
+                  )}
+                </div>
+                {isMergeOpen && (
+                  <div className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
+                    <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.merge}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {otherColors.map((o) => (
+                        <button
+                          key={o.hex}
+                          title={`${p.hex} → ${o.hex}`}
+                          onClick={() => {
+                            mergeColors(p.hex, o.hex)
+                            setMergeTarget(null)
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-[10px] font-bold"
+                          style={{ backgroundColor: o.hex, color: contrastTextColor(o.hex) }}
+                        >
+                          {colorLetters[o.hex] ?? ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </li>
+            )
+          })}
           {palette.length === 0 && <p className="text-xs text-text-soft">Sin colores todavía</p>}
         </ul>
       </section>
