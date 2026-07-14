@@ -57,6 +57,7 @@ export const t = {
   editor: {
     back: 'Volver',
     exportPdf: 'Exportar PDF',
+    exportLetters: 'Letras en el gráfico',
     tools: {
       pencil: 'Lápiz',
       line: 'Línea',
@@ -88,6 +89,17 @@ export const t = {
     beadsWoven: 'mostacillas tejidas',
     reset: 'Reiniciar',
     resetDone: 'Se reinició el progreso de tejido.',
+  },
+  pdf: {
+    brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
+    materials: 'Materiales',
+    threadEstimate: 'Hilo estimado',
+    needle: 'Aguja sugerida',
+    notes: 'Notas',
+    wordChartTitle: 'Secuencia de tejido',
+    section: (i: number, total: number) => `Sección ${i} de ${total}`,
+    columnsRange: (from: number, to: number) => `columnas ${from}–${to}`,
+    rowsRange: (from: number, to: number) => `filas ${from}–${to}`,
   },
   advancedColor: {
     title: 'Editor de color avanzado',

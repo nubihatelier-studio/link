@@ -207,7 +207,7 @@ function buildExactIndex(catalog: MiyukiColor[]) {
 /**
  * Resolves a hex to a catalog color: an exact swatch match if the hex came
  * straight from the catalog, otherwise the nearest one (marked `exact: false`)
- * so callers (palette list, PDF legend) can show "≈ DB-xx" for freehand colors.
+ * so callers (palette list, PDF legend) can show "~ DB-xx" for freehand colors.
  */
 export function catalogMatchForHex(
   hex: string,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { Download, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
@@ -12,6 +12,7 @@ import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { Button } from '@/components/shared/Button'
+import { IconButton } from '@/components/shared/IconButton'
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +22,7 @@ export function EditorPage() {
     useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [showLetters, setShowLetters] = useState(true)
 
   useEffect(() => {
     if (!id) return
@@ -48,7 +50,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, beadType: bead })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }
@@ -84,6 +86,14 @@ export function EditorPage() {
         >
           <Download size={18} />
         </button>
+        <IconButton
+          active={showLetters}
+          label={t.editor.exportLetters}
+          onClick={() => setShowLetters((v) => !v)}
+          className="h-9 w-9"
+        >
+          <Type size={16} />
+        </IconButton>
         <Button onClick={handleExport} disabled={exporting} className="px-4 py-2 text-sm">
           {exporting ? '…' : t.editor.exportPdf}
         </Button>
