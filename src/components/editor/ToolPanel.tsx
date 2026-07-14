@@ -100,10 +100,10 @@ export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
       </IconButton>
       {pasteArmed && (
         <>
-          <IconButton label="Voltear horizontal" active={pasteFlipH} onClick={toggleFlipH}>
+          <IconButton label={t.editor.pasteFlipH} active={pasteFlipH} onClick={toggleFlipH}>
             <FlipHorizontal2 size={18} />
           </IconButton>
-          <IconButton label="Voltear vertical" active={pasteFlipV} onClick={toggleFlipV}>
+          <IconButton label={t.editor.pasteFlipV} active={pasteFlipV} onClick={toggleFlipV}>
             <FlipVertical2 size={18} />
           </IconButton>
         </>
@@ -115,7 +115,7 @@ export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
         <Copy size={18} />
       </IconButton>
       {tool === 'select' && (
-        <IconButton label="Borrar selección" disabled={!selection} onClick={eraseSelection}>
+        <IconButton label={t.editor.eraseSelection} disabled={!selection} onClick={eraseSelection}>
           <Trash2 size={18} />
         </IconButton>
       )}

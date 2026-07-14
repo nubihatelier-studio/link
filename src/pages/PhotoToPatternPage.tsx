@@ -143,7 +143,7 @@ export function PhotoToPatternPage() {
       {imgUrl && (
         <>
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold text-text-muted">Técnica</h2>
+            <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.technique}</h2>
             <div className="grid grid-cols-3 gap-3">
               {TECHNIQUES.map((tech) => (
                 <button

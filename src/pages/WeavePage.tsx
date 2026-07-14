@@ -51,8 +51,8 @@ export function WeavePage() {
   if (!pattern || !id) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="text-text-muted">No se encontró el patrón.</p>
-        <Button onClick={() => navigate('/')}>Volver al inicio</Button>
+        <p className="text-text-muted">{t.common.patternNotFound}</p>
+        <Button onClick={() => navigate('/')}>{t.common.goHome}</Button>
       </div>
     )
   }

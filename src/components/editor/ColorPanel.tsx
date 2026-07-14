@@ -47,7 +47,7 @@ export function ColorPanel() {
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
       {selection && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Clonar</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.clone}</h3>
           <p className="mb-3 text-sm text-text-muted">
             {cloneWidth} × {cloneHeight}
           </p>
@@ -55,19 +55,19 @@ export function ColorPanel() {
           <div className="flex flex-col gap-2">
             <CloneDirectionButton
               icon={ArrowDown}
-              label="Vertical"
+              label={t.editor.cloneVertical}
               active={cloneDirection === 'vertical'}
               onClick={() => setCloneDirection('vertical')}
             />
             <CloneDirectionButton
               icon={ArrowRight}
-              label="Horizontal"
+              label={t.editor.cloneHorizontal}
               active={cloneDirection === 'horizontal'}
               onClick={() => setCloneDirection('horizontal')}
             />
           </div>
 
-          <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-text-muted">Repetir</h3>
+          <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.repeat}</h3>
           <div className="grid grid-cols-3 gap-2">
             {CLONE_REPEATS.map((n) => (
               <button
@@ -108,7 +108,7 @@ export function ColorPanel() {
         </h3>
         <div className="flex items-center gap-3">
           <button
-            title="Mostrar/ocultar selector de color"
+            title={t.editor.colorPickerToggle}
             className="h-12 w-12 shrink-0 rounded-xl border border-border"
             style={{ backgroundColor: activeHex }}
             onClick={() => setPickerOpen((v) => !v)}
@@ -133,8 +133,8 @@ export function ColorPanel() {
               addSlot()
               setPickerOpen(true)
             }}
-            aria-label="Agregar color"
-            title="Agregar color"
+            aria-label={t.editor.addColor}
+            title={t.editor.addColor}
             className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-border text-text-muted transition-colors hover:border-accent-500 hover:text-accent-500"
           >
             <Plus size={16} />
@@ -219,7 +219,7 @@ export function ColorPanel() {
               </li>
             )
           })}
-          {palette.length === 0 && <p className="text-xs text-text-soft">Sin colores todavía</p>}
+          {palette.length === 0 && <p className="text-xs text-text-soft">{t.editor.paletteEmpty}</p>}
         </ul>
       </section>
     </div>

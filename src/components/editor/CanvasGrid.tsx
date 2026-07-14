@@ -4,6 +4,7 @@ import { cellAtPosition, cellPosition, gridBoundsUnits } from '@/engine/geometry
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { contrastTextColor } from '@/lib/color'
+import { t } from '@/i18n/es'
 
 const BASE_CELL_PX = 30
 const MARGIN = 28
@@ -529,7 +530,7 @@ export function CanvasGrid() {
         className="no-scrollbar h-full w-full overflow-auto bg-canvas p-4"
         tabIndex={0}
         role="grid"
-        aria-label="Lienzo del patrón"
+        aria-label={t.editor.canvasLabel}
         onKeyDown={handleKeyDown}
       >
         <div className="flex min-h-full min-w-full items-center justify-center">

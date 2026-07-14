@@ -33,8 +33,8 @@ export function EditorPage() {
   if (!id || !getPattern(id)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="text-text-muted">No se encontró el patrón.</p>
-        <Button onClick={() => navigate('/')}>Volver al inicio</Button>
+        <p className="text-text-muted">{t.common.patternNotFound}</p>
+        <Button onClick={() => navigate('/')}>{t.common.goHome}</Button>
       </div>
     )
   }
@@ -108,7 +108,7 @@ export function EditorPage() {
           <div className="mb-3 hidden items-center gap-2 md:flex">
             <button
               onClick={() => setZoom(zoom - 25)}
-              aria-label="Alejar"
+              aria-label={t.editor.zoomOut}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-2"
             >
               −
@@ -116,7 +116,7 @@ export function EditorPage() {
             <span className="w-14 text-center text-sm font-semibold">{zoom}%</span>
             <button
               onClick={() => setZoom(zoom + 25)}
-              aria-label="Acercar"
+              aria-label={t.editor.zoomIn}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-2"
             >
               +

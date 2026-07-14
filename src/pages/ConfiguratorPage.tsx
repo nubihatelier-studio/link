@@ -188,7 +188,7 @@ export function ConfiguratorPage() {
       >
         <span>
           <span className="block font-semibold">{t.configurator.photoToPattern}</span>
-          <span className="block text-xs text-text-muted">Genera un patrón a partir de una foto</span>
+          <span className="block text-xs text-text-muted">{t.configurator.photoToPatternDesc}</span>
         </span>
         <span className="text-xl">📷</span>
       </button>
