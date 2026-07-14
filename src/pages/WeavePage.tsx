@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
-import { buildWeaveOrder, firstIndexOfRow } from '@/engine/weaveOrder'
+import { buildWeaveOrder, firstIndexOfUnit, unitIndexOf, weaveUnit } from '@/engine/weaveOrder'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
 import { Button } from '@/components/shared/Button'
+import { UndoToast } from '@/components/shared/UndoToast'
 
 export function WeavePage() {
   const { id } = useParams<{ id: string }>()
@@ -13,6 +14,8 @@ export function WeavePage() {
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
   const { getIndex, setIndex, reset, loadProgress } = useWeaveStore()
   const touchStartX = useRef<number | null>(null)
+  // Captured index to restore if "Reiniciar" gets undone within the toast window.
+  const [pendingReset, setPendingReset] = useState<number | null>(null)
 
   useEffect(() => {
     if (id) loadProgress(id)
@@ -22,9 +25,13 @@ export function WeavePage() {
     () => (pattern ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows) : []),
     [pattern],
   )
+  const technique = pattern?.config.technique ?? 'loom'
+  const unit = weaveUnit(technique)
+  const unitLabel = unit === 'column' ? t.weave.column : t.weave.row
   const currentIndex = id ? getIndex(id) : -1
   const total = order.length
-  const currentRow = order[currentIndex]?.row ?? 0
+  const currentUnitIndex = order[currentIndex] ? unitIndexOf(technique, order[currentIndex]) : 0
+  const unitCount = unit === 'column' ? (pattern?.config.cols ?? 0) : (pattern?.config.rows ?? 0)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -56,13 +63,21 @@ export function WeavePage() {
   function goBack() {
     setIndex(id!, Math.max(-1, currentIndex - 1))
   }
-  function markRowDone() {
-    const nextRowStart = firstIndexOfRow(order, currentRow + 1)
-    setIndex(id!, nextRowStart === -1 ? total - 1 : nextRowStart - 1)
+  function markUnitDone() {
+    const nextStart = firstIndexOfUnit(technique, order, currentUnitIndex + 1)
+    setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1)
   }
-  function jumpToRow(row: number) {
-    const start = firstIndexOfRow(order, row)
+  function jumpToUnit(unitIdx: number) {
+    const start = firstIndexOfUnit(technique, order, unitIdx)
     if (start !== -1) setIndex(id!, start - 1)
+  }
+  function requestReset() {
+    setPendingReset(currentIndex)
+    reset(id!)
+  }
+  function undoReset() {
+    if (pendingReset !== null) setIndex(id!, pendingReset)
+    setPendingReset(null)
   }
 
   return (
@@ -83,11 +98,11 @@ export function WeavePage() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-bold">{pattern.name}</p>
           <p className="text-xs text-text-muted">
-            {t.weave.row} {currentRow + 1} · {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
+            {unitLabel} {currentUnitIndex + 1} · {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
           </p>
         </div>
-        <button onClick={() => reset(id)} className="rounded-full px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2">
-          Reiniciar
+        <button onClick={requestReset} className="rounded-full px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2">
+          {t.weave.reset}
         </button>
       </header>
 
@@ -105,20 +120,22 @@ export function WeavePage() {
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-center gap-2">
-          <label className="text-xs text-text-muted">{t.weave.jumpToRow}</label>
+          <label className="text-xs text-text-muted">
+            {unit === 'column' ? t.weave.jumpToColumn : t.weave.jumpToRow}
+          </label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
-            value={currentRow}
-            onChange={(e) => jumpToRow(Number(e.target.value))}
+            value={currentUnitIndex}
+            onChange={(e) => jumpToUnit(Number(e.target.value))}
           >
-            {Array.from({ length: pattern.config.rows }, (_, r) => (
-              <option key={r} value={r}>
-                {t.weave.row} {r + 1}
+            {Array.from({ length: unitCount }, (_, i) => (
+              <option key={i} value={i}>
+                {unitLabel} {i + 1}
               </option>
             ))}
           </select>
-          <button onClick={markRowDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
-            {t.weave.markRowDone}
+          <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
+            {unit === 'column' ? t.weave.markColumnDone : t.weave.markRowDone}
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -130,6 +147,10 @@ export function WeavePage() {
           </Button>
         </div>
       </footer>
+
+      {pendingReset !== null && (
+        <UndoToast message={t.weave.resetDone} onUndo={undoReset} onExpire={() => setPendingReset(null)} />
+      )}
     </div>
   )
 }

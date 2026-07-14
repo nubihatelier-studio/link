@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
+import type { PatternDoc } from '@/engine/types'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
+import { UndoToast } from '@/components/shared/UndoToast'
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -16,6 +18,25 @@ export function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Optimistically hidden from the list while its undo window is open —
+  // only actually deleted once the toast expires without being undone.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; doc: PatternDoc } | null>(null)
+
+  function requestDelete(doc: PatternDoc) {
+    // Only one undo window open at a time: finalize whatever was already pending.
+    if (pendingDelete) deletePattern(pendingDelete.id)
+    setPendingDelete({ id: doc.id, doc })
+  }
+
+  function undoDelete() {
+    setPendingDelete(null)
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return
+    deletePattern(pendingDelete.id)
+    setPendingDelete(null)
+  }
 
   async function handleImportFile(file: File) {
     setImportMessage(null)
@@ -87,13 +108,14 @@ export function HomePage() {
 
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
 
-      {order.length === 0 ? (
+      {order.filter((id) => id !== pendingDelete?.id).length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
           {t.home.empty}
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
           {order.map((id) => {
+            if (id === pendingDelete?.id) return null
             const p = patterns[id]
             if (!p) return null
             const bead = getBeadType(p.config.beadTypeId)
@@ -125,7 +147,7 @@ export function HomePage() {
                   className="shrink-0 rounded-full px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`¿Eliminar "${p.name}"?`)) deletePattern(id)
+                    requestDelete(p)
                   }}
                 >
                   {t.common.delete}
@@ -141,6 +163,15 @@ export function HomePage() {
           {t.home.createNew}
         </Button>
       </div>
+
+      {pendingDelete && (
+        <UndoToast
+          key={pendingDelete.id}
+          message={t.common.deletedPattern(pendingDelete.doc.name)}
+          onUndo={undoDelete}
+          onExpire={confirmDelete}
+        />
+      )}
     </div>
   )
 }

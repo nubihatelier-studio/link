@@ -77,12 +77,17 @@ export const t = {
   weave: {
     title: 'Modo tejido',
     row: 'Fila',
+    column: 'Columna',
     of: 'de',
     jumpToRow: 'Ir a fila',
+    jumpToColumn: 'Ir a columna',
     markRowDone: 'Marcar fila hecha',
+    markColumnDone: 'Marcar columna hecha',
     back: 'Retroceder',
     next: 'Siguiente',
     beadsWoven: 'mostacillas tejidas',
+    reset: 'Reiniciar',
+    resetDone: 'Se reinició el progreso de tejido.',
   },
   advancedColor: {
     title: 'Editor de color avanzado',
@@ -98,5 +103,7 @@ export const t = {
     duplicate: 'Duplicar',
     close: 'Cerrar',
     confirm: 'Confirmar',
+    undo: 'Deshacer',
+    deletedPattern: (name: string) => `Se eliminó "${name}".`,
   },
 }
