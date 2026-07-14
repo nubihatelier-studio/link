@@ -173,6 +173,90 @@ export function deltaE(a: Lab, b: Lab): number {
   return Math.sqrt(dl * dl + da * da + db * db)
 }
 
+const RAD = Math.PI / 180
+const DEG = 180 / Math.PI
+
+/** atan2 in degrees, normalized to [0, 360). */
+function atan2Deg(y: number, x: number): number {
+  if (y === 0 && x === 0) return 0
+  const deg = Math.atan2(y, x) * DEG
+  return deg < 0 ? deg + 360 : deg
+}
+
+/**
+ * CIEDE2000 perceptual color difference (Sharma, Wu & Dalal 2005) — the
+ * industry-standard successor to plain Lab Euclidean distance (`deltaE`),
+ * correcting for the eye's uneven sensitivity across hue/chroma/lightness.
+ * Used to decide whether two quantized photo colors are close enough to
+ * merge (see lib/imageToPattern.ts) — CIE76 tends to overstate differences
+ * in saturated colors, which under `deltaE` alone left near-duplicate
+ * anti-aliasing artifacts unmerged.
+ */
+export function deltaE2000(labA: Lab, labB: Lab): number {
+  const { l: L1, a: a1, b: b1 } = labA
+  const { l: L2, a: a2, b: b2 } = labB
+
+  const C1 = Math.sqrt(a1 * a1 + b1 * b1)
+  const C2 = Math.sqrt(a2 * a2 + b2 * b2)
+  const Cbar = (C1 + C2) / 2
+
+  const Cbar7 = Cbar ** 7
+  const G = 0.5 * (1 - Math.sqrt(Cbar7 / (Cbar7 + 25 ** 7)))
+
+  const a1p = a1 * (1 + G)
+  const a2p = a2 * (1 + G)
+
+  const C1p = Math.sqrt(a1p * a1p + b1 * b1)
+  const C2p = Math.sqrt(a2p * a2p + b2 * b2)
+
+  const h1p = atan2Deg(b1, a1p)
+  const h2p = atan2Deg(b2, a2p)
+
+  const dLp = L2 - L1
+  const dCp = C2p - C1p
+
+  let dhp = 0
+  if (C1p * C2p !== 0) {
+    dhp = h2p - h1p
+    if (dhp > 180) dhp -= 360
+    else if (dhp < -180) dhp += 360
+  }
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp * RAD) / 2)
+
+  const Lbarp = (L1 + L2) / 2
+  const Cbarp = (C1p + C2p) / 2
+
+  let hbarp: number
+  if (C1p * C2p === 0) {
+    hbarp = h1p + h2p
+  } else if (Math.abs(h1p - h2p) > 180) {
+    hbarp = h1p + h2p < 360 ? (h1p + h2p + 360) / 2 : (h1p + h2p - 360) / 2
+  } else {
+    hbarp = (h1p + h2p) / 2
+  }
+
+  const T =
+    1 -
+    0.17 * Math.cos((hbarp - 30) * RAD) +
+    0.24 * Math.cos(2 * hbarp * RAD) +
+    0.32 * Math.cos((3 * hbarp + 6) * RAD) -
+    0.2 * Math.cos((4 * hbarp - 63) * RAD)
+
+  const dTheta = 30 * Math.exp(-(((hbarp - 275) / 25) ** 2))
+  const Cbarp7 = Cbarp ** 7
+  const Rc = 2 * Math.sqrt(Cbarp7 / (Cbarp7 + 25 ** 7))
+  const Sl = 1 + (0.015 * (Lbarp - 50) ** 2) / Math.sqrt(20 + (Lbarp - 50) ** 2)
+  const Sc = 1 + 0.045 * Cbarp
+  const Sh = 1 + 0.015 * Cbarp * T
+  const Rt = -Math.sin(2 * dTheta * RAD) * Rc
+
+  const dLTerm = dLp / Sl
+  const dCTerm = dCp / Sc
+  const dHTerm = dHp / Sh
+
+  return Math.sqrt(dLTerm ** 2 + dCTerm ** 2 + dHTerm ** 2 + Rt * dCTerm * dHTerm)
+}
+
 const catalogLabCache = new Map<string, Lab>()
 function labFor(color: MiyukiColor): Lab {
   let lab = catalogLabCache.get(color.code)
