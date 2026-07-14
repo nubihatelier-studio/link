@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import {
   Pencil,
   Minus,
+  PaintBucket,
   Eraser,
   Square,
   Pipette,
@@ -26,6 +27,7 @@ import { t } from '@/i18n/es'
 const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof typeof t.editor.tools }[] = [
   { id: 'pencil', icon: Pencil, labelKey: 'pencil' },
   { id: 'line', icon: Minus, labelKey: 'line' },
+  { id: 'fill', icon: PaintBucket, labelKey: 'fill' },
   { id: 'eraser', icon: Eraser, labelKey: 'eraser' },
   { id: 'rectErase', icon: Square, labelKey: 'rectErase' },
   { id: 'eyedropper', icon: Pipette, labelKey: 'eyedropper' },

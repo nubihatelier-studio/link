@@ -59,6 +59,7 @@ export function CanvasGrid() {
     strokeEnd,
     paintLine,
     pickColor,
+    floodFill,
     pasteClipboardAt,
     copySelection,
     armPaste,
@@ -353,6 +354,9 @@ export function CanvasGrid() {
         break
       case 'eyedropper':
         pickColor(cell.row, cell.col)
+        break
+      case 'fill':
+        floodFill(cell.row, cell.col, activeColor)
         break
       case 'line':
         if (!lineStart) {

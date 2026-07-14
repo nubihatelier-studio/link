@@ -2,10 +2,11 @@ import { create } from 'zustand'
 import type { ColorMap, PatternDoc, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
+import { floodFillCells } from '@/engine/floodFill'
 import { letterForIndex, paletteFromCells, replaceColorInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
-export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select'
+export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill'
 /** Index into the `slots` array — the quick-access palette grows as colors are added, so slots are no longer a fixed A–D set. */
 export type SlotId = number
 export type CloneDirection = 'vertical' | 'horizontal'
@@ -86,6 +87,8 @@ interface EditorState {
   pickColor: (row: number, col: number) => void
   /** Repaints every cell of `fromHex` to `toHex` in one undo step — used by both "fusionar colores" and "reemplazar en todo el patrón". */
   mergeColors: (fromHex: string, toHex: string) => void
+  /** Flood-fills the contiguous same-color region starting at (row, col) with `hex` (or erases it). */
+  floodFill: (row: number, col: number, hex: string | null) => void
 
   /** Stroke = one drag gesture (pencil/eraser) collapsed into a single undo step. */
   strokeBase: ColorMap | null
@@ -258,6 +261,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   mergeColors: (fromHex, toHex) => {
     get().registerColor(toHex)
     get().commit(replaceColorInCells(get().cells, fromHex, toHex))
+  },
+
+  floodFill: (row, col, hex) => {
+    const { cells, cols, rows } = get()
+    if (hex) get().registerColor(hex)
+    get().commit(floodFillCells(cells, cols, rows, row, col, hex))
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),

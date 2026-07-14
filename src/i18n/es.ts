@@ -61,6 +61,7 @@ export const t = {
     tools: {
       pencil: 'Lápiz',
       line: 'Línea',
+      fill: 'Relleno',
       eraser: 'Borrador',
       rectErase: 'Borrar área',
       eyedropper: 'Pipeta',
