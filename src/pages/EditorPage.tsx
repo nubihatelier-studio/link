@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
 import { exportPatternToPdf } from '@/lib/pdfExport'
+import { exportPatternBackup } from '@/storage/backup'
 import { t } from '@/i18n/es'
 import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { ToolPanel } from '@/components/editor/ToolPanel'
@@ -38,6 +40,11 @@ export function EditorPage() {
   const bead = getBeadType(beadTypeId)
   const total = beadCount(technique, cols, rows)
 
+  function handleBackupPattern() {
+    const doc = id ? getPattern(id) : undefined
+    if (doc) exportPatternBackup(doc)
+  }
+
   async function handleExport() {
     setExporting(true)
     try {
@@ -68,6 +75,14 @@ export function EditorPage() {
           className="hidden rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold hover:bg-surface-3 sm:block"
         >
           {t.editor.weaveMode}
+        </button>
+        <button
+          onClick={handleBackupPattern}
+          aria-label={t.backup.exportPattern}
+          title={t.backup.exportPattern}
+          className="rounded-full p-2 text-text-muted hover:bg-surface-2 hover:text-text"
+        >
+          <Download size={18} />
         </button>
         <Button onClick={handleExport} disabled={exporting} className="px-4 py-2 text-sm">
           {exporting ? '…' : t.editor.exportPdf}

@@ -13,6 +13,13 @@ export const t = {
     createNew: '+ Crear nuevo',
     stats: 'Mis estadísticas',
   },
+  backup: {
+    exportAll: 'Descargar respaldo completo',
+    exportPattern: 'Descargar este patrón',
+    import: 'Importar respaldo',
+    importSuccess: (count: number) => (count === 1 ? 'Se importó 1 patrón.' : `Se importaron ${count} patrones.`),
+    importError: 'No se pudo importar el archivo',
+  },
   technique: {
     loom: 'Loom',
     peyote: 'Peyote',

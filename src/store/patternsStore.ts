@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { ColorMap, PatternConfig, PatternDoc } from '@/engine/types'
+import { getStorageAdapter } from '@/storage'
+import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -9,6 +10,13 @@ function makeId(): string {
 interface PatternsState {
   patterns: Record<string, PatternDoc>
   order: string[]
+  /** False until `hydrate()` has loaded patterns from the storage adapter. */
+  hydrated: boolean
+  migrationResult: MigrationResult | null
+  hydrate: () => Promise<void>
+  /** Re-lists patterns from the storage adapter without re-running migration — use after an import. */
+  refresh: () => Promise<void>
+
   createPattern: (config: PatternConfig, name?: string) => string
   createPatternWithCells: (config: PatternConfig, cells: ColorMap, name?: string) => string
   renamePattern: (id: string, name: string) => void
@@ -19,92 +27,141 @@ interface PatternsState {
   getPattern: (id: string) => PatternDoc | undefined
 }
 
-export const usePatternsStore = create<PatternsState>()(
-  persist(
-    (set, get) => ({
-      patterns: {},
-      order: [],
+/**
+ * Fire-and-forget write-through to the storage adapter. Every mutating
+ * action below updates in-memory state synchronously first (so callers like
+ * `createPattern` can keep returning an id immediately and `navigate()` to
+ * it without awaiting anything), then persists just that one record in the
+ * background — not the whole collection, unlike the old localStorage blob.
+ */
+function persistPattern(doc: PatternDoc) {
+  getStorageAdapter()
+    .then((adapter) => adapter.savePattern(doc))
+    .catch((err) => console.error('No se pudo guardar el patrón', err))
+}
 
-      createPattern: (config, name) => {
-        const id = makeId()
-        const doc: PatternDoc = {
-          id,
-          name: name ?? `Patrón ${get().order.length + 1}`,
-          config,
-          cells: {},
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        }
-        set((s) => ({ patterns: { ...s.patterns, [id]: doc }, order: [id, ...s.order] }))
-        return id
-      },
+function persistDelete(id: string) {
+  getStorageAdapter()
+    .then((adapter) => adapter.deletePattern(id))
+    .catch((err) => console.error('No se pudo eliminar el patrón', err))
+}
 
-      createPatternWithCells: (config, cells, name) => {
-        const id = makeId()
-        const doc: PatternDoc = {
-          id,
-          name: name ?? `Patrón ${get().order.length + 1}`,
-          config,
-          cells,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        }
-        set((s) => ({ patterns: { ...s.patterns, [id]: doc }, order: [id, ...s.order] }))
-        return id
-      },
+export const usePatternsStore = create<PatternsState>()((set, get) => ({
+  patterns: {},
+  order: [],
+  hydrated: false,
+  migrationResult: null,
 
-      renamePattern: (id, name) => {
-        set((s) => {
-          const doc = s.patterns[id]
-          if (!doc) return s
-          return { patterns: { ...s.patterns, [id]: { ...doc, name, updatedAt: Date.now() } } }
-        })
-      },
+  hydrate: async () => {
+    if (get().hydrated) return
+    const adapter = await getStorageAdapter()
+    const migrationResult = await migrateFromLocalStorage(adapter)
+    const docs = await adapter.listPatterns()
+    const patterns: Record<string, PatternDoc> = {}
+    for (const doc of docs) patterns[doc.id] = doc
+    const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
+    set({ patterns, order, hydrated: true, migrationResult })
+  },
 
-      deletePattern: (id) => {
-        set((s) => {
-          const next = { ...s.patterns }
-          delete next[id]
-          return { patterns: next, order: s.order.filter((x) => x !== id) }
-        })
-      },
+  refresh: async () => {
+    const adapter = await getStorageAdapter()
+    const docs = await adapter.listPatterns()
+    const patterns: Record<string, PatternDoc> = {}
+    for (const doc of docs) patterns[doc.id] = doc
+    const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
+    set({ patterns, order })
+  },
 
-      duplicatePattern: (id) => {
-        const src = get().patterns[id]
-        if (!src) return null
-        const newId = makeId()
-        const doc: PatternDoc = {
-          ...src,
-          id: newId,
-          name: `${src.name} (copia)`,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        }
-        set((s) => ({ patterns: { ...s.patterns, [newId]: doc }, order: [newId, ...s.order] }))
-        return newId
-      },
+  createPattern: (config, name) => {
+    const id = makeId()
+    const doc: PatternDoc = {
+      id,
+      name: name ?? `Patrón ${get().order.length + 1}`,
+      config,
+      cells: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    set((s) => ({ patterns: { ...s.patterns, [id]: doc }, order: [id, ...s.order] }))
+    persistPattern(doc)
+    return id
+  },
 
-      setCells: (id, cells) => {
-        set((s) => {
-          const doc = s.patterns[id]
-          if (!doc) return s
-          return { patterns: { ...s.patterns, [id]: { ...doc, cells, updatedAt: Date.now() } } }
-        })
-      },
+  createPatternWithCells: (config, cells, name) => {
+    const id = makeId()
+    const doc: PatternDoc = {
+      id,
+      name: name ?? `Patrón ${get().order.length + 1}`,
+      config,
+      cells,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    set((s) => ({ patterns: { ...s.patterns, [id]: doc }, order: [id, ...s.order] }))
+    persistPattern(doc)
+    return id
+  },
 
-      setCell: (id, key, hex) => {
-        set((s) => {
-          const doc = s.patterns[id]
-          if (!doc) return s
-          const cells = { ...doc.cells }
-          if (hex) cells[key] = hex
-          else delete cells[key]
-          return { patterns: { ...s.patterns, [id]: { ...doc, cells, updatedAt: Date.now() } } }
-        })
-      },
+  renamePattern: (id, name) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, name, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
 
-      getPattern: (id) => get().patterns[id],
-    }),
-    { name: 'nubih-patterns' },
-  ),
-)
+  deletePattern: (id) => {
+    set((s) => {
+      const next = { ...s.patterns }
+      delete next[id]
+      return { patterns: next, order: s.order.filter((x) => x !== id) }
+    })
+    persistDelete(id)
+  },
+
+  duplicatePattern: (id) => {
+    const src = get().patterns[id]
+    if (!src) return null
+    const newId = makeId()
+    const doc: PatternDoc = {
+      ...src,
+      id: newId,
+      name: `${src.name} (copia)`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    set((s) => ({ patterns: { ...s.patterns, [newId]: doc }, order: [newId, ...s.order] }))
+    persistPattern(doc)
+    return newId
+  },
+
+  setCells: (id, cells) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, cells, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setCell: (id, key, hex) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      const cells = { ...doc.cells }
+      if (hex) cells[key] = hex
+      else delete cells[key]
+      updated = { ...doc, cells, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  getPattern: (id) => get().patterns[id],
+}))

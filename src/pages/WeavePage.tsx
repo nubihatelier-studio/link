@@ -11,8 +11,12 @@ export function WeavePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
-  const { getIndex, setIndex, reset } = useWeaveStore()
+  const { getIndex, setIndex, reset, loadProgress } = useWeaveStore()
   const touchStartX = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (id) loadProgress(id)
+  }, [id, loadProgress])
 
   const order = useMemo(
     () => (pattern ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows) : []),

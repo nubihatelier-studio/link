@@ -1,16 +1,37 @@
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import { t } from '@/i18n/es'
+import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
 
 export function HomePage() {
   const navigate = useNavigate()
-  const { patterns, order, deletePattern, duplicatePattern } = usePatternsStore()
+  const { patterns, order, deletePattern, duplicatePattern, refresh } = usePatternsStore()
   const { theme, setTheme } = useThemeStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleImportFile(file: File) {
+    setImportMessage(null)
+    setBusy(true)
+    try {
+      const raw = await file.text()
+      const parsed = parseBackupFile(raw)
+      const { importedCount } = await importBackupFile(parsed)
+      await refresh()
+      setImportMessage(t.backup.importSuccess(importedCount))
+    } catch (err) {
+      setImportMessage((err as Error).message || t.backup.importError)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -33,6 +54,35 @@ export function HomePage() {
       <div className="mb-6 flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3">
         <span className="text-sm text-text-muted">{t.home.stats}</span>
         <span className="rounded-full bg-surface-3 px-3 py-1 text-xs text-text-soft">Próximamente</span>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) handleImportFile(file)
+            e.target.value = ''
+          }}
+        />
+        <button
+          disabled={busy || order.length === 0}
+          onClick={() => exportFullBackup()}
+          className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3 disabled:opacity-40"
+        >
+          {t.backup.exportAll}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3 disabled:opacity-40"
+        >
+          {t.backup.import}
+        </button>
+        {importMessage && <span className="text-xs text-text-muted">{importMessage}</span>}
       </div>
 
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
