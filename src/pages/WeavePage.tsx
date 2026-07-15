@@ -109,7 +109,10 @@ export function WeavePage() {
       onTouchEnd={(e) => {
         if (touchStartX.current == null) return
         const dx = e.changedTouches[0].clientX - touchStartX.current
-        if (Math.abs(dx) > 50) (dx < 0 ? advance() : goBack())
+        if (Math.abs(dx) > 50) {
+          if (dx < 0) advance()
+          else goBack()
+        }
         touchStartX.current = null
       }}
     >

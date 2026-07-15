@@ -5,7 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { useThemeStore } from '@/store/themeStore'
 
-// Apply persisted theme before first paint.
+// Apply the persisted theme before first paint — avoids a flash of the wrong theme.
 useThemeStore.getState().setTheme(useThemeStore.getState().theme)
 
 createRoot(document.getElementById('root')!).render(

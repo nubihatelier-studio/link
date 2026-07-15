@@ -21,6 +21,7 @@ vi.mock('jspdf', async (importOriginal) => {
   class SpyJsPDF extends actual.jsPDF {
     constructor(...args: ConstructorParameters<typeof actual.jsPDF>) {
       super(...args)
+      // oxlint-disable-next-line typescript/no-this-alias -- intentional: capturing the constructed instance for assertions.
       lastDoc = this
     }
   }

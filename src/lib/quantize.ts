@@ -29,7 +29,7 @@ export function kMeansQuantize(pixels: RGB[], k: number, maxIterations = 12): { 
     centroids.push(labs[idx])
   }
 
-  let assignments = new Array(labs.length).fill(0)
+  let assignments = Array.from({ length: labs.length }, () => 0)
 
   for (let iter = 0; iter < maxIterations; iter++) {
     let changed = false
@@ -64,7 +64,7 @@ export function kMeansQuantize(pixels: RGB[], k: number, maxIterations = 12): { 
     if (!changed) break
   }
 
-  const counts = new Array(centroids.length).fill(0)
+  const counts = Array.from({ length: centroids.length }, () => 0)
   for (const a of assignments) counts[a]++
 
   return { centroids, counts }
@@ -139,7 +139,7 @@ export function mergeSimilarColors(centroids: Lab[], counts: number[], threshold
     nodes.push(merged)
   }
 
-  const mapping = new Array(centroids.length).fill(0)
+  const mapping = Array.from({ length: centroids.length }, () => 0)
   nodes.forEach((node, clusterIdx) => {
     for (const origIdx of node.members) mapping[origIdx] = clusterIdx
   })
