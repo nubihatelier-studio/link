@@ -8,6 +8,7 @@ import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
 import { Card } from '@/components/shared/Card'
+import { SelectableCard } from '@/components/shared/SelectableCard'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
@@ -69,10 +70,9 @@ export function ConfiguratorPage() {
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.technique}</h2>
         <div className="grid grid-cols-3 gap-3">
           {TECHNIQUES.map((tech) => (
-            <Card
+            <SelectableCard
               key={tech}
               selected={technique === tech}
-              interactive
               onClick={() => setTechnique(tech)}
               className="flex flex-col items-center gap-2 py-5 text-center"
             >
@@ -81,7 +81,7 @@ export function ConfiguratorPage() {
               <p className="text-xs text-text-muted">
                 {tech === 'loom' ? t.technique.loomDesc : tech === 'peyote' ? t.technique.peyoteDesc : t.technique.brickDesc}
               </p>
-            </Card>
+            </SelectableCard>
           ))}
         </div>
       </section>
@@ -121,7 +121,7 @@ export function ConfiguratorPage() {
               <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalWidth}</span>
               <input
                 type="number"
-                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500"
+                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                 value={Number(fromMm(size.widthMm, unit).toFixed(2))}
                 onChange={(e) => updateFinalWidth(Number(e.target.value) || 0)}
               />
@@ -130,7 +130,7 @@ export function ConfiguratorPage() {
               <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalHeight}</span>
               <input
                 type="number"
-                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500"
+                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                 value={Number(fromMm(size.heightMm, unit).toFixed(2))}
                 onChange={(e) => updateFinalHeight(Number(e.target.value) || 0)}
               />
@@ -138,7 +138,7 @@ export function ConfiguratorPage() {
             <label className="w-24">
               <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.unit}</span>
               <select
-                className="w-full rounded-xl border border-border bg-surface-2 px-2 py-2 outline-none"
+                className="w-full rounded-xl border border-border bg-surface-2 px-2 py-2 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value as MeasurementUnit)}
               >
@@ -158,10 +158,9 @@ export function ConfiguratorPage() {
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.beadType}</h2>
         <div className="grid grid-cols-2 gap-3">
           {BEAD_TYPES.map((b) => (
-            <Card
+            <SelectableCard
               key={b.id}
               selected={beadTypeId === b.id}
-              interactive
               onClick={() => setBeadTypeId(b.id)}
               className="flex flex-col gap-1"
             >
@@ -169,7 +168,7 @@ export function ConfiguratorPage() {
               <p className="text-xs text-text-muted">
                 {b.widthMm} × {b.heightMm} mm
               </p>
-            </Card>
+            </SelectableCard>
           ))}
         </div>
       </section>

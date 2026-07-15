@@ -30,6 +30,15 @@ export function EditorPage() {
     if (doc) loadPattern(doc)
   }, [id, getPattern, loadPattern])
 
+  useEffect(() => {
+    if (!colorDrawerOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setColorDrawerOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [colorDrawerOpen])
+
   if (!id || !getPattern(id)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
@@ -66,7 +75,7 @@ export function EditorPage() {
           <input
             value={name}
             onChange={(e) => renamePattern(e.target.value)}
-            className="w-full truncate bg-transparent text-lg font-bold outline-none"
+            className="w-full truncate rounded bg-transparent text-lg font-bold outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
           />
           <p className="truncate text-xs text-text-muted">
             {t.technique[technique]} · {cols}×{rows} · {bead.label} · {total} mostacillas

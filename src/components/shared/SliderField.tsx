@@ -35,9 +35,9 @@ export function SliderField({
           max={max}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className={`h-2 flex-1 cursor-pointer appearance-none rounded-full bg-surface-3 ${trackAccentClassName}`}
+          className={`h-2 flex-1 cursor-pointer appearance-none rounded-full bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500 ${trackAccentClassName}`}
         />
-        <div className="flex items-center gap-1 rounded-xl bg-surface-3 px-3 py-2">
+        <div className="flex items-center gap-1 rounded-xl bg-surface-3 px-3 py-2 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-500">
           <input
             type="number"
             min={min}

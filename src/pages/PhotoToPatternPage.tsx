@@ -7,7 +7,7 @@ import { catalogMatchForHex } from '@/lib/color'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
-import { Card } from '@/components/shared/Card'
+import { SelectableCard } from '@/components/shared/SelectableCard'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -146,14 +146,15 @@ export function PhotoToPatternPage() {
             <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.technique}</h2>
             <div className="grid grid-cols-3 gap-3">
               {TECHNIQUES.map((tech) => (
-                <button
+                <SelectableCard
                   key={tech}
+                  selected={technique === tech}
                   onClick={() => handleTechniqueChange(tech)}
-                  className={`flex flex-col items-center gap-2 rounded-2xl border py-4 ${technique === tech ? 'border-accent-500 bg-accent-500/10' : 'border-border bg-surface-2'}`}
+                  className="flex flex-col items-center gap-2 py-4 text-center"
                 >
                   <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
                   <span className="text-sm font-semibold">{t.technique[tech]}</span>
-                </button>
+                </SelectableCard>
               ))}
             </div>
           </section>
@@ -162,10 +163,9 @@ export function PhotoToPatternPage() {
             <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.photo.beadType}</h2>
             <div className="grid grid-cols-2 gap-3">
               {BEAD_TYPES.map((b) => (
-                <Card
+                <SelectableCard
                   key={b.id}
                   selected={beadTypeId === b.id}
-                  interactive
                   onClick={() => handleBeadTypeChange(b.id)}
                   className="flex flex-col gap-1"
                 >
@@ -173,7 +173,7 @@ export function PhotoToPatternPage() {
                   <p className="text-xs text-text-muted">
                     {b.widthMm} × {b.heightMm} mm
                   </p>
-                </Card>
+                </SelectableCard>
               ))}
             </div>
           </section>

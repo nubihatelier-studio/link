@@ -29,6 +29,7 @@ export function Button({
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] font-semibold
         transition-colors disabled:opacity-40 disabled:pointer-events-none
+        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500
         ${variantClasses[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...rest}
     >

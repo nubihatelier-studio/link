@@ -23,7 +23,9 @@ export function SegmentedControl<T extends string>({
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
+          aria-pressed={value === opt.value}
           className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
+            focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500
             ${value === opt.value ? activeClassName : 'text-text-muted hover:text-text'}`}
         >
           {opt.label}

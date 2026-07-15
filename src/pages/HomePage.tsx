@@ -123,32 +123,30 @@ export function HomePage() {
             return (
               <li
                 key={id}
-                className="flex items-center gap-4 rounded-2xl border border-border bg-surface-2 p-3 cursor-pointer hover:border-accent-300"
-                onClick={() => navigate(`/editor/${id}`)}
+                className="flex items-center gap-4 rounded-2xl border border-border bg-surface-2 p-3 hover:border-accent-300"
               >
-                <PatternThumb pattern={p} size={64} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{p.name}</p>
-                  <p className="truncate text-sm text-text-muted">
-                    {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
-                  </p>
-                  <p className="text-xs text-text-soft">{colorCount} colores</p>
-                </div>
+                <button
+                  onClick={() => navigate(`/editor/${id}`)}
+                  className="flex min-w-0 flex-1 items-center gap-4 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                >
+                  <PatternThumb pattern={p} size={64} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{p.name}</p>
+                    <p className="truncate text-sm text-text-muted">
+                      {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
+                    </p>
+                    <p className="text-xs text-text-soft">{colorCount} colores</p>
+                  </div>
+                </button>
                 <button
                   className="shrink-0 rounded-full px-3 py-1 text-xs text-text-muted hover:bg-surface-3"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    duplicatePattern(id)
-                  }}
+                  onClick={() => duplicatePattern(id)}
                 >
                   {t.common.duplicate}
                 </button>
                 <button
                   className="shrink-0 rounded-full px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    requestDelete(p)
-                  }}
+                  onClick={() => requestDelete(p)}
                 >
                   {t.common.delete}
                 </button>
