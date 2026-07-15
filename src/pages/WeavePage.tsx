@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Hand, Sun } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
+import { useWeavePrefsStore } from '@/store/weavePrefsStore'
 import { buildWeaveOrder, firstIndexOfUnit, unitIndexOf, weaveUnit } from '@/engine/weaveOrder'
+import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
+import { paletteFromCells, letterForIndex } from '@/lib/palette'
+import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
+import { HandsBusyView } from '@/components/weave/HandsBusyView'
 import { Button } from '@/components/shared/Button'
+import { IconButton } from '@/components/shared/IconButton'
 import { UndoToast } from '@/components/shared/UndoToast'
 
 export function WeavePage() {
@@ -13,9 +20,14 @@ export function WeavePage() {
   const navigate = useNavigate()
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
   const { getIndex, setIndex, reset, loadProgress } = useWeaveStore()
+  const { handsBusyMode, tapAnywhereToAdvance, setHandsBusyMode, setTapAnywhereToAdvance } = useWeavePrefsStore()
   const touchStartX = useRef<number | null>(null)
   // Captured index to restore if "Reiniciar" gets undone within the toast window.
   const [pendingReset, setPendingReset] = useState<number | null>(null)
+
+  // The whole point of Weave Mode is a hands-busy session — keep the screen
+  // on for as long as this page is mounted, not just in the hands-busy view.
+  const wakeLock = useWakeLock(true)
 
   useEffect(() => {
     if (id) loadProgress(id)
@@ -32,6 +44,14 @@ export function WeavePage() {
   const total = order.length
   const currentUnitIndex = order[currentIndex] ? unitIndexOf(technique, order[currentIndex]) : 0
   const unitCount = unit === 'column' ? (pattern?.config.cols ?? 0) : (pattern?.config.rows ?? 0)
+
+  const wordChartLines = useMemo(() => {
+    if (!pattern) return []
+    const palette = paletteFromCells(pattern.cells)
+    const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
+    return buildWordChart(technique, pattern.config.cols, pattern.config.rows, pattern.cells, (hex) => letterForHex.get(hex) ?? '?')
+  }, [pattern, technique])
+  const currentLineText = formatWordChartLineForDisplay(wordChartLines[currentUnitIndex]?.text ?? '')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -80,6 +100,8 @@ export function WeavePage() {
     setPendingReset(null)
   }
 
+  const canAdvance = currentIndex < total - 1
+
   return (
     <div
       className="flex h-screen flex-col"
@@ -101,25 +123,53 @@ export function WeavePage() {
             {unitLabel} {currentUnitIndex + 1} · {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
           </p>
         </div>
+        {wakeLock.isSupported && (
+          <span
+            title={wakeLock.isActive ? t.weave.wakeLockActive : t.weave.wakeLockInactive}
+            className={`flex h-8 w-8 items-center justify-center rounded-full ${wakeLock.isActive ? 'text-accent-500' : 'text-text-soft'}`}
+          >
+            <Sun size={16} />
+          </span>
+        )}
+        <IconButton
+          label={t.weave.handsBusyMode}
+          active={handsBusyMode}
+          onClick={() => setHandsBusyMode(!handsBusyMode)}
+          className="h-9 w-9"
+        >
+          <Hand size={16} />
+        </IconButton>
         <button onClick={requestReset} className="rounded-full px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2">
           {t.weave.reset}
         </button>
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <WeaveCanvas
-          technique={pattern.config.technique}
-          cols={pattern.config.cols}
-          rows={pattern.config.rows}
-          cells={pattern.cells}
-          order={order}
-          currentIndex={currentIndex}
-          onTapNext={advance}
-        />
+        {handsBusyMode ? (
+          <HandsBusyView
+            unitLabel={unitLabel}
+            unitIndex={currentUnitIndex}
+            unitCount={unitCount}
+            lineText={currentLineText}
+            onAdvance={advance}
+            tapAnywhere={tapAnywhereToAdvance}
+            canAdvance={canAdvance}
+          />
+        ) : (
+          <WeaveCanvas
+            technique={pattern.config.technique}
+            cols={pattern.config.cols}
+            rows={pattern.config.rows}
+            cells={pattern.cells}
+            order={order}
+            currentIndex={currentIndex}
+            onTapNext={advance}
+          />
+        )}
       </div>
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <label className="text-xs text-text-muted">
             {unit === 'column' ? t.weave.jumpToColumn : t.weave.jumpToRow}
           </label>
@@ -137,12 +187,28 @@ export function WeavePage() {
           <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
             {unit === 'column' ? t.weave.markColumnDone : t.weave.markRowDone}
           </button>
+          {handsBusyMode && (
+            <button
+              onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}
+              aria-pressed={tapAnywhereToAdvance}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors
+                ${tapAnywhereToAdvance ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+            >
+              {t.weave.tapToAdvance}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" fullWidth onClick={goBack} disabled={currentIndex < 0}>
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={goBack}
+            disabled={currentIndex < 0}
+            className={handsBusyMode ? 'py-5 text-lg' : ''}
+          >
             ← {t.weave.back}
           </Button>
-          <Button fullWidth onClick={advance} disabled={currentIndex >= total - 1}>
+          <Button fullWidth onClick={advance} disabled={!canAdvance} className={handsBusyMode ? 'py-5 text-lg' : ''}>
             {t.weave.next} →
           </Button>
         </div>

@@ -67,3 +67,14 @@ export function buildWordChart(
 
   return lines
 }
+
+/**
+ * "3A, 2B" -> "3×A, 2×B" — the on-screen hands-busy reading view spells out
+ * the multiplication sign for legibility at a glance/distance; the PDF word
+ * chart keeps the terser "3A" form since it's already labeled and printed
+ * small. Same underlying `WordChartLine.text`, just formatted per surface.
+ */
+export function formatWordChartLineForDisplay(text: string): string {
+  if (!text) return text
+  return text.replace(/(\d+)([^\d,]+)/g, '$1×$2')
+}

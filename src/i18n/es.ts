@@ -114,6 +114,10 @@ export const t = {
     beadsWoven: 'mostacillas tejidas',
     reset: 'Reiniciar',
     resetDone: 'Se reinició el progreso de tejido.',
+    handsBusyMode: 'Modo manos ocupadas',
+    tapToAdvance: 'Tocar el patrón para avanzar',
+    wakeLockActive: 'Pantalla activa',
+    wakeLockInactive: 'Pantalla puede apagarse',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
