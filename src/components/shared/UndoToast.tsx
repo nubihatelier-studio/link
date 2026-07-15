@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { t } from '@/i18n/es'
+import { Toast } from './Toast'
 
 interface UndoToastProps {
   message: string
@@ -21,14 +22,5 @@ export function UndoToast({ message, onUndo, onExpire, durationMs = 6000 }: Undo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 md:bottom-6">
-      <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-surface-3 px-4 py-2.5 shadow-lg">
-        <span className="text-sm">{message}</span>
-        <button onClick={onUndo} className="shrink-0 text-sm font-semibold text-accent-500 hover:text-accent-600">
-          {t.common.undo}
-        </button>
-      </div>
-    </div>
-  )
+  return <Toast message={message} actionLabel={t.common.undo} onAction={onUndo} />
 }

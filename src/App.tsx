@@ -1,15 +1,18 @@
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
+import { useAppUpdate } from '@/hooks/useAppUpdate'
 import { HomePage } from '@/pages/HomePage'
 import { ConfiguratorPage } from '@/pages/ConfiguratorPage'
 import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
+import { UpdateToast } from '@/components/shared/UpdateToast'
 
 function App() {
   const hydrated = usePatternsStore((s) => s.hydrated)
   const hydrate = usePatternsStore((s) => s.hydrate)
+  const { needRefresh, update } = useAppUpdate()
 
   useEffect(() => {
     hydrate()
@@ -32,6 +35,7 @@ function App() {
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/editor/:id/weave" element={<WeavePage />} />
       </Routes>
+      {needRefresh && <UpdateToast onUpdate={update} />}
     </div>
   )
 }

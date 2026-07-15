@@ -119,6 +119,10 @@ export const t = {
     wakeLockActive: 'Pantalla activa',
     wakeLockInactive: 'Pantalla puede apagarse',
   },
+  pwa: {
+    updateAvailable: 'Hay una nueva versión',
+    updateAction: 'Actualizar',
+  },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
     materials: 'Materiales',
