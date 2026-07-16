@@ -180,7 +180,7 @@ export function EditorPage() {
           <ToolPanel orientation="vertical" />
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col p-4">
+        <div className="flex min-w-0 flex-1 flex-col p-4">
           <div className="mb-3 hidden items-center gap-2 md:flex">
             <button
               onClick={() => setZoom(zoom - 25)}
@@ -201,7 +201,7 @@ export function EditorPage() {
           <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-surface">
             <CanvasGrid />
           </div>
-        </main>
+        </div>
 
         <aside className="hidden w-80 shrink-0 border-l border-border md:block">
           <ColorPanel />

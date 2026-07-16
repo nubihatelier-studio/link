@@ -23,6 +23,10 @@
   --color-text: var(--nb-text);
   --color-text-muted: var(--nb-text-muted);
   --color-text-soft: var(--nb-text-soft);
+  /* Gold text on the accent-500/10 tinted warning badges — needs its own
+     per-theme value since accent-600 alone only clears WCAG AA (4.5:1) in
+     dark mode, not against the lighter tint the same badge gets in light mode. */
+  --color-warning: var(--nb-warning-text);
 }
 
 :root {
@@ -36,6 +40,7 @@
   --nb-text: #17151a;
   --nb-text-muted: #6b6773;
   --nb-text-soft: #a09cab;
+  --nb-warning-text: #705912;
   /* Canvas grid cell lines — same as --nb-border in light mode (already
      reads clearly against --nb-surface-3), but given its own dark-mode
      value below since --nb-border there matches --nb-surface-3 exactly
@@ -55,6 +60,7 @@
   --nb-text-muted: #a3a0a8;
   --nb-text-soft: #6f6c76;
   --nb-grid-line: #59595f;
+  --nb-warning-text: #ab881f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -70,6 +76,7 @@
     --nb-text-muted: #a3a0a8;
     --nb-text-soft: #6f6c76;
     --nb-grid-line: #59595f;
+    --nb-warning-text: #ab881f;
   }
 }
 

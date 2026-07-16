@@ -34,7 +34,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas text-text">
+    <main className="min-h-screen bg-canvas text-text">
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/new" element={<ConfiguratorPage />} />
@@ -44,7 +44,7 @@ function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {needRefresh && <UpdateToast onUpdate={update} />}
-    </div>
+    </main>
   )
 }
 

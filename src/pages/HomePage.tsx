@@ -109,7 +109,7 @@ export function HomePage() {
 
       <div className="mb-6 flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3">
         <span className="text-sm text-text-muted">{t.home.stats}</span>
-        <span className="rounded-full bg-surface-3 px-3 py-1 text-xs text-text-soft">{t.home.comingSoon}</span>
+        <span className="rounded-full bg-surface-3 px-3 py-1 text-xs text-text-muted">{t.home.comingSoon}</span>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -141,7 +141,7 @@ export function HomePage() {
         {importMessage && <span className="text-xs text-text-muted">{importMessage}</span>}
         {persisted !== null && (
           <span
-            className={`rounded-full px-3 py-1.5 text-xs ${persisted ? 'text-text-soft' : 'bg-accent-500/10 font-semibold text-accent-600'}`}
+            className={`rounded-full px-3 py-1.5 text-xs ${persisted ? 'text-text-muted' : 'bg-accent-500/10 font-semibold text-warning'}`}
           >
             {persisted ? t.storage.protected : t.storage.atRisk}
           </span>
@@ -198,7 +198,7 @@ export function HomePage() {
                     <p className="truncate text-sm text-text-muted">
                       {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
                     </p>
-                    <p className="text-xs text-text-soft">{colorCount} colores</p>
+                    <p className="text-xs text-text-muted">{colorCount} colores</p>
                   </div>
                 </button>
                 <button
@@ -219,7 +219,7 @@ export function HomePage() {
         </ul>
       )}
 
-      <p className="mt-10 text-center text-xs text-text-soft">
+      <p className="mt-10 text-center text-xs text-text-muted">
         {t.privacy.footer}
         <br />
         {t.privacy.version(APP_VERSION)}
