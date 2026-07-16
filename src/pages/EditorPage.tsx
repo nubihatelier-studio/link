@@ -13,6 +13,7 @@ import { ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
+import { InfoScreen } from '@/components/shared/InfoScreen'
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -41,10 +42,11 @@ export function EditorPage() {
 
   if (!id || !getPattern(id)) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="text-text-muted">{t.common.patternNotFound}</p>
-        <Button onClick={() => navigate('/')}>{t.common.goHome}</Button>
-      </div>
+      <InfoScreen
+        title={t.common.patternNotFound}
+        message={t.common.patternNotFoundHint}
+        action={{ label: t.common.goHome, onClick: () => navigate('/') }}
+      />
     )
   }
 

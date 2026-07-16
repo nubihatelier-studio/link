@@ -157,6 +157,12 @@ export const t = {
     undo: 'Deshacer',
     deletedPattern: (name: string) => `Se eliminó "${name}".`,
     goHome: 'Volver al inicio',
-    patternNotFound: 'No se encontró el patrón.',
+    patternNotFound: 'Este patrón no está en este dispositivo',
+    patternNotFoundHint:
+      'Los patrones se guardan solo en el dispositivo donde los creaste — si cambiaste de navegador, de equipo, o borraste los datos del sitio, no va a aparecer acá.',
+  },
+  notFound: {
+    title: 'Esta página no existe',
+    message: 'Revisa el link, o vuelve al inicio para ver tus patrones.',
   },
 }

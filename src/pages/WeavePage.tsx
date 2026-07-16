@@ -14,6 +14,7 @@ import { HandsBusyView } from '@/components/weave/HandsBusyView'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { InfoScreen } from '@/components/shared/InfoScreen'
 
 export function WeavePage() {
   const { id } = useParams<{ id: string }>()
@@ -70,10 +71,11 @@ export function WeavePage() {
 
   if (!pattern || !id) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p className="text-text-muted">{t.common.patternNotFound}</p>
-        <Button onClick={() => navigate('/')}>{t.common.goHome}</Button>
-      </div>
+      <InfoScreen
+        title={t.common.patternNotFound}
+        message={t.common.patternNotFoundHint}
+        action={{ label: t.common.goHome, onClick: () => navigate('/') }}
+      />
     )
   }
 

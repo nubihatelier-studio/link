@@ -7,6 +7,7 @@ import { ConfiguratorPage } from '@/pages/ConfiguratorPage'
 import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 import { UpdateToast } from '@/components/shared/UpdateToast'
 import { StorageErrorScreen } from '@/components/shared/StorageErrorScreen'
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/new/photo" element={<PhotoToPatternPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/editor/:id/weave" element={<WeavePage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {needRefresh && <UpdateToast onUpdate={update} />}
     </div>
