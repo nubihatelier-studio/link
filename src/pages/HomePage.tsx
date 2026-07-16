@@ -8,6 +8,7 @@ import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
 import { useStorageStatus } from '@/hooks/useStorageStatus'
+import { APP_VERSION } from '@/version'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -217,6 +218,12 @@ export function HomePage() {
           })}
         </ul>
       )}
+
+      <p className="mt-10 text-center text-xs text-text-soft">
+        {t.privacy.footer}
+        <br />
+        {t.privacy.version(APP_VERSION)}
+      </p>
 
       <div className="fixed inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-canvas via-canvas to-transparent px-6 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <Button className="max-w-sm" fullWidth onClick={() => navigate('/new')}>

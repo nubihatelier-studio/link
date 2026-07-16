@@ -170,6 +170,10 @@ export const t = {
     title: 'Esta página no existe',
     message: 'Revisa el link, o vuelve al inicio para ver tus patrones.',
   },
+  privacy: {
+    footer: 'Tus patrones no salen de este dispositivo. Sin cuentas, sin analítica, sin rastreadores.',
+    version: (v: string) => `Versión ${v}`,
+  },
   crash: {
     title: 'Algo salió mal',
     message:
