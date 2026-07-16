@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
@@ -52,6 +52,25 @@ export function HomePage() {
     deletePattern(pendingDelete.id)
     setPendingDelete(null)
   }
+
+  // A pending delete is only real once its UndoToast expires — but that
+  // timer gets cancelled if this page unmounts (navigating elsewhere) or the
+  // tab closes before the ~6s window is up, which used to leave the pattern
+  // "revived" on the next visit despite having been hidden from the list.
+  // Finalize it ourselves in both cases instead of losing it silently.
+  const pendingDeleteRef = useRef(pendingDelete)
+  pendingDeleteRef.current = pendingDelete
+
+  useEffect(() => {
+    function finalizePendingDelete() {
+      if (pendingDeleteRef.current) deletePattern(pendingDeleteRef.current.id)
+    }
+    window.addEventListener('pagehide', finalizePendingDelete)
+    return () => {
+      window.removeEventListener('pagehide', finalizePendingDelete)
+      finalizePendingDelete()
+    }
+  }, [deletePattern])
 
   async function handleImportFile(file: File) {
     setImportMessage(null)

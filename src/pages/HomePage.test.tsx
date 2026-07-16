@@ -107,4 +107,32 @@ describe('HomePage — eliminar con deshacer', () => {
 
     vi.useRealTimers()
   })
+
+  it('navegar afuera con un borrado pendiente lo finaliza en vez de dejarlo "revivir"', async () => {
+    const user = userEvent.setup()
+    const { unmount } = await renderHome()
+
+    await user.click(screen.getByText('Eliminar'))
+    expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
+
+    unmount()
+
+    expect(usePatternsStore.getState().patterns[PATTERN.id]).toBeUndefined()
+    await waitFor(async () => expect(await fakeAdapter.getPattern(PATTERN.id)).toBeUndefined())
+  })
+
+  it('cerrar la pestaña con un borrado pendiente también lo finaliza', async () => {
+    const user = userEvent.setup()
+    await renderHome()
+
+    await user.click(screen.getByText('Eliminar'))
+    expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
+
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
+
+    expect(usePatternsStore.getState().patterns[PATTERN.id]).toBeUndefined()
+    await waitFor(async () => expect(await fakeAdapter.getPattern(PATTERN.id)).toBeUndefined())
+  })
 })
