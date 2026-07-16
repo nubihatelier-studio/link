@@ -26,15 +26,17 @@ export function HandsBusyView({
 }: HandsBusyViewProps) {
   return (
     <div
-      className={`flex h-full flex-col items-center justify-center gap-6 px-6 text-center ${tapAnywhere && canAdvance ? 'cursor-pointer' : ''}`}
+      className={`flex h-full flex-col items-center justify-center gap-6 px-6 text-center md:gap-10 ${tapAnywhere && canAdvance ? 'cursor-pointer' : ''}`}
       onClick={tapAnywhere && canAdvance ? onAdvance : undefined}
       role={tapAnywhere ? 'button' : undefined}
       aria-label={tapAnywhere ? unitLabel : undefined}
     >
-      <p className="text-lg font-semibold uppercase tracking-wide text-text-muted">
+      <p className="text-lg font-semibold uppercase tracking-wide text-text-muted md:text-2xl lg:text-3xl">
         {unitLabel} {unitIndex + 1} <span className="text-text-soft">/ {unitCount}</span>
       </p>
-      <p className="text-4xl font-bold leading-snug tracking-wide sm:text-5xl">{lineText}</p>
+      <p className="max-w-5xl text-4xl font-bold leading-snug tracking-wide sm:text-5xl md:text-7xl lg:text-8xl">
+        {lineText}
+      </p>
     </div>
   )
 }
