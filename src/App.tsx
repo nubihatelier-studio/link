@@ -8,15 +8,21 @@ import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
 import { UpdateToast } from '@/components/shared/UpdateToast'
+import { StorageErrorScreen } from '@/components/shared/StorageErrorScreen'
 
 function App() {
   const hydrated = usePatternsStore((s) => s.hydrated)
+  const hydrationError = usePatternsStore((s) => s.hydrationError)
   const hydrate = usePatternsStore((s) => s.hydrate)
   const { needRefresh, update } = useAppUpdate()
 
   useEffect(() => {
     hydrate()
   }, [hydrate])
+
+  if (hydrationError) {
+    return <StorageErrorScreen />
+  }
 
   if (!hydrated) {
     return (

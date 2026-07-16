@@ -123,6 +123,12 @@ export const t = {
     updateAvailable: 'Hay una nueva versión',
     updateAction: 'Actualizar',
   },
+  storage: {
+    errorTitle: 'No se pudo abrir el almacenamiento',
+    errorMessage:
+      'Tu navegador bloqueó o no permite guardar datos localmente en este sitio. Puede ser una ventana privada muy restrictiva, poco espacio disponible, o un permiso de sitio deshabilitado. Cierra la ventana privada o revisa los permisos del sitio, y vuelve a intentar.',
+    retry: 'Reintentar',
+  },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
     materials: 'Materiales',

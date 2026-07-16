@@ -12,6 +12,8 @@ interface PatternsState {
   order: string[]
   /** False until `hydrate()` has loaded patterns from the storage adapter. */
   hydrated: boolean
+  /** Set instead of `hydrated: true` if opening storage itself failed (no IndexedDB, quota/permissions denied, etc.) — App.tsx shows a dedicated screen instead of hanging on the loading spinner forever. */
+  hydrationError: string | null
   migrationResult: MigrationResult | null
   hydrate: () => Promise<void>
   /** Re-lists patterns from the storage adapter without re-running migration — use after an import. */
@@ -50,17 +52,23 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
   patterns: {},
   order: [],
   hydrated: false,
+  hydrationError: null,
   migrationResult: null,
 
   hydrate: async () => {
     if (get().hydrated) return
-    const adapter = await getStorageAdapter()
-    const migrationResult = await migrateFromLocalStorage(adapter)
-    const docs = await adapter.listPatterns()
-    const patterns: Record<string, PatternDoc> = {}
-    for (const doc of docs) patterns[doc.id] = doc
-    const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
-    set({ patterns, order, hydrated: true, migrationResult })
+    try {
+      const adapter = await getStorageAdapter()
+      const migrationResult = await migrateFromLocalStorage(adapter)
+      const docs = await adapter.listPatterns()
+      const patterns: Record<string, PatternDoc> = {}
+      for (const doc of docs) patterns[doc.id] = doc
+      const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
+      set({ patterns, order, hydrated: true, migrationResult })
+    } catch (err) {
+      console.error('No se pudo abrir el almacenamiento local', err)
+      set({ hydrationError: (err as Error).message || 'unknown' })
+    }
   },
 
   refresh: async () => {
