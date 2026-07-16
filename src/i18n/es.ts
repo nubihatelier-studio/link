@@ -101,6 +101,7 @@ export const t = {
       vertical: 'Espejo vertical',
       reflect: 'Reflejar',
     },
+    shortcutsTitle: 'Atajos de teclado',
   },
   weave: {
     title: 'Modo tejido',

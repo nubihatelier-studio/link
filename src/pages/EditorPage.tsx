@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Download, Type } from 'lucide-react'
+import { Download, Keyboard, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
-import { useEditorStore } from '@/store/editorStore'
+import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
 import { exportPatternToPdf } from '@/lib/pdfExport'
@@ -15,15 +15,30 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 
+const TOOL_SHORTCUTS: { key: string; tool: Tool; labelKey: keyof typeof t.editor.tools }[] = [
+  { key: 'P', tool: 'pencil', labelKey: 'pencil' },
+  { key: 'L', tool: 'line', labelKey: 'line' },
+  { key: 'B', tool: 'fill', labelKey: 'fill' },
+  { key: 'E', tool: 'eraser', labelKey: 'eraser' },
+  { key: 'I', tool: 'eyedropper', labelKey: 'eyedropper' },
+  { key: 'S', tool: 'select', labelKey: 'select' },
+]
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+}
+
 export function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const getPattern = usePatternsStore((s) => s.getPattern)
-  const { loadPattern, name, renamePattern, technique, cols, rows, beadTypeId, cells, zoom, setZoom } =
+  const { loadPattern, name, renamePattern, technique, cols, rows, beadTypeId, cells, zoom, setZoom, setTool, undo, redo } =
     useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -39,6 +54,49 @@ export function EditorPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [colorDrawerOpen])
+
+  useEffect(() => {
+    if (!shortcutsOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShortcutsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [shortcutsOpen])
+
+  // Desktop shortcuts: tool letters, undo/redo, zoom. Ignored while typing
+  // (e.g. renaming the pattern) so a letter like "e" doesn't hijack the name field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return
+      const meta = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+
+      if (meta && key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (meta || e.altKey) return
+
+      const shortcut = TOOL_SHORTCUTS.find((s) => s.key.toLowerCase() === key)
+      if (shortcut) {
+        e.preventDefault()
+        setTool(shortcut.tool)
+        return
+      }
+      if (key === '+' || key === '=') {
+        e.preventDefault()
+        setZoom(zoom + 25)
+      } else if (key === '-') {
+        e.preventDefault()
+        setZoom(zoom - 25)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setTool, undo, redo, zoom, setZoom])
 
   if (!id || !getPattern(id)) {
     return (
@@ -104,6 +162,13 @@ export function EditorPage() {
           className="h-9 w-9"
         >
           <Type size={16} />
+        </IconButton>
+        <IconButton
+          label={t.editor.shortcutsTitle}
+          onClick={() => setShortcutsOpen(true)}
+          className="hidden h-9 w-9 md:flex"
+        >
+          <Keyboard size={16} />
         </IconButton>
         <Button onClick={handleExport} disabled={exporting} className="px-4 py-2 text-sm">
           {exporting ? '…' : t.editor.exportPdf}
@@ -173,6 +238,51 @@ export function EditorPage() {
               <div className="h-1 w-10 rounded-full bg-surface-3" />
             </div>
             <ColorPanel />
+          </div>
+        </div>
+      )}
+
+      {shortcutsOpen && (
+        <div
+          className="fixed inset-0 z-40 hidden items-center justify-center bg-black/40 md:flex"
+          onClick={() => setShortcutsOpen(false)}
+        >
+          <div
+            className="w-80 rounded-2xl border border-border bg-surface p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{t.editor.shortcutsTitle}</h2>
+              <button
+                onClick={() => setShortcutsOpen(false)}
+                aria-label={t.common.close}
+                className="rounded-full p-1 text-text-muted hover:bg-surface-2"
+              >
+                ✕
+              </button>
+            </div>
+            <ul className="flex flex-col gap-2 text-sm">
+              {TOOL_SHORTCUTS.map((s) => (
+                <li key={s.key} className="flex items-center justify-between gap-4">
+                  <span className="text-text-muted">{t.editor.tools[s.labelKey]}</span>
+                  <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">{s.key}</kbd>
+                </li>
+              ))}
+              <li className="flex items-center justify-between gap-4">
+                <span className="text-text-muted">{t.editor.tools.undo}</span>
+                <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">Ctrl/Cmd+Z</kbd>
+              </li>
+              <li className="flex items-center justify-between gap-4">
+                <span className="text-text-muted">{t.editor.tools.redo}</span>
+                <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">
+                  Ctrl/Cmd+Shift+Z
+                </kbd>
+              </li>
+              <li className="flex items-center justify-between gap-4">
+                <span className="text-text-muted">{t.editor.zoom}</span>
+                <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">+ / −</kbd>
+              </li>
+            </ul>
           </div>
         </div>
       )}
