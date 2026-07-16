@@ -1,4 +1,5 @@
 import type { PatternDoc } from '@/engine/types'
+import { recordBackupNow } from './backupReminder'
 import { getStorageAdapter } from './index'
 import { SCHEMA_VERSION, type FullBackupFile, type PatternBackupFile, type WeaveProgressRecord } from './types'
 
@@ -44,6 +45,7 @@ export async function exportFullBackup(): Promise<void> {
   }
   const date = new Date().toISOString().slice(0, 10)
   downloadJson(`nubih-respaldo_${date}.json`, file)
+  recordBackupNow()
 }
 
 export type ImportedFile = PatternBackupFile | FullBackupFile

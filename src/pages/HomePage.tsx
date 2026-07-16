@@ -6,6 +6,7 @@ import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
+import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
 import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -23,6 +24,18 @@ export function HomePage() {
   // Optimistically hidden from the list while its undo window is open —
   // only actually deleted once the toast expires without being undone.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; doc: PatternDoc } | null>(null)
+  const [reminderDismissed, setReminderDismissed] = useState(false)
+  const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
+
+  function dismissReminder() {
+    dismissBackupReminder()
+    setReminderDismissed(true)
+  }
+
+  async function backupFromReminder() {
+    await exportFullBackup()
+    setReminderDismissed(true)
+  }
 
   function requestDelete(doc: PatternDoc) {
     // Only one undo window open at a time: finalize whatever was already pending.
@@ -114,6 +127,27 @@ export function HomePage() {
           </span>
         )}
       </div>
+
+      {showBackupReminder && (
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3">
+          <p className="text-sm text-text">{t.backup.reminderMessage}</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={backupFromReminder}
+              className="rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink hover:bg-accent-400 active:bg-accent-600"
+            >
+              {t.backup.exportAll}
+            </button>
+            <button
+              onClick={dismissReminder}
+              aria-label={t.common.close}
+              className="rounded-full px-2 py-1.5 text-xs text-text-muted hover:bg-surface-3"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
 

@@ -20,6 +20,8 @@ export const t = {
     import: 'Importar respaldo',
     importSuccess: (count: number) => (count === 1 ? 'Se importó 1 patrón.' : `Se importaron ${count} patrones.`),
     importError: 'No se pudo importar el archivo',
+    reminderMessage:
+      'Tienes varios patrones guardados solo en este dispositivo. Descarga un respaldo por si acaso.',
   },
   technique: {
     loom: 'Loom',
