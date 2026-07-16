@@ -167,4 +167,10 @@ export const t = {
     title: 'Esta página no existe',
     message: 'Revisa el link, o vuelve al inicio para ver tus patrones.',
   },
+  crash: {
+    title: 'Algo salió mal',
+    message:
+      'La app tuvo un error inesperado. Tus patrones siguen guardados en este dispositivo — puedes recargar para seguir, o descargar un respaldo primero por si acaso.',
+    reload: 'Recargar',
+  },
 }
