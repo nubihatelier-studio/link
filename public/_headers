@@ -1,0 +1,21 @@
+# Hashed build output (Vite puts a content hash in every filename under
+# /assets/, so a given URL's content never changes) — cache "forever".
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# workbox-<hash>.js is generated fresh per build with its own content hash,
+# same reasoning as /assets/*.
+/workbox-*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# The app shell and the service worker itself must always be revalidated —
+# they're what points the browser at the current set of hashed assets and
+# what the update-check flow (see src/hooks/useAppUpdate.ts) depends on.
+# A stale cached index.html/sw.js would mean the app never notices a new
+# deploy at all, defeating the "Hay una nueva versión" toast entirely.
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
