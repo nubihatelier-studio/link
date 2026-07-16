@@ -36,9 +36,42 @@
       content="Crea patrones de mostacillas peyote, loom y brick, y teje guiándote paso a paso — todo en tu dispositivo, sin necesidad de conexión a internet."
     />
     <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Matches --nb-canvas from src/index.css: keeps the very first paint
+         (before the stylesheet and React load) from flashing white. Only
+         the OS-level scheme is known this early — the in-app light/dark
+         override is applied by main.tsx right before React mounts. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #fbfafc;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #000000;
+        }
+      }
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #initial-loader img {
+        width: 48px;
+        height: 48px;
+        border-radius: 9999px;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader"><img src="/logo.png" alt="" width="48" height="48" /></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
