@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ColorMap, PatternConfig, PatternDoc } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
+import { requestPersistentStorageOnce } from '@/storage/persistence'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -40,6 +41,10 @@ function persistPattern(doc: PatternDoc) {
   getStorageAdapter()
     .then((adapter) => adapter.savePattern(doc))
     .catch((err) => console.error('No se pudo guardar el patrón', err))
+  // Fire-and-forget, and a no-op after the very first real save ever (see
+  // the one-time flag inside) — this is the earliest point a save is real
+  // enough to be worth protecting from the browser's storage eviction.
+  requestPersistentStorageOnce()
 }
 
 function persistDelete(id: string) {

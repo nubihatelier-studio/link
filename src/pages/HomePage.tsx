@@ -6,6 +6,7 @@ import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
+import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -15,6 +16,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const { patterns, order, deletePattern, duplicatePattern, refresh } = usePatternsStore()
   const { theme, setTheme } = useThemeStore()
+  const { persisted } = useStorageStatus()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -104,6 +106,13 @@ export function HomePage() {
           {t.backup.import}
         </button>
         {importMessage && <span className="text-xs text-text-muted">{importMessage}</span>}
+        {persisted !== null && (
+          <span
+            className={`rounded-full px-3 py-1.5 text-xs ${persisted ? 'text-text-soft' : 'bg-accent-500/10 font-semibold text-accent-600'}`}
+          >
+            {persisted ? t.storage.protected : t.storage.atRisk}
+          </span>
+        )}
       </div>
 
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
