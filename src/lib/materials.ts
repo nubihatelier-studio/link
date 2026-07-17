@@ -19,13 +19,27 @@ const THREAD_PASSES_PER_BEAD: Record<Technique, number> = {
   peyote: 2,
   brick: 2,
 }
+/** A fringe strand's thread goes down through each bead, then back up the same beads — 2 passes regardless of the body's own technique. */
+const FRINGE_THREAD_PASSES_PER_BEAD = 2
 const THREAD_SAFETY_MARGIN = 1.3
 
-/** Estimated thread length, in meters, to weave a full pattern. See module doc for the formula's assumptions. */
-export function estimateThreadMeters(technique: Technique, cols: number, rows: number, beadWidthMm: number): number {
+/**
+ * Estimated thread length, in meters, to weave a full pattern. See module
+ * doc for the formula's assumptions. `fringeBeadCount` (see
+ * `engine/fringe.ts#totalFringeBeadCount`) folds in the extra thread every
+ * fringe strand needs.
+ */
+export function estimateThreadMeters(
+  technique: Technique,
+  cols: number,
+  rows: number,
+  beadWidthMm: number,
+  fringeBeadCount = 0,
+): number {
   const total = beadCount(technique, cols, rows)
-  const mm = total * THREAD_PASSES_PER_BEAD[technique] * beadWidthMm * THREAD_SAFETY_MARGIN
-  return mm / 1000
+  const bodyMm = total * THREAD_PASSES_PER_BEAD[technique] * beadWidthMm
+  const fringeMm = fringeBeadCount * FRINGE_THREAD_PASSES_PER_BEAD * beadWidthMm
+  return ((bodyMm + fringeMm) * THREAD_SAFETY_MARGIN) / 1000
 }
 
 /**

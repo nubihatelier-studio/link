@@ -166,6 +166,7 @@ export const t = {
     needle: 'Aguja sugerida',
     notes: 'Notas',
     wordChartTitle: 'Secuencia de tejido',
+    fringeLabel: 'Fleco',
     section: (i: number, total: number) => `Sección ${i} de ${total}`,
     columnsRange: (from: number, to: number) => `columnas ${from}–${to}`,
     rowsRange: (from: number, to: number) => `filas ${from}–${to}`,

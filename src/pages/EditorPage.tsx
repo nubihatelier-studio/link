@@ -35,8 +35,22 @@ export function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const getPattern = usePatternsStore((s) => s.getPattern)
-  const { loadPattern, name, renamePattern, technique, cols, rows, beadTypeId, cells, zoom, setZoom, setTool, undo, redo } =
-    useEditorStore()
+  const {
+    loadPattern,
+    name,
+    renamePattern,
+    technique,
+    cols,
+    rows,
+    beadTypeId,
+    cells,
+    fringe,
+    zoom,
+    setZoom,
+    setTool,
+    undo,
+    redo,
+  } = useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -132,7 +146,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }

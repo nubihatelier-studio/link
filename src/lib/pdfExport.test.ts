@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
-import type { ColorMap } from '@/engine/types'
+import type { ColorMap, FringeData } from '@/engine/types'
 
 // Route the native (Capacitor) export path instead of doc.save()'s browser download,
 // which jsdom doesn't implement — this still exercises the full document build.
@@ -105,5 +105,42 @@ describe('exportPatternToPdf', () => {
         beadType: bead,
       }),
     ).resolves.not.toThrow()
+  })
+
+  describe('with a fringe', () => {
+    it('does not throw and draws fine with a fringe on a small pattern', async () => {
+      const { exportPatternToPdf } = await import('./pdfExport')
+      const fringe: FringeData = { lengths: [3, 3, 0, 3, 3, 0], turnBeads: [true, true, false, true, true, false] }
+      await expect(
+        exportPatternToPdf({
+          name: 'Con fleco',
+          technique: 'brick',
+          cols: 6,
+          rows: 10,
+          cells: fillCells(6, 10),
+          fringe,
+          beadType: bead,
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('splits the chart into more pages once the fringe pushes the total height past one page', async () => {
+      const { exportPatternToPdf } = await import('./pdfExport')
+      const cols = 10
+      const rows = 60 // fits on a single chart page by itself at this cell size
+      const cells = fillCells(cols, rows)
+
+      await exportPatternToPdf({ name: 'Sin fleco', technique: 'loom', cols, rows, cells, beadType: bead })
+      const pagesWithoutFringe = lastDoc!.getNumberOfPages()
+
+      const fringe: FringeData = {
+        lengths: Array.from({ length: cols }, () => 20),
+        turnBeads: Array.from({ length: cols }, () => true),
+      }
+      await exportPatternToPdf({ name: 'Con fleco largo', technique: 'loom', cols, rows, cells, fringe, beadType: bead })
+      const pagesWithFringe = lastDoc!.getNumberOfPages()
+
+      expect(pagesWithFringe).toBeGreaterThan(pagesWithoutFringe)
+    })
   })
 })

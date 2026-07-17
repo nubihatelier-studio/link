@@ -1,7 +1,8 @@
-import type { ColorMap, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
 import { cellPosition, gridBoundsUnits, physicalSizeMm, beadCount } from '@/engine/geometry'
+import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { planChartSections, type ChartSection } from '@/engine/chartPagination'
 import { buildWordChart } from '@/engine/wordChart'
@@ -18,6 +19,8 @@ export interface ExportPatternOptions {
   rows: number
   cells: ColorMap
   beadType: BeadTypeDef
+  /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
+  fringe?: FringeData
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
   showLetters?: boolean
 }
@@ -67,12 +70,13 @@ function drawChartSection(
   cellW: number,
   cellH: number,
 ): void {
-  const { technique, cells, cols } = opts
+  const { technique, cells, cols, rows, fringe } = opts
   const { colStart, colEnd, rowStart, rowEnd } = section
   // Every cell's position is expressed in absolute bead units (parity-dependent offsets use the
   // real col/row index), so subtracting the section's own origin flushes it to (originX, originY)
-  // while preserving the true zigzag/stagger geometry within the section.
-  const origin = cellPosition(technique, rowStart, colStart)
+  // while preserving the true zigzag/stagger geometry within the section. `rows` (the body height)
+  // makes this correct for a section that dips into the fringe zone too (see cellPosition).
+  const origin = cellPosition(technique, rowStart, colStart, rows)
 
   const step = cols > 60 ? 10 : cols > 30 ? 5 : 1
   doc.setFont('helvetica', 'normal')
@@ -80,20 +84,24 @@ function drawChartSection(
   doc.setTextColor(120)
   for (let c = colStart; c < colEnd; c++) {
     if (c % step !== 0 && c !== colStart && c !== colEnd - 1) continue
-    const pos = cellPosition(technique, rowStart, c)
+    const pos = cellPosition(technique, rowStart, c, rows)
     doc.text(String(c + 1), originX + (pos.x - origin.x) * cellW + cellW / 2, originY - 2, { align: 'center' })
   }
   for (let r = rowStart; r < rowEnd; r++) {
     if (r % step !== 0 && r !== rowStart && r !== rowEnd - 1) continue
-    const pos = cellPosition(technique, r, colStart)
+    const pos = cellPosition(technique, r, colStart, rows)
     doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2 + 1, { align: 'right' })
   }
 
   doc.setLineWidth(0.05)
   for (let row = rowStart; row < rowEnd; row++) {
     for (let col = colStart; col < colEnd; col++) {
+      // Skip a "cell" past that column's own fringe length — it doesn't exist (columns can have
+      // different fringe lengths, so not every row in a fringe-zone section applies to every column).
+      if (!isPaintableCell(row, col, cols, rows, fringe)) continue
+
       const hex = cells[cellKey(row, col)]
-      const pos = cellPosition(technique, row, col)
+      const pos = cellPosition(technique, row, col, rows)
       const x = originX + (pos.x - origin.x) * cellW
       const y = originY + (pos.y - origin.y) * cellH
 
@@ -124,7 +132,8 @@ function drawChartSection(
  * bead-unit bounds for an arbitrary sub-rectangle.
  */
 function drawMinimap(doc: JsPDF, opts: ExportPatternOptions, section: ChartSection, x: number, y: number, w: number, h: number) {
-  const bounds = gridBoundsUnits(opts.technique, opts.cols, opts.rows)
+  const totalRows = opts.rows + maxFringeLength(opts.fringe)
+  const bounds = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe))
   const scale = Math.min(w / bounds.width, h / bounds.height)
   const mapW = bounds.width * scale
   const mapH = bounds.height * scale
@@ -135,8 +144,8 @@ function drawMinimap(doc: JsPDF, opts: ExportPatternOptions, section: ChartSecti
 
   const secX = x + (section.colStart / opts.cols) * mapW
   const secW = Math.max(0.6, ((section.colEnd - section.colStart) / opts.cols) * mapW)
-  const secY = y + (section.rowStart / opts.rows) * mapH
-  const secH = Math.max(0.6, ((section.rowEnd - section.rowStart) / opts.rows) * mapH)
+  const secY = y + (section.rowStart / totalRows) * mapH
+  const secH = Math.max(0.6, ((section.rowEnd - section.rowStart) / totalRows) * mapH)
 
   doc.setFillColor('#c9a227')
   doc.setDrawColor(0)
@@ -175,8 +184,15 @@ function drawFichaPage(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100)
-  const size = physicalSizeMm(opts.technique, opts.cols, opts.rows, opts.beadType.widthMm, opts.beadType.heightMm)
-  const total = beadCount(opts.technique, opts.cols, opts.rows)
+  const size = physicalSizeMm(
+    opts.technique,
+    opts.cols,
+    opts.rows,
+    opts.beadType.widthMm,
+    opts.beadType.heightMm,
+    maxFringeLength(opts.fringe),
+  )
+  const total = beadCount(opts.technique, opts.cols, opts.rows) + totalFringeBeadCount(opts.fringe)
   const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
   doc.text(
     `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${size.widthMm.toFixed(1)} × ${size.heightMm.toFixed(1)} mm · Total: ${total} mostacillas`,
@@ -225,7 +241,13 @@ function drawFichaPage(
   doc.setLineWidth(0.2)
   doc.line(margin, extrasY, pageWidth - margin, extrasY)
 
-  const threadM = estimateThreadMeters(opts.technique, opts.cols, opts.rows, opts.beadType.widthMm)
+  const threadM = estimateThreadMeters(
+    opts.technique,
+    opts.cols,
+    opts.rows,
+    opts.beadType.widthMm,
+    totalFringeBeadCount(opts.fringe),
+  )
   const needle = suggestedNeedle(opts.beadType)
 
   doc.setFont('helvetica', 'bold')
@@ -268,7 +290,14 @@ function drawWordChartPages(
   pageWidth: number,
   pageHeight: number,
 ) {
-  const lines = buildWordChart(opts.technique, opts.cols, opts.rows, opts.cells, (hex) => letterForHex.get(hex) ?? '?')
+  const lines = buildWordChart(
+    opts.technique,
+    opts.cols,
+    opts.rows,
+    opts.cells,
+    (hex) => letterForHex.get(hex) ?? '?',
+    opts.fringe,
+  )
   const unitLabel = weaveUnit(opts.technique) === 'column' ? 'Columna' : 'Fila'
   const lineHeight = 4.6
   const footerReserve = 10
@@ -294,7 +323,7 @@ function drawWordChartPages(
   let y = drawPageHeader()
 
   for (const line of lines) {
-    const prefix = `${unitLabel} ${line.unitIndex + 1}: `
+    const prefix = line.isFringe ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: ` : `${unitLabel} ${line.unitIndex + 1}: `
     const indent = ' '.repeat(prefix.length)
     const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
 
@@ -342,7 +371,8 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const availH = pageHeight - chartTop - margin - 6
   const colsPerPage = Math.max(1, Math.floor(availW / base.w))
   const rowsPerPage = Math.max(1, Math.floor(availH / base.h))
-  const sections = planChartSections(opts.cols, opts.rows, colsPerPage, rowsPerPage)
+  const totalRows = opts.rows + maxFringeLength(opts.fringe)
+  const sections = planChartSections(opts.cols, totalRows, colsPerPage, rowsPerPage)
   const multipage = sections.length > 1
 
   for (const [i, section] of sections.entries()) {

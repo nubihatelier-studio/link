@@ -25,6 +25,17 @@ describe('estimateThreadMeters', () => {
     const big = estimateThreadMeters('peyote', 20, 10, DELICA_WIDTH)
     expect(big).toBeCloseTo(small * 2, 5)
   })
+
+  it('folds fringe beads in at 2 thread passes each, regardless of the body technique', () => {
+    const withoutFringe = estimateThreadMeters('loom', 10, 10, DELICA_WIDTH)
+    const withFringe = estimateThreadMeters('loom', 10, 10, DELICA_WIDTH, 5)
+    // 5 fringe beads * 2 passes * 1.6mm * 1.3 margin = 20.8mm = 0.0208m
+    expect(withFringe - withoutFringe).toBeCloseTo(0.0208, 5)
+  })
+
+  it('defaults to no fringe when the argument is omitted', () => {
+    expect(estimateThreadMeters('brick', 10, 10, DELICA_WIDTH)).toBe(estimateThreadMeters('brick', 10, 10, DELICA_WIDTH, 0))
+  })
 })
 
 describe('suggestedNeedle', () => {
