@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus } from 'lucide-react'
+import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
@@ -27,6 +27,24 @@ export function ColorPanel() {
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
+  const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
+  const [replaceDraft, setReplaceDraft] = useState('#000000')
+
+  function openReplace(hex: string) {
+    setMergeTarget(null)
+    setReplaceDraft(hex)
+    setReplaceTarget((current) => (current === hex ? null : hex))
+  }
+
+  function openMerge(hex: string) {
+    setReplaceTarget(null)
+    setMergeTarget((current) => (current === hex ? null : hex))
+  }
+
+  function confirmReplace(fromHex: string) {
+    mergeColors(fromHex, replaceDraft)
+    setReplaceTarget(null)
+  }
 
   // Sorted by letter (not usage count) so this list reads in the same
   // obvious A, B, C… order as the slot row above it, instead of jumping
@@ -167,12 +185,15 @@ export function ColorPanel() {
           {palette.map((p) => {
             const match = catalogMatchForHex(p.hex)
             const isMergeOpen = mergeTarget === p.hex
+            const isReplaceOpen = replaceTarget === p.hex
             const otherColors = palette.filter((o) => o.hex !== p.hex)
             return (
               <li key={p.hex} className="rounded-lg hover:bg-surface-2">
                 <div className="flex items-center gap-2 px-2 py-1.5">
                   <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border text-[10px] font-bold"
+                    onDoubleClick={() => openReplace(p.hex)}
+                    title={p.hex}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border text-[10px] font-bold"
                     style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
                   >
                     {colorLetters[p.hex] ?? ''}
@@ -183,11 +204,20 @@ export function ColorPanel() {
                     <span className="ml-1 text-text-soft">· {match.color.name}</span>
                   </span>
                   <span className="text-xs font-semibold">{p.count}</span>
+                  <button
+                    aria-label={t.advancedColor.replaceAll}
+                    title={t.advancedColor.replaceAll}
+                    onClick={() => openReplace(p.hex)}
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
+                      ${isReplaceOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
+                  >
+                    <Replace size={13} />
+                  </button>
                   {otherColors.length > 0 && (
                     <button
                       aria-label={t.advancedColor.merge}
                       title={t.advancedColor.merge}
-                      onClick={() => setMergeTarget(isMergeOpen ? null : p.hex)}
+                      onClick={() => openMerge(p.hex)}
                       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
                         ${isMergeOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
                     >
@@ -195,6 +225,36 @@ export function ColorPanel() {
                     </button>
                   )}
                 </div>
+                {isReplaceOpen && (
+                  <div data-testid="replace-panel" className="mx-2 mb-2 flex flex-col gap-2 rounded-lg bg-surface-3 p-2">
+                    <p className="text-[11px] font-semibold text-text-muted">{t.advancedColor.replaceAll}</p>
+                    <ColorPicker value={replaceDraft} onChange={setReplaceDraft} />
+                    <div className="grid grid-cols-8 gap-1">
+                      {QUICK_SWATCHES.map((hex) => (
+                        <button
+                          key={hex}
+                          title={hex}
+                          onClick={() => setReplaceDraft(hex)}
+                          className="aspect-square rounded-md border border-border/50"
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-text-muted">{t.advancedColor.preview}</span>
+                      <span
+                        className="h-6 w-6 rounded-md border border-border"
+                        style={{ backgroundColor: replaceDraft }}
+                      />
+                      <button
+                        onClick={() => confirmReplace(p.hex)}
+                        className="ml-auto rounded-full bg-accent-500 px-3 py-1 text-xs font-semibold text-accent-ink hover:bg-accent-400"
+                      >
+                        {t.common.confirm}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {isMergeOpen && (
                   <div className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
                     <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.merge}</p>
