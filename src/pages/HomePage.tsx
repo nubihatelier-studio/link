@@ -233,6 +233,7 @@ export function HomePage() {
             if (!p) return null
             const bead = getBeadType(p.config.beadTypeId)
             const colorCount = new Set(Object.values(p.cells)).size
+            const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1)
             return (
               <li
                 key={id}
@@ -249,6 +250,17 @@ export function HomePage() {
                       {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
                     </p>
                     <p className="text-xs text-text-muted">{colorCount} colores</p>
+                    {cardSummary && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
+                          <div
+                            className="h-full rounded-full bg-accent-500"
+                            style={{ width: `${cardSummary.percent}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 text-[10px] text-text-muted">{cardSummary.percent}%</span>
+                      </div>
+                    )}
                   </div>
                 </button>
                 <button

@@ -227,4 +227,26 @@ describe('HomePage — hero "Continuar tejiendo"', () => {
 
     expect(screen.getByText('pantalla de tejido')).toBeInTheDocument()
   })
+
+  it('muestra el porcentaje de avance en la card de un patrón que no es el destacado', async () => {
+    // PATTERN_2 is loom 10x20 = 200 cells; index 99 lands exactly on the halfway point.
+    fakeAdapter = createFakeAdapter(
+      [PATTERN, PATTERN_2],
+      [
+        { patternId: PATTERN.id, currentIndex: 10, updatedAt: 999 }, // most recent — becomes the hero
+        { patternId: PATTERN_2.id, currentIndex: 99, updatedAt: 1 },
+      ],
+    )
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN, [PATTERN_2.id]: PATTERN_2 },
+      order: [PATTERN.id, PATTERN_2.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    await renderHomeWithWeaveRoute()
+
+    await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
+  })
 })
