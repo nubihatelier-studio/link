@@ -1,10 +1,9 @@
 import type { ColorMap, FringeData, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, gridBoundsUnits, physicalSizeMm, beadCount } from '@/engine/geometry'
+import { cellPosition, physicalSizeMm, beadCount } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
-import { planChartSections, type ChartSection } from '@/engine/chartPagination'
 import { buildWordChart } from '@/engine/wordChart'
 import { weaveUnit } from '@/engine/weaveOrder'
 import { paletteFromCells, letterForIndex } from './palette'
@@ -28,19 +27,15 @@ export interface ExportPatternOptions {
 }
 
 /**
- * Chart cell size in mm, tuned per technique for on-paper legibility —
- * intentionally NOT the bead's real physical size (a Delica 11/0 is
- * ~1.6mm, which would be unreadable at 1:1). Proportions ported from the
- * Lovable build's `baseBeadPx` (peyote tall, brick wide, loom square); the
- * bead's *actual* physical size is still shown separately in the spec line
- * via `physicalSizeMm`, so the finished-piece dimensions stay accurate even
- * though the printed chart is enlarged.
+ * Legible chart cell size in mm, tuned per technique — intentionally NOT the
+ * bead's real physical size (a Delica 11/0 is ~1.6mm, unreadable at 1:1).
+ * Proportions ported from the Lovable build's `baseBeadPx` (peyote tall,
+ * brick wide, loom square); the bead's *actual* physical size is still shown
+ * separately in the spec line via `physicalSizeMm`.
  *
- * This is also the legibility floor: the chart is always rendered at this
- * size and never shrunk to squeeze a big grid onto one page (that's what
- * made letters/numbers unreadable before). When a grid doesn't fit a page
- * at this size, `exportPatternToPdf` splits it into section pages instead
- * (see engine/chartPagination.ts) rather than scaling down further.
+ * This is the size used when it fits — see `fitChartCellToOnePage`, which
+ * shrinks below it only when needed so the whole chart (body + fringe)
+ * always renders on a single page.
  */
 function chartCellMm(technique: Technique): { w: number; h: number } {
   if (technique === 'peyote') return { w: 3.2, h: 3.9 }
@@ -48,23 +43,38 @@ function chartCellMm(technique: Technique): { w: number; h: number } {
   return { w: 3.5, h: 3.5 }
 }
 
-const LETTER_FONT_SIZE = 5.5
+const MAX_LETTER_FONT_SIZE = 5.5
+/** Below this cell size, a materials-list letter wouldn't be legible anyway — hidden regardless of the `showLetters` toggle. */
+const MIN_LEGIBLE_CELL_MM = 2.2
 
 /**
- * Draws one chart section (a colStart..colEnd / rowStart..rowEnd
- * sub-rectangle of the full grid — the whole grid when it fits on one
- * page) as PDF vector primitives, with the materials-list letter inside
- * every colored cell so the chart stays legible printed in black & white
- * or with visually similar colors.
- *
- * Row/col numbers reflect the *real* grid position (not section-local), so
- * sections can be taped together and read against Weave Mode without
- * re-numbering anything.
+ * Shrinks `base` (keeping its per-technique aspect ratio) just enough that
+ * the whole `cols` × `totalRows` grid fits within `availW` × `availH` — never
+ * grows past the legible base size, only shrinks when the pattern (body +
+ * fringe) would otherwise need more than one page. The chart always renders
+ * on a single page; see `exportPatternToPdf`.
  */
-function drawChartSection(
+export function fitChartCellToOnePage(
+  base: { w: number; h: number },
+  cols: number,
+  totalRows: number,
+  availW: number,
+  availH: number,
+): { w: number; h: number } {
+  const scale = Math.min(1, availW / (cols * base.w), availH / (totalRows * base.h))
+  return { w: base.w * scale, h: base.h * scale }
+}
+
+/**
+ * Draws the whole cols × totalRows chart (body + fringe) as PDF vector
+ * primitives, with the materials-list letter inside every colored cell (when
+ * the cell is large enough to read one) so the chart stays legible printed
+ * in black & white or with visually similar colors.
+ */
+function drawChart(
   doc: JsPDF,
   opts: ExportPatternOptions,
-  section: ChartSection,
+  totalRows: number,
   letterForHex: Map<string, string>,
   showLetters: boolean,
   originX: number,
@@ -73,33 +83,32 @@ function drawChartSection(
   cellH: number,
 ): void {
   const { technique, cells, cols, rows, fringe } = opts
-  const { colStart, colEnd, rowStart, rowEnd } = section
-  // Every cell's position is expressed in absolute bead units (parity-dependent offsets use the
-  // real col/row index), so subtracting the section's own origin flushes it to (originX, originY)
-  // while preserving the true zigzag/stagger geometry within the section. `rows` (the body height)
-  // makes this correct for a section that dips into the fringe zone too (see cellPosition).
-  const origin = cellPosition(technique, rowStart, colStart, rows)
+  const origin = cellPosition(technique, 0, 0, rows)
 
   const step = cols > 60 ? 10 : cols > 30 ? 5 : 1
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   doc.setTextColor(120)
-  for (let c = colStart; c < colEnd; c++) {
-    if (c % step !== 0 && c !== colStart && c !== colEnd - 1) continue
-    const pos = cellPosition(technique, rowStart, c, rows)
+  for (let c = 0; c < cols; c++) {
+    if (c % step !== 0 && c !== cols - 1) continue
+    const pos = cellPosition(technique, 0, c, rows)
     doc.text(String(c + 1), originX + (pos.x - origin.x) * cellW + cellW / 2, originY - 2, { align: 'center' })
   }
-  for (let r = rowStart; r < rowEnd; r++) {
-    if (r % step !== 0 && r !== rowStart && r !== rowEnd - 1) continue
-    const pos = cellPosition(technique, r, colStart, rows)
+  for (let r = 0; r < totalRows; r++) {
+    if (r % step !== 0 && r !== totalRows - 1) continue
+    const pos = cellPosition(technique, r, 0, rows)
     doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2 + 1, { align: 'right' })
   }
 
+  const minCell = Math.min(cellW, cellH)
+  const lettersVisible = showLetters && minCell >= MIN_LEGIBLE_CELL_MM
+  const letterFontSize = Math.min(MAX_LETTER_FONT_SIZE, minCell * 1.6)
+
   doc.setLineWidth(0.05)
-  for (let row = rowStart; row < rowEnd; row++) {
-    for (let col = colStart; col < colEnd; col++) {
+  for (let row = 0; row < totalRows; row++) {
+    for (let col = 0; col < cols; col++) {
       // Skip a "cell" past that column's own fringe length — it doesn't exist (columns can have
-      // different fringe lengths, so not every row in a fringe-zone section applies to every column).
+      // different fringe lengths, so not every row in the fringe zone applies to every column).
       if (!isPaintableCell(row, col, cols, rows, fringe)) continue
 
       const hex = cells[cellKey(row, col)]
@@ -111,9 +120,9 @@ function drawChartSection(
         doc.setFillColor(hex)
         doc.setDrawColor(200)
         doc.rect(x, y, cellW, cellH, 'FD')
-        if (showLetters) {
+        if (lettersVisible) {
           doc.setFont('helvetica', 'bold')
-          doc.setFontSize(LETTER_FONT_SIZE)
+          doc.setFontSize(letterFontSize)
           doc.setTextColor(contrastTextColor(hex))
           doc.text(letterForHex.get(hex) ?? '?', x + cellW / 2, y + cellH / 2, { align: 'center', baseline: 'middle' })
         }
@@ -124,34 +133,6 @@ function drawChartSection(
     }
   }
   doc.setTextColor(0)
-}
-
-/**
- * Small "you are here" diagram drawn on multi-section chart pages: the full
- * grid's outline with the current section's sub-rectangle highlighted. Uses
- * plain col/row proportions rather than exact technique geometry — accurate
- * enough for orientation at this scale, and simpler than re-deriving
- * bead-unit bounds for an arbitrary sub-rectangle.
- */
-function drawMinimap(doc: JsPDF, opts: ExportPatternOptions, section: ChartSection, x: number, y: number, w: number, h: number) {
-  const totalRows = opts.rows + maxFringeLength(opts.fringe)
-  const bounds = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe))
-  const scale = Math.min(w / bounds.width, h / bounds.height)
-  const mapW = bounds.width * scale
-  const mapH = bounds.height * scale
-
-  doc.setDrawColor(180)
-  doc.setLineWidth(0.2)
-  doc.rect(x, y, mapW, mapH)
-
-  const secX = x + (section.colStart / opts.cols) * mapW
-  const secW = Math.max(0.6, ((section.colEnd - section.colStart) / opts.cols) * mapW)
-  const secY = y + (section.rowStart / totalRows) * mapH
-  const secH = Math.max(0.6, ((section.rowEnd - section.rowStart) / totalRows) * mapH)
-
-  doc.setFillColor('#c9a227')
-  doc.setDrawColor(0)
-  doc.rect(secX, secY, secW, secH, 'FD')
 }
 
 /** "Creado con Nubih Creator · @nubih.atelier" on every page — PDFs get shared, so the brand should travel with them. */
@@ -362,10 +343,11 @@ function drawWordChartPages(
  * 1. A "ficha" page — title, real finished size, materials legend (letra /
  *    código / cantidad), estimated thread length, suggested needle and a
  *    notes area.
- * 2. One or more chart pages — vector-drawn, with the materials-list letter
- *    inside each bead for B/W-print legibility, split into overlapping
- *    sections when the grid doesn't fit one page at a legible bead size
- *    (see chartCellMm).
+ * 2. One chart page — vector-drawn, with the materials-list letter inside
+ *    each bead for B/W-print legibility. The whole cols × totalRows grid
+ *    (body + fringe) always fits this single page: it renders at the
+ *    legible `chartCellMm` size when that already fits, and shrinks only as
+ *    much as needed otherwise (see `fitChartCellToOnePage`).
  * 3. One or more word-chart pages — the same traversal Weave Mode uses,
  *    written out as compact per-row/column text.
  * Every page gets the same footer stamp so the brand travels with shared PDFs.
@@ -388,33 +370,15 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const chartTop = margin + 8
   const availW = pageWidth - margin * 2
   const availH = pageHeight - chartTop - margin - 6
-  const colsPerPage = Math.max(1, Math.floor(availW / base.w))
-  const rowsPerPage = Math.max(1, Math.floor(availH / base.h))
   const totalRows = opts.rows + maxFringeLength(opts.fringe)
-  const sections = planChartSections(opts.cols, totalRows, colsPerPage, rowsPerPage)
-  const multipage = sections.length > 1
+  const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
 
-  for (const [i, section] of sections.entries()) {
-    doc.addPage()
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(0)
-    doc.text(opts.name || 'Patrón Nubih', margin, 10)
-    if (multipage) {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
-      doc.setTextColor(100)
-      doc.text(
-        `${t.pdf.section(i + 1, sections.length)} · ${t.pdf.columnsRange(section.colStart + 1, section.colEnd)} · ${t.pdf.rowsRange(section.rowStart + 1, section.rowEnd)}`,
-        margin,
-        15,
-      )
-      doc.setTextColor(0)
-      drawMinimap(doc, opts, section, pageWidth - margin - 26, 4, 26, 18)
-    }
-
-    drawChartSection(doc, opts, section, letterForHex, showLetters, margin, chartTop, base.w, base.h)
-  }
+  doc.addPage()
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(0)
+  doc.text(opts.name || 'Patrón Nubih', margin, 10)
+  drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, chartTop, cellW, cellH)
 
   drawWordChartPages(doc, opts, letterForHex, margin, pageWidth, pageHeight)
 

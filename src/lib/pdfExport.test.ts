@@ -63,7 +63,7 @@ describe('exportPatternToPdf', () => {
     expect(lastDoc!.getNumberOfPages()).toBeLessThanOrEqual(5)
   })
 
-  it('splits a large pattern into many more pages than a small one (chart sections + word chart)', async () => {
+  it('keeps the chart on a single page even for a very large pattern (only the word chart grows)', async () => {
     const { exportPatternToPdf } = await import('./pdfExport')
     await exportPatternToPdf({
       name: 'Prueba grande',
@@ -75,6 +75,7 @@ describe('exportPatternToPdf', () => {
     })
 
     expect(lastDoc).toBeDefined()
+    // ficha (1) + chart (1) + many word-chart pages for a 150x150 pattern.
     expect(lastDoc!.getNumberOfPages()).toBeGreaterThan(10)
   })
 
@@ -139,10 +140,10 @@ describe('exportPatternToPdf', () => {
       ).resolves.not.toThrow()
     })
 
-    it('splits the chart into more pages once the fringe pushes the total height past one page', async () => {
+    it('keeps the chart on a single page even once the fringe pushes the total height well past one page at full size', async () => {
       const { exportPatternToPdf } = await import('./pdfExport')
       const cols = 10
-      const rows = 60 // fits on a single chart page by itself at this cell size
+      const rows = 60
       const cells = fillCells(cols, rows)
 
       await exportPatternToPdf({ name: 'Sin fleco', technique: 'loom', cols, rows, cells, beadType: bead })
@@ -155,7 +156,10 @@ describe('exportPatternToPdf', () => {
       await exportPatternToPdf({ name: 'Con fleco largo', technique: 'loom', cols, rows, cells, fringe, beadType: bead })
       const pagesWithFringe = lastDoc!.getNumberOfPages()
 
-      expect(pagesWithFringe).toBeGreaterThan(pagesWithoutFringe)
+      // The fringe may add a line or two to the word-chart section (one extra line per column),
+      // but the chart itself must stay a single page regardless of fringe height — so the page
+      // count should barely move, not multiply the way the old section-splitting chart used to.
+      expect(pagesWithFringe - pagesWithoutFringe).toBeLessThanOrEqual(2)
     })
   })
 })
