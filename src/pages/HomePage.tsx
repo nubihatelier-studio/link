@@ -20,7 +20,8 @@ import { UndoToast } from '@/components/shared/UndoToast'
 
 export function HomePage() {
   const navigate = useNavigate()
-  const { patterns, order, deletePattern, duplicatePattern, refresh } = usePatternsStore()
+  const { patterns, order, deletePattern, duplicatePattern, refresh, justOnboarded, dismissOnboarding } =
+    usePatternsStore()
   const { theme, setTheme } = useThemeStore()
   const { persisted } = useStorageStatus()
   const weaveProgress = useWeaveStore((s) => s.progress)
@@ -200,6 +201,19 @@ export function HomePage() {
           </div>
         </div>
       </header>
+
+      {justOnboarded && (
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3">
+          <p className="text-sm text-text">{t.home.onboardingMessage}</p>
+          <button
+            onClick={dismissOnboarding}
+            aria-label={t.common.close}
+            className="shrink-0 rounded-full px-2 py-1.5 text-xs text-text-muted hover:bg-surface-3"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {showBackupReminder && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3">

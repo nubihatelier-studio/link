@@ -79,3 +79,38 @@ describe('patternsStore.hydrate', () => {
     expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
   })
 })
+
+describe('patternsStore.hydrate — first-launch onboarding', () => {
+  beforeEach(() => {
+    adapterError = null
+    fakeAdapter = createFakeAdapter([]) // no patterns at all — a genuinely fresh device
+    localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('seeds a sample pattern and flags justOnboarded when the device has never seen onboarding', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    const state = usePatternsStore.getState()
+    expect(state.order).toHaveLength(1)
+    expect(state.justOnboarded).toBe(true)
+    expect(localStorage.getItem('nubih-onboarding-seen')).toBe('1')
+  })
+
+  it('does not seed a sample pattern once onboarding has already been seen', async () => {
+    localStorage.setItem('nubih-onboarding-seen', '1')
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    const state = usePatternsStore.getState()
+    expect(state.order).toHaveLength(0)
+    expect(state.justOnboarded).toBe(false)
+  })
+
+  it('dismissOnboarding clears the justOnboarded flag', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    expect(usePatternsStore.getState().justOnboarded).toBe(true)
+    usePatternsStore.getState().dismissOnboarding()
+    expect(usePatternsStore.getState().justOnboarded).toBe(false)
+  })
+})

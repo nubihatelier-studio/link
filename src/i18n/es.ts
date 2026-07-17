@@ -12,6 +12,8 @@ export const t = {
     empty: 'Todavía no creaste ningún patrón',
     createNew: '+ Crear nuevo',
     continueWeaving: 'Continuar tejiendo',
+    onboardingMessage:
+      '¡Bienvenida a Nubih Creator! Te dejamos un aro con flecos de muestra para que explores — tócalo para editarlo, o crea el tuyo con "+ Crear nuevo".',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',

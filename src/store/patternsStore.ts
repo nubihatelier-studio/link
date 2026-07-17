@@ -3,6 +3,8 @@ import type { ColorMap, FringeData, PatternConfig, PatternDoc } from '@/engine/t
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 import { requestPersistentStorageOnce } from '@/storage/persistence'
+import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
+import { buildSamplePattern } from '@/data/samplePattern'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -16,6 +18,9 @@ interface PatternsState {
   /** Set instead of `hydrated: true` if opening storage itself failed (no IndexedDB, quota/permissions denied, etc.) — App.tsx shows a dedicated screen instead of hanging on the loading spinner forever. */
   hydrationError: string | null
   migrationResult: MigrationResult | null
+  /** True for the rest of this session right after `hydrate()` auto-creates the first-launch sample pattern — HomePage shows a one-time welcome banner while this is true, then dismisses it. */
+  justOnboarded: boolean
+  dismissOnboarding: () => void
   hydrate: () => Promise<void>
   /** Re-lists patterns from the storage adapter without re-running migration — use after an import. */
   refresh: () => Promise<void>
@@ -60,17 +65,42 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
   hydrated: false,
   hydrationError: null,
   migrationResult: null,
+  justOnboarded: false,
+  dismissOnboarding: () => set({ justOnboarded: false }),
 
   hydrate: async () => {
     if (get().hydrated) return
     try {
       const adapter = await getStorageAdapter()
       const migrationResult = await migrateFromLocalStorage(adapter)
-      const docs = await adapter.listPatterns()
+      let docs = await adapter.listPatterns()
+      let justOnboarded = false
+
+      // First launch ever, on a device with no patterns at all (fresh
+      // install, or every pattern deleted before onboarding ran): seed one
+      // ready-made sample instead of a blank empty state, showing off this
+      // sprint's fringe feature right away. Never runs again after this.
+      if (docs.length === 0 && !hasSeenOnboarding()) {
+        const sample = buildSamplePattern()
+        const doc: PatternDoc = {
+          id: makeId(),
+          name: sample.name,
+          config: sample.config,
+          cells: sample.cells,
+          fringe: sample.fringe,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+        await adapter.savePattern(doc)
+        docs = [doc]
+        justOnboarded = true
+        markOnboardingSeen()
+      }
+
       const patterns: Record<string, PatternDoc> = {}
       for (const doc of docs) patterns[doc.id] = doc
       const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
-      set({ patterns, order, hydrated: true, migrationResult })
+      set({ patterns, order, hydrated: true, migrationResult, justOnboarded })
     } catch (err) {
       console.error('No se pudo abrir el almacenamiento local', err)
       set({ hydrationError: (err as Error).message || 'unknown' })

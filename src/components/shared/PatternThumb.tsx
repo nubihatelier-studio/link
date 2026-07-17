@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PatternDoc } from '@/engine/types'
 import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { maxFringeLength } from '@/engine/fringe'
 import { parseCellKey } from '@/engine/cellKey'
 
 interface PatternThumbProps {
@@ -24,7 +25,7 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     ctx.clearRect(0, 0, size, size)
 
     const { technique, cols, rows } = pattern.config
-    const bounds = gridBoundsUnits(technique, cols, rows)
+    const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(pattern.fringe))
     const scale = Math.min(size / Math.max(bounds.width, 1), size / Math.max(bounds.height, 1))
     const offsetX = (size - bounds.width * scale) / 2
     const offsetY = (size - bounds.height * scale) / 2
@@ -36,7 +37,7 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     for (const [key, hex] of Object.entries(pattern.cells)) {
       if (!hex) continue
       const { row, col } = parseCellKey(key)
-      const pos = cellPosition(technique, row, col)
+      const pos = cellPosition(technique, row, col, rows)
       ctx.fillStyle = hex
       ctx.fillRect(offsetX + pos.x * scale, offsetY + pos.y * scale, cell, cell)
     }
