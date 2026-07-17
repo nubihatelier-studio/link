@@ -102,6 +102,15 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     return id
   },
 
+  /**
+   * Used exclusively by "Foto a patrón" (see PhotoToPatternPage.tsx). No
+   * `fringe` param by design — photo-to-pattern conversion only ever
+   * produces a body, never a fringe (out of scope for this sprint; a
+   * detected photo has no notion of "hanging strands" to infer lengths
+   * from). The resulting pattern loads with an empty fringe, same as any
+   * pre-fringe legacy pattern (see `engine/fringe.ts#normalizeFringe`), and
+   * a fringe can always be added afterward in the editor.
+   */
   createPatternWithCells: (config, cells, name) => {
     const id = makeId()
     const doc: PatternDoc = {
