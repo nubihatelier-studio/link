@@ -14,6 +14,11 @@ export const t = {
     continueWeaving: 'Continuar tejiendo',
     onboardingMessage:
       '¡Bienvenida a Nubih Creator! Te dejamos un aro con flecos de muestra para que explores — tócalo para editarlo, o crea el tuyo con "+ Crear nuevo".',
+    searchPlaceholder: 'Buscar por nombre…',
+    searchNoResults: 'Ningún patrón coincide con la búsqueda',
+    sortRecent: 'Reciente',
+    sortName: 'Nombre',
+    sortTechnique: 'Técnica',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',

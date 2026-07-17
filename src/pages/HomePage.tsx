@@ -7,6 +7,7 @@ import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
 import { pickMostRecentInProgress, summarizeWeaveProgress } from '@/engine/weaveProgressSummary'
+import { filterPatternsByName, sortPatterns, type LibrarySort } from '@/lib/patternLibrary'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
@@ -44,7 +45,11 @@ export function HomePage() {
   // is written back to the store until it's confirmed.
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [librarySort, setLibrarySort] = useState<LibrarySort>('recent')
   const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
+  // Search/sort only earn their place once the list is long enough to need them.
+  const showLibraryControls = order.length > 5
 
   function handleDuplicate(id: string) {
     const newId = duplicatePattern(id)
@@ -136,6 +141,12 @@ export function HomePage() {
     heroPattern && heroPatternId
       ? summarizeWeaveProgress(heroPattern.config, weaveProgress[heroPatternId].currentIndex, heroPattern.fringe)
       : null
+
+  const visiblePatterns = order
+    .filter((id) => id !== pendingDelete?.id && id !== heroPatternId)
+    .map((id) => patterns[id])
+    .filter((p): p is PatternDoc => !!p)
+  const displayedPatterns = sortPatterns(filterPatternsByName(visiblePatterns, searchQuery), librarySort)
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -257,16 +268,39 @@ export function HomePage() {
 
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
 
-      {order.filter((id) => id !== pendingDelete?.id && id !== heroPatternId).length === 0 ? (
+      {showLibraryControls && (
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t.home.searchPlaceholder}
+            className="flex-1 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+          />
+          <select
+            value={librarySort}
+            onChange={(e) => setLibrarySort(e.target.value as LibrarySort)}
+            className="rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+          >
+            <option value="recent">{t.home.sortRecent}</option>
+            <option value="name">{t.home.sortName}</option>
+            <option value="technique">{t.home.sortTechnique}</option>
+          </select>
+        </div>
+      )}
+
+      {visiblePatterns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
           {t.home.empty}
         </div>
+      ) : displayedPatterns.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
+          {t.home.searchNoResults}
+        </div>
       ) : (
         <ul className="flex flex-col gap-3">
-          {order.map((id) => {
-            if (id === pendingDelete?.id || id === heroPatternId) return null
-            const p = patterns[id]
-            if (!p) return null
+          {displayedPatterns.map((p) => {
+            const id = p.id
             const bead = getBeadType(p.config.beadTypeId)
             const colorCount = new Set(Object.values(p.cells)).size
             const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1, p.fringe)
