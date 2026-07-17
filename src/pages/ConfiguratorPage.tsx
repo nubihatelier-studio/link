@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { MeasurementUnit, Technique } from '@/engine/types'
+import type { FringeData, MeasurementUnit, Technique } from '@/engine/types'
 import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
+import { createFringeLengths, isFringeCapable, type FringeShape } from '@/engine/fringe'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -29,11 +30,15 @@ export function ConfiguratorPage() {
   const [beadTypeId, setBeadTypeId] = useState(BEAD_TYPES[0].id)
   const [mode, setMode] = useState<SizeMode>('count')
   const [unit, setUnit] = useState<MeasurementUnit>('mm')
+  const [fringeEnabled, setFringeEnabled] = useState(false)
+  const [fringeMaxLength, setFringeMaxLength] = useState(8)
+  const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
 
   const bead = getBeadType(beadTypeId)
+  const fringeActive = isFringeCapable(technique) && fringeEnabled
   const size = useMemo(
-    () => physicalSizeMm(technique, cols, rows, bead.widthMm, bead.heightMm),
-    [technique, cols, rows, bead],
+    () => physicalSizeMm(technique, cols, rows, bead.widthMm, bead.heightMm, fringeActive ? fringeMaxLength : 0),
+    [technique, cols, rows, bead, fringeActive, fringeMaxLength],
   )
   const total = beadCount(technique, cols, rows)
 
@@ -58,7 +63,12 @@ export function ConfiguratorPage() {
   }
 
   function handleCreate() {
-    const id = createPattern({ technique, cols, rows, beadTypeId })
+    let fringe: FringeData | undefined
+    if (fringeActive) {
+      const lengths = createFringeLengths(fringeShape, cols, fringeMaxLength)
+      fringe = { lengths, turnBeads: lengths.map((len) => len > 0) }
+    }
+    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe)
     navigate(`/editor/${id}`)
   }
 
@@ -172,6 +182,47 @@ export function ConfiguratorPage() {
           ))}
         </div>
       </section>
+
+      {isFringeCapable(technique) && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.fringe.title}</h2>
+            <button
+              onClick={() => setFringeEnabled((v) => !v)}
+              aria-pressed={fringeEnabled}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
+                ${fringeEnabled ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+            >
+              {fringeEnabled ? t.configurator.fringe.remove : t.configurator.fringe.add}
+            </button>
+          </div>
+          {fringeEnabled && (
+            <div className="flex flex-col gap-5">
+              <p className="text-xs text-text-soft">{t.configurator.fringe.hint}</p>
+              <SliderField
+                label={t.configurator.fringe.maxLength}
+                value={fringeMaxLength}
+                min={1}
+                max={40}
+                suffix={t.configurator.fringe.beadsUnit}
+                onChange={setFringeMaxLength}
+              />
+              <div>
+                <p className="mb-2 text-sm font-semibold text-text">{t.configurator.fringe.shape}</p>
+                <SegmentedControl<FringeShape>
+                  value={fringeShape}
+                  onChange={setFringeShape}
+                  options={[
+                    { value: 'straight', label: t.configurator.fringe.shapeStraight },
+                    { value: 'v', label: t.configurator.fringe.shapeV },
+                    { value: 'cascade', label: t.configurator.fringe.shapeCascade },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
         <p className="text-2xl font-bold">{total.toLocaleString('es')}</p>

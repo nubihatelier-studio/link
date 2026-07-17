@@ -47,6 +47,18 @@ export const t = {
     photoToPattern: 'Foto a patrón',
     photoToPatternDesc: 'Genera un patrón a partir de una foto',
     createButton: '+ Crear patrón',
+    fringe: {
+      title: 'Flecos 🪶',
+      add: '+ Agregar flecos',
+      remove: 'Quitar flecos',
+      hint: 'Cuelgan de la última fila — el largo y la forma son solo un punto de partida, todo se puede editar después en el editor.',
+      maxLength: 'Largo máximo',
+      beadsUnit: 'mostacillas',
+      shape: 'Forma inicial',
+      shapeStraight: 'Recta',
+      shapeV: 'En V',
+      shapeCascade: 'Cascada',
+    },
   },
   photo: {
     title: 'Foto a patrón',
