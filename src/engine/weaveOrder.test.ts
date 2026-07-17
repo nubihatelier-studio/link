@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildWeaveOrder, firstIndexOfUnit, unitIndexOf, weaveUnit } from './weaveOrder'
+import type { FringeData } from './types'
+import { buildWeaveOrder, firstIndexOfUnit, isFringeStep, unitIndexOf, weaveUnit } from './weaveOrder'
 
 describe('buildWeaveOrder', () => {
   it('loom: row-major, left to right, same direction every row', () => {
@@ -77,6 +78,43 @@ describe('weaveUnit / unitIndexOf — the QA regression (6x50 peyote showing "Fi
     expect(unitIndexOf('loom', afterThreePresses)).toBe(0) // 3 beads into a 6-wide row: still row 1
     const firstOfSecondRow = order[6]
     expect(unitIndexOf('loom', firstOfSecondRow)).toBe(1)
+  })
+})
+
+describe('buildWeaveOrder with a fringe', () => {
+  it('leaves the body-only call (no fringe arg) byte-identical to before', () => {
+    expect(buildWeaveOrder('brick', 3, 2)).toEqual([
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+      { row: 1, col: 0 },
+      { row: 1, col: 1 },
+      { row: 1, col: 2 },
+    ])
+  })
+
+  it('appends fringe beads after the whole body, column by column, nearest-to-body first, turn bead last', () => {
+    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [true, false, false] }
+    const order = buildWeaveOrder('brick', 3, 2, fringe)
+    // 2 rows x 3 cols body = 6 steps, then column 0 (2 beads), column 1 (none), column 2 (1 bead).
+    expect(order).toHaveLength(6 + 2 + 0 + 1)
+    expect(order.slice(6)).toEqual([
+      { row: 2, col: 0, isFringe: true, isTurnBead: false },
+      { row: 3, col: 0, isFringe: true, isTurnBead: true },
+      { row: 2, col: 2, isFringe: true, isTurnBead: false },
+    ])
+  })
+
+  it('a column with no fringe (length 0) contributes no steps', () => {
+    const fringe: FringeData = { lengths: [0, 0], turnBeads: [false, false] }
+    const order = buildWeaveOrder('loom', 2, 2, fringe)
+    expect(order).toHaveLength(4)
+  })
+
+  it('isFringeStep discriminates body cells from fringe beads', () => {
+    const fringe: FringeData = { lengths: [1], turnBeads: [false] }
+    const order = buildWeaveOrder('loom', 1, 2, fringe)
+    expect(order.map(isFringeStep)).toEqual([false, false, true])
   })
 })
 

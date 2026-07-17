@@ -1,5 +1,19 @@
-import type { Cell, Technique } from './types'
+import type { Cell, FringeData, Technique } from './types'
 import { cellPosition } from './geometry'
+
+/** A fringe bead's step in the traversal order — see `buildWeaveOrder`. */
+export interface FringeStep extends Cell {
+  isFringe: true
+  /** The deepest bead of a fringe column — where the thread turns back up. */
+  isTurnBead: boolean
+}
+
+/** One step of a weaving traversal: a plain body cell, or a `FringeStep`. */
+export type WeaveStep = Cell | FringeStep
+
+export function isFringeStep(step: WeaveStep): step is FringeStep {
+  return (step as FringeStep).isFringe === true
+}
 
 /**
  * Weaving traversal order per technique — the sequence in which beads are
@@ -13,9 +27,18 @@ import { cellPosition } from './geometry'
  * - Peyote: worked column by column (columns are the continuous threads in
  *   flat even-count peyote), alternating up/down each column
  *   (boustrophedon), which is the "zigzag" mentioned in the product spec.
+ *
+ * When `fringe` is given (brick/loom only, see `engine/fringe.ts`), its
+ * beads are appended after the *entire* body traversal, walked column by
+ * column, depth-ascending (the bead closest to the body first, the turn
+ * bead last) — a weaver finishes the whole body first, since the per-column
+ * bead count for row-major techniques is only known once the last body row
+ * is done, then adds each column's fringe in one pass: down to the turn
+ * bead, then back up (the "back up" is the same thread physically
+ * retracing its path, not additional beads, so it isn't a separate step).
  */
-export function buildWeaveOrder(technique: Technique, cols: number, rows: number): Cell[] {
-  const order: Cell[] = []
+export function buildWeaveOrder(technique: Technique, cols: number, rows: number, fringe?: FringeData): WeaveStep[] {
+  const order: WeaveStep[] = []
 
   if (technique === 'peyote') {
     for (let col = 0; col < cols; col++) {
@@ -34,6 +57,21 @@ export function buildWeaveOrder(technique: Technique, cols: number, rows: number
       order.push({ row, col })
     }
   }
+
+  if (fringe) {
+    for (let col = 0; col < cols; col++) {
+      const length = fringe.lengths[col] ?? 0
+      for (let depth = 0; depth < length; depth++) {
+        order.push({
+          row: rows + depth,
+          col,
+          isFringe: true,
+          isTurnBead: !!fringe.turnBeads[col] && depth === length - 1,
+        })
+      }
+    }
+  }
+
   return order
 }
 

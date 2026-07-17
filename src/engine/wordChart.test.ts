@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ColorMap } from './types'
+import type { ColorMap, FringeData } from './types'
 import { buildWordChart, formatWordChartLineForDisplay } from './wordChart'
 
 const A = 'A'
@@ -51,6 +51,52 @@ describe('buildWordChart', () => {
     const lines = buildWordChart('loom', 1, 4, { '0,0': '#111111', '2,0': '#222222' }, letterForHex)
     expect(lines).toHaveLength(4)
     expect(lines.map((l) => l.unitIndex)).toEqual([0, 1, 2, 3])
+  })
+})
+
+describe('buildWordChart with a fringe', () => {
+  it('leaves body lines untouched when no fringe is given', () => {
+    const cells: ColorMap = { '0,0': '#111111', '0,1': '#111111' }
+    expect(buildWordChart('brick', 2, 1, cells, letterForHex)).toEqual([{ unitIndex: 0, text: '2A' }])
+  })
+
+  it('appends one fringe line per column with a fringe, after every body line', () => {
+    const cells: ColorMap = {
+      '0,0': '#111111',
+      '0,1': '#111111',
+      // column 0 fringe: depth 0 and 1, hanging below row 1 (rows=1)
+      '1,0': '#111111',
+      '2,0': '#222222',
+    }
+    const fringe: FringeData = { lengths: [2, 0], turnBeads: [true, false] }
+    const lines = buildWordChart('brick', 2, 1, cells, letterForHex, fringe)
+    expect(lines).toEqual([
+      { unitIndex: 0, text: '2A' },
+      { unitIndex: 0, text: '1A, 1B, giro', isFringe: true },
+    ])
+  })
+
+  it('skips columns with no fringe (length 0) entirely', () => {
+    const fringe: FringeData = { lengths: [0, 3], turnBeads: [false, false] }
+    const cells: ColorMap = { '1,1': '#111111', '2,1': '#111111', '3,1': '#222222' }
+    const lines = buildWordChart('loom', 2, 1, cells, letterForHex, fringe)
+    expect(lines.filter((l) => l.isFringe)).toEqual([{ unitIndex: 1, text: '2A, 1B', isFringe: true }])
+  })
+
+  it('collapses uncolored fringe beads into the empty-slot token', () => {
+    const fringe: FringeData = { lengths: [1], turnBeads: [false] }
+    const lines = buildWordChart('loom', 1, 1, {}, letterForHex, fringe)
+    expect(lines).toEqual([
+      { unitIndex: 0, text: `1${'–'}` },
+      { unitIndex: 0, text: `1${'–'}`, isFringe: true },
+    ])
+  })
+
+  it('omits the ", giro" suffix when the column has no turn bead', () => {
+    const fringe: FringeData = { lengths: [2], turnBeads: [false] }
+    const cells: ColorMap = { '1,0': '#111111', '2,0': '#111111' }
+    const lines = buildWordChart('loom', 1, 1, cells, letterForHex, fringe)
+    expect(lines.find((l) => l.isFringe)?.text).toBe('2A')
   })
 })
 
