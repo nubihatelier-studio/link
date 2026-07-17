@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MoreVertical } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
+import { useWeaveStore } from '@/store/weaveStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
+import { pickMostRecentInProgress, summarizeWeaveProgress } from '@/engine/weaveProgressSummary'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
@@ -21,6 +23,12 @@ export function HomePage() {
   const { patterns, order, deletePattern, duplicatePattern, refresh } = usePatternsStore()
   const { theme, setTheme } = useThemeStore()
   const { persisted } = useStorageStatus()
+  const weaveProgress = useWeaveStore((s) => s.progress)
+  const loadAllProgress = useWeaveStore((s) => s.loadAllProgress)
+
+  useEffect(() => {
+    loadAllProgress()
+  }, [loadAllProgress])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -100,6 +108,13 @@ export function HomePage() {
       setBusy(false)
     }
   }
+
+  const heroPatternId = pickMostRecentInProgress(weaveProgress)
+  const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
+  const heroSummary =
+    heroPattern && heroPatternId
+      ? summarizeWeaveProgress(heroPattern.config, weaveProgress[heroPatternId].currentIndex)
+      : null
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -187,16 +202,33 @@ export function HomePage() {
         </div>
       )}
 
+      {heroPattern && heroSummary && (
+        <button
+          onClick={() => navigate(`/editor/${heroPattern.id}/weave`)}
+          className="mb-6 flex w-full items-center gap-4 rounded-2xl border border-accent-300 bg-accent-500/10 p-4 text-left hover:border-accent-500"
+        >
+          <PatternThumb pattern={heroPattern} size={64} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-warning">{t.home.continueWeaving}</p>
+            <p className="truncate font-semibold">{heroPattern.name}</p>
+            <p className="text-sm text-text-muted">
+              {heroSummary.unit === 'column' ? t.weave.column : t.weave.row} {heroSummary.unitIndex + 1} {t.weave.of}{' '}
+              {heroSummary.unitCount} · {heroSummary.percent}%
+            </p>
+          </div>
+        </button>
+      )}
+
       <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
 
-      {order.filter((id) => id !== pendingDelete?.id).length === 0 ? (
+      {order.filter((id) => id !== pendingDelete?.id && id !== heroPatternId).length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
           {t.home.empty}
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
           {order.map((id) => {
-            if (id === pendingDelete?.id) return null
+            if (id === pendingDelete?.id || id === heroPatternId) return null
             const p = patterns[id]
             if (!p) return null
             const bead = getBeadType(p.config.beadTypeId)

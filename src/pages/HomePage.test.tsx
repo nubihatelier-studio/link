@@ -1,14 +1,16 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PatternDoc } from '@/engine/types'
-import type { StorageAdapter } from '@/storage/types'
+import type { StorageAdapter, WeaveProgressRecord } from '@/storage/types'
 import { usePatternsStore } from '@/store/patternsStore'
+import { useWeaveStore } from '@/store/weaveStore'
 
 /** In-memory stand-in for the real adapter, so we can assert exactly when a delete reaches storage. */
-function createFakeAdapter(seed: PatternDoc[]): StorageAdapter {
+function createFakeAdapter(seed: PatternDoc[], weaveProgress: WeaveProgressRecord[] = []): StorageAdapter {
   const patterns = new Map(seed.map((p) => [p.id, p]))
+  const progress = new Map(weaveProgress.map((p) => [p.patternId, p]))
   return {
     backend: 'indexeddb',
     async init() {},
@@ -24,11 +26,18 @@ function createFakeAdapter(seed: PatternDoc[]): StorageAdapter {
     async deletePattern(id) {
       patterns.delete(id)
     },
-    async getWeaveProgress() {
-      return undefined
+    async getWeaveProgress(patternId) {
+      return progress.get(patternId)
     },
-    async setWeaveProgress() {},
-    async deleteWeaveProgress() {},
+    async listWeaveProgress() {
+      return [...progress.values()]
+    },
+    async setWeaveProgress(record) {
+      progress.set(record.patternId, record)
+    },
+    async deleteWeaveProgress(patternId) {
+      progress.delete(patternId)
+    },
   }
 }
 
@@ -56,6 +65,7 @@ describe('HomePage — eliminar con deshacer', () => {
       hydrated: true,
       migrationResult: null,
     })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
   })
 
   async function renderHome() {
@@ -134,5 +144,87 @@ describe('HomePage — eliminar con deshacer', () => {
 
     expect(usePatternsStore.getState().patterns[PATTERN.id]).toBeUndefined()
     await waitFor(async () => expect(await fakeAdapter.getPattern(PATTERN.id)).toBeUndefined())
+  })
+})
+
+const PATTERN_2: PatternDoc = {
+  id: 'p_2',
+  name: 'Aro loom',
+  config: { technique: 'loom', cols: 10, rows: 20, beadTypeId: 'miyuki-delica-11' },
+  cells: {},
+  createdAt: 2,
+  updatedAt: 2,
+}
+
+describe('HomePage — hero "Continuar tejiendo"', () => {
+  async function renderHomeWithWeaveRoute() {
+    const { HomePage } = await import('./HomePage')
+    return render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/editor/:id/weave" element={<p>pantalla de tejido</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('sin progreso de tejido guardado, no muestra la card destacada', async () => {
+    fakeAdapter = createFakeAdapter([PATTERN, PATTERN_2])
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN, [PATTERN_2.id]: PATTERN_2 },
+      order: [PATTERN.id, PATTERN_2.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    await renderHomeWithWeaveRoute()
+
+    expect(screen.queryByText('Continuar tejiendo')).not.toBeInTheDocument()
+  })
+
+  it('destaca el patrón con el progreso más reciente y lo saca de la lista normal', async () => {
+    fakeAdapter = createFakeAdapter(
+      [PATTERN, PATTERN_2],
+      [
+        { patternId: PATTERN.id, currentIndex: 2, updatedAt: 100 },
+        { patternId: PATTERN_2.id, currentIndex: 5, updatedAt: 500 },
+      ],
+    )
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN, [PATTERN_2.id]: PATTERN_2 },
+      order: [PATTERN.id, PATTERN_2.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    await renderHomeWithWeaveRoute()
+
+    await waitFor(() => expect(screen.getByText('Continuar tejiendo')).toBeInTheDocument())
+    // PATTERN_2 has the more recent update — it's the hero, and appears only once.
+    expect(screen.getAllByText(PATTERN_2.name)).toHaveLength(1)
+    // PATTERN still shows up in the regular list below.
+    expect(screen.getByText(PATTERN.name)).toBeInTheDocument()
+  })
+
+  it('tocar la card destacada abre el modo tejido directo', async () => {
+    const user = userEvent.setup()
+    fakeAdapter = createFakeAdapter([PATTERN], [{ patternId: PATTERN.id, currentIndex: 2, updatedAt: 100 }])
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN },
+      order: [PATTERN.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    await renderHomeWithWeaveRoute()
+
+    await waitFor(() => expect(screen.getByText('Continuar tejiendo')).toBeInTheDocument())
+    await user.click(screen.getByText('Continuar tejiendo'))
+
+    expect(screen.getByText('pantalla de tejido')).toBeInTheDocument()
   })
 })

@@ -111,6 +111,16 @@ export class SqliteAdapter implements StorageAdapter {
     return row ? { patternId: row.pattern_id, currentIndex: row.current_index, updatedAt: row.updated_at } : undefined
   }
 
+  async listWeaveProgress(): Promise<WeaveProgressRecord[]> {
+    const db = await this.db()
+    const res = await db.query('SELECT * FROM weave_progress')
+    return (res.values ?? []).map((row) => ({
+      patternId: row.pattern_id,
+      currentIndex: row.current_index,
+      updatedAt: row.updated_at,
+    }))
+  }
+
   async setWeaveProgress(record: WeaveProgressRecord): Promise<void> {
     const db = await this.db()
     await db.run(

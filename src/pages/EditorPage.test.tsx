@@ -27,6 +27,9 @@ function createFakeAdapter(seed: PatternDoc[]): StorageAdapter {
     async getWeaveProgress() {
       return undefined
     },
+    async listWeaveProgress() {
+      return []
+    },
     async setWeaveProgress() {},
     async deleteWeaveProgress() {},
   }

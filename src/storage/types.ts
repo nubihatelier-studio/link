@@ -29,6 +29,8 @@ export interface StorageAdapter {
   deletePattern(id: string): Promise<void>
 
   getWeaveProgress(patternId: string): Promise<WeaveProgressRecord | undefined>
+  /** Every stored progress record — used to surface "continue weaving" across all patterns without loading each one individually. */
+  listWeaveProgress(): Promise<WeaveProgressRecord[]>
   setWeaveProgress(record: WeaveProgressRecord): Promise<void>
   deleteWeaveProgress(patternId: string): Promise<void>
 }

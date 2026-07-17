@@ -11,6 +11,7 @@ export const t = {
     title: 'Tus patrones',
     empty: 'Todavía no creaste ningún patrón',
     createNew: '+ Crear nuevo',
+    continueWeaving: 'Continuar tejiendo',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',

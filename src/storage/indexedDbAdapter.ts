@@ -62,6 +62,11 @@ export class IndexedDbAdapter implements StorageAdapter {
     return db.get(WEAVE_STORE, patternId)
   }
 
+  async listWeaveProgress(): Promise<WeaveProgressRecord[]> {
+    const db = await this.db()
+    return db.getAll(WEAVE_STORE)
+  }
+
   async setWeaveProgress(record: WeaveProgressRecord): Promise<void> {
     const db = await this.db()
     await db.put(WEAVE_STORE, record)

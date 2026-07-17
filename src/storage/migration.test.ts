@@ -25,6 +25,9 @@ function createFakeAdapter(): StorageAdapter {
     async getWeaveProgress(patternId) {
       return progress.get(patternId)
     },
+    async listWeaveProgress() {
+      return [...progress.values()]
+    },
     async setWeaveProgress(record) {
       progress.set(record.patternId, record)
     },
