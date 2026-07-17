@@ -156,6 +156,7 @@ export const t = {
     rename: 'Renombrar',
     duplicate: 'Duplicar',
     close: 'Cerrar',
+    moreOptions: 'Más opciones',
     confirm: 'Confirmar',
     undo: 'Deshacer',
     deletedPattern: (name: string) => `Se eliminó "${name}".`,

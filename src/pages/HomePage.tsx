@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MoreVertical } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
@@ -10,6 +11,7 @@ import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backu
 import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { APP_VERSION } from '@/version'
 import { Button } from '@/components/shared/Button'
+import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
 import { UndoToast } from '@/components/shared/UndoToast'
@@ -26,7 +28,17 @@ export function HomePage() {
   // only actually deleted once the toast expires without being undone.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; doc: PatternDoc } | null>(null)
   const [reminderDismissed, setReminderDismissed] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   function dismissReminder() {
     dismissBackupReminder()
@@ -91,57 +103,68 @@ export function HomePage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="h-10 w-10 rounded-full" />
-          <h1 className="font-serif text-2xl italic text-text">{t.app.name}</h1>
+      <header className="mb-6 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <img src="/logo.png" alt="" className="h-10 w-10 shrink-0 rounded-full" />
+          <h1 className="truncate font-serif text-2xl italic text-text">{t.app.name}</h1>
         </div>
-        <SegmentedControl<ThemePref>
-          value={theme}
-          onChange={setTheme}
-          options={[
-            { value: 'system', label: 'Auto' },
-            { value: 'light', label: 'Claro' },
-            { value: 'dark', label: 'Oscuro' },
-          ]}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          <SegmentedControl<ThemePref>
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: 'system', label: 'Auto' },
+              { value: 'light', label: 'Claro' },
+              { value: 'dark', label: 'Oscuro' },
+            ]}
+          />
+          <div className="relative">
+            <IconButton label={t.common.moreOptions} onClick={() => setMenuOpen((v) => !v)}>
+              <MoreVertical size={18} />
+            </IconButton>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-border bg-surface p-3 shadow-lg">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImportFile(file)
+                      e.target.value = ''
+                    }}
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      disabled={busy || order.length === 0}
+                      onClick={() => exportFullBackup()}
+                      className="rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2 disabled:opacity-40"
+                    >
+                      {t.backup.exportAll}
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2 disabled:opacity-40"
+                    >
+                      {t.backup.import}
+                    </button>
+                  </div>
+                  {importMessage && <p className="mt-2 px-3 text-xs text-text-muted">{importMessage}</p>}
+                  {persisted !== null && (
+                    <p className={`mt-2 px-3 text-xs ${persisted ? 'text-text-muted' : 'font-semibold text-warning'}`}>
+                      {persisted ? t.storage.protected : t.storage.atRisk}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </header>
-
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) handleImportFile(file)
-            e.target.value = ''
-          }}
-        />
-        <button
-          disabled={busy || order.length === 0}
-          onClick={() => exportFullBackup()}
-          className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3 disabled:opacity-40"
-        >
-          {t.backup.exportAll}
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
-          className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3 disabled:opacity-40"
-        >
-          {t.backup.import}
-        </button>
-        {importMessage && <span className="text-xs text-text-muted">{importMessage}</span>}
-        {persisted !== null && (
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs ${persisted ? 'text-text-muted' : 'bg-accent-500/10 font-semibold text-warning'}`}
-          >
-            {persisted ? t.storage.protected : t.storage.atRisk}
-          </span>
-        )}
-      </div>
 
       {showBackupReminder && (
         <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3">
