@@ -51,8 +51,23 @@ export function rowPitch(technique: Technique): number {
   }
 }
 
-/** Position (in bead units) of the center of cell (row, col). */
-export function cellPosition(technique: Technique, row: number, col: number): CellPosition {
+/**
+ * Position (in bead units) of the center of cell (row, col).
+ *
+ * When `bodyRows` is given and `row` falls in the fringe zone (`row >=
+ * bodyRows`, see `engine/fringe.ts`), the position instead anchors at the
+ * last body row's position for that column and hangs straight down at a
+ * full 1.0 bead-pitch per additional row — a fringe strand dangles freely
+ * on thread, so unlike body rows it is never compacted or row-parity
+ * offset. For loom this is a no-op vs. the plain formula (loom's own pitch
+ * is already 1 with no offset); brick's fringe zone is what actually
+ * diverges from its body formula.
+ */
+export function cellPosition(technique: Technique, row: number, col: number, bodyRows?: number): CellPosition {
+  if (bodyRows !== undefined && row >= bodyRows) {
+    const anchor = cellPosition(technique, bodyRows - 1, col)
+    return { x: anchor.x, y: anchor.y + (row - (bodyRows - 1)) }
+  }
   switch (technique) {
     case 'loom':
       return { x: col, y: row }
@@ -69,14 +84,22 @@ export function cellPosition(technique: Technique, row: number, col: number): Ce
   }
 }
 
-/** Total bounding size, in bead units, for a cols x rows grid of a technique. */
-export function gridBoundsUnits(technique: Technique, cols: number, rows: number) {
+/**
+ * Total bounding size, in bead units, for a cols x rows grid of a technique.
+ *
+ * `maxFringeBeads` (the longest fringe among all columns, see
+ * `engine/fringe.ts#maxFringeLength`) extends the height by that many whole
+ * units — fringe beads hang at a full, uncompacted 1.0 pitch each, and the
+ * first fringe bead picks up immediately where the last body row's own
+ * bead-height extent ends, so no extra gap or overlap needs accounting for.
+ */
+export function gridBoundsUnits(technique: Technique, cols: number, rows: number, maxFringeBeads = 0) {
   const pitch = rowPitch(technique)
   const extraX = technique === 'brick' ? 0.5 : 0
   const extraY = technique === 'peyote' ? pitch / 2 : 0
   return {
     width: cols + extraX,
-    height: rows > 0 ? (rows - 1) * pitch + 1 + extraY : 0,
+    height: rows > 0 ? (rows - 1) * pitch + 1 + extraY + maxFringeBeads : 0,
   }
 }
 
@@ -85,15 +108,21 @@ export function beadCount(_technique: Technique, cols: number, rows: number): nu
   return cols * rows
 }
 
-/** Physical size estimate in mm for a cols x rows grid of a given bead's mm dimensions. */
+/**
+ * Physical size estimate in mm for a cols x rows grid of a given bead's mm
+ * dimensions. `maxFringeBeads` (see `gridBoundsUnits`) folds the longest
+ * fringe into the total height so the configurator/PDF header always show
+ * the finished piece's real size, fringe included.
+ */
 export function physicalSizeMm(
   technique: Technique,
   cols: number,
   rows: number,
   beadWidthMm: number,
   beadHeightMm: number,
+  maxFringeBeads = 0,
 ) {
-  const bounds = gridBoundsUnits(technique, cols, rows)
+  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeBeads)
   return {
     widthMm: bounds.width * beadWidthMm,
     heightMm: bounds.height * beadHeightMm,

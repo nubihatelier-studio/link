@@ -83,3 +83,59 @@ describe('cellPosition / cellAtPosition — inverse hit-testing', () => {
     }
   })
 })
+
+describe('cellPosition with a fringe zone', () => {
+  it('matches the plain body formula when bodyRows is omitted or the row is still in the body', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      expect(cellPosition(technique, 3, 2, 16)).toEqual(cellPosition(technique, 3, 2))
+    }
+  })
+
+  it('hangs straight down (x fixed, y +1 per row) below the last body row, no compaction/offset', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const bodyRows = 16
+      const lastBodyRow = cellPosition(technique, bodyRows - 1, 3)
+      const fringe0 = cellPosition(technique, bodyRows, 3, bodyRows)
+      const fringe1 = cellPosition(technique, bodyRows + 1, 3, bodyRows)
+      expect(fringe0.x).toBe(lastBodyRow.x)
+      expect(fringe0.y).toBeCloseTo(lastBodyRow.y + 1, 10)
+      expect(fringe1.x).toBe(lastBodyRow.x)
+      expect(fringe1.y).toBeCloseTo(lastBodyRow.y + 2, 10)
+    }
+  })
+
+  it('loom fringe formula is identical to its plain unbounded formula (pitch is already 1, no offset)', () => {
+    expect(cellPosition('loom', 20, 3, 16)).toEqual({ x: 3, y: 20 })
+  })
+})
+
+describe('gridBoundsUnits / physicalSizeMm with a fringe', () => {
+  it('extends the height by exactly maxFringeBeads whole units, width untouched', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const plain = gridBoundsUnits(technique, 6, 16)
+      const withFringe = gridBoundsUnits(technique, 6, 16, 5)
+      expect(withFringe.width).toBe(plain.width)
+      expect(withFringe.height).toBeCloseTo(plain.height + 5, 10)
+    }
+  })
+
+  it('the first fringe bead picks up exactly where the body bounds end (no gap, no overlap)', () => {
+    const bodyRows = 16
+    const bounds = gridBoundsUnits('brick', 6, bodyRows)
+    const firstFringePos = cellPosition('brick', bodyRows, 0, bodyRows)
+    expect(firstFringePos.y).toBeCloseTo(bounds.height, 10)
+  })
+
+  it('physicalSizeMm folds maxFringeBeads into the total height, in mm', () => {
+    const plain = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
+    const withFringe = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 5)
+    expect(withFringe.widthMm).toBeCloseTo(plain.widthMm, 10)
+    expect(withFringe.heightMm).toBeCloseTo(plain.heightMm + 5 * DELICA_H, 10)
+  })
+
+  it('defaults to no fringe when maxFringeBeads is omitted', () => {
+    expect(physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H)).toEqual(
+      physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H, 0),
+    )
+  })
+})
