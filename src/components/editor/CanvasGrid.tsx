@@ -48,6 +48,7 @@ export function CanvasGrid() {
     zoom,
     setZoom,
     selection,
+    colorSelectionMask,
     clipboard,
     pasteArmed,
     pasteFlipH,
@@ -245,6 +246,20 @@ export function CanvasGrid() {
 
     // selection overlay
     if (selection) {
+      // A color selection almost never fills its own bounding box — highlight
+      // exactly the matched cells first, so the dashed rect below reads as
+      // "this is the extent", not "this whole box is selected".
+      if (colorSelectionMask) {
+        ctx.fillStyle = accent
+        ctx.globalAlpha = 0.25
+        for (const key of colorSelectionMask) {
+          const { row, col } = parseCellKey(key)
+          const pos = cellPosition(technique, row, col)
+          ctx.fillRect(MARGIN + pos.x * cellPx, MARGIN + pos.y * cellPx, cellPx, cellPx)
+        }
+        ctx.globalAlpha = 1
+      }
+
       const p0 = cellPosition(technique, selection.r0, selection.c0)
       const p1 = cellPosition(technique, selection.r1, selection.c1)
       const x0 = MARGIN + Math.min(p0.x, p1.x) * cellPx
@@ -286,6 +301,7 @@ export function CanvasGrid() {
     cells,
     zoom,
     selection,
+    colorSelectionMask,
     tool,
     lineStart,
     hoverCell,

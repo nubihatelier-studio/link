@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace, Shuffle } from 'lucide-react'
+import { ArrowDown, ArrowRight, BoxSelect, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace, Shuffle } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
@@ -24,6 +24,7 @@ export function ColorPanel() {
     colorLetters,
     mergeColors,
     swapColors,
+    selectColor,
     reflectSelection,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
@@ -31,6 +32,12 @@ export function ColorPanel() {
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceDraft, setReplaceDraft] = useState('#000000')
   const [swapTarget, setSwapTarget] = useState<string | null>(null)
+
+  function closeAllPanels() {
+    setMergeTarget(null)
+    setReplaceTarget(null)
+    setSwapTarget(null)
+  }
 
   function openReplace(hex: string) {
     setMergeTarget(null)
@@ -49,6 +56,11 @@ export function ColorPanel() {
     setReplaceTarget(null)
     setMergeTarget(null)
     setSwapTarget((current) => (current === hex ? null : hex))
+  }
+
+  function handleSelectColor(hex: string) {
+    closeAllPanels()
+    selectColor(hex)
   }
 
   function confirmReplace(fromHex: string) {
@@ -215,6 +227,14 @@ export function ColorPanel() {
                     <span className="ml-1 text-text-soft">· {match.color.name}</span>
                   </span>
                   <span className="text-xs font-semibold">{p.count}</span>
+                  <button
+                    aria-label={t.advancedColor.selectColor}
+                    title={t.advancedColor.selectColor}
+                    onClick={() => handleSelectColor(p.hex)}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3"
+                  >
+                    <BoxSelect size={13} />
+                  </button>
                   <button
                     aria-label={t.advancedColor.replaceAll}
                     title={t.advancedColor.replaceAll}

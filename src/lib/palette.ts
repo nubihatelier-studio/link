@@ -1,4 +1,5 @@
 import type { ColorMap } from '@/engine/types'
+import { parseCellKey } from '@/engine/cellKey'
 
 export interface PaletteEntry {
   hex: string
@@ -55,4 +56,36 @@ export function swapColorsInCells(cells: ColorMap, hexA: string, hexB: string): 
     next[key] = hex === hexA ? hexB : hex === hexB ? hexA : hex
   }
   return next
+}
+
+export interface ColorSelection {
+  rect: { r0: number; c0: number; r1: number; c1: number }
+  /** Exact "row,col" keys of every cell painted `hex` — the rect above is only their bounding box. */
+  mask: Set<string>
+}
+
+/**
+ * Bounding box + exact cell-key set of every cell currently painted `hex` —
+ * "seleccionar todas las mostacillas de este color" almost never forms a
+ * clean rectangle, so callers that only understand rectangular selections
+ * (erase, copy) need the mask to know which cells inside the box are
+ * actually part of the selection. Null when the color isn't on the grid.
+ */
+export function selectionForColor(cells: ColorMap, hex: string): ColorSelection | null {
+  let r0 = Infinity
+  let c0 = Infinity
+  let r1 = -Infinity
+  let c1 = -Infinity
+  const mask = new Set<string>()
+  for (const [key, cellHex] of Object.entries(cells)) {
+    if (cellHex !== hex) continue
+    const { row, col } = parseCellKey(key)
+    mask.add(key)
+    if (row < r0) r0 = row
+    if (row > r1) r1 = row
+    if (col < c0) c0 = col
+    if (col > c1) c1 = col
+  }
+  if (mask.size === 0) return null
+  return { rect: { r0, c0, r1, c1 }, mask }
 }

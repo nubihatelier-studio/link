@@ -13,6 +13,8 @@ function resetStore() {
     history: [],
     future: [],
     selection: null,
+    colorSelectionMask: null,
+    tool: 'pencil',
   })
 }
 
@@ -86,6 +88,35 @@ describe('ColorPanel — intercambiar dos colores', () => {
     expect(screen.getByTestId('merge-panel')).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Intercambiar con…' })[0])
+    expect(screen.queryByTestId('merge-panel')).not.toBeInTheDocument()
+  })
+})
+
+describe('ColorPanel — seleccionar por color', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('selecciona todas las mostacillas del color y cambia a la herramienta de selección', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Seleccionar mostacillas de este color' })[0])
+
+    const { selection, colorSelectionMask, tool } = useEditorStore.getState()
+    expect(selection).toEqual({ r0: 0, c0: 0, r1: 0, c1: 1 })
+    expect(colorSelectionMask).toEqual(new Set(['0,0', '0,1']))
+    expect(tool).toBe('select')
+  })
+
+  it('cierra cualquier panel de reemplazo/fusión/intercambio abierto', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Fusionar colores' })[0])
+    expect(screen.getByTestId('merge-panel')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Seleccionar mostacillas de este color' })[0])
     expect(screen.queryByTestId('merge-panel')).not.toBeInTheDocument()
   })
 })

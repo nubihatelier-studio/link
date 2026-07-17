@@ -4,7 +4,7 @@ import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
-import { letterForIndex, paletteFromCells, replaceColorInCells, swapColorsInCells } from '@/lib/palette'
+import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
 export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill'
@@ -63,6 +63,15 @@ interface EditorState {
 
   zoom: number
   selection: SelectionRect | null
+  /**
+   * When set, `selection` is only this mask's bounding box — `eraseSelection`
+   * and `copySelection` act on just these cells, not the whole rectangle.
+   * Populated by `selectColor`; cleared by any manual rectangular selection
+   * (a fresh drag always means "the whole rect", not a stale color mask).
+   */
+  colorSelectionMask: Set<string> | null
+  /** Selects every cell painted `hex` (bounding box + exact mask) and switches to the select tool. */
+  selectColor: (hex: string) => void
   clipboard: Clipboard | null
   pasteArmed: boolean
   pasteFlipH: boolean
@@ -161,6 +170,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   zoom: 100,
   selection: null,
+  colorSelectionMask: null,
+  selectColor: (hex) => {
+    const found = selectionForColor(get().cells, hex)
+    if (!found) return
+    set({ selection: found.rect, colorSelectionMask: found.mask, tool: 'select' })
+  },
   clipboard: null,
   strokeBase: null,
   pasteArmed: false,
@@ -214,7 +229,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     for (const hex of slots) get().registerColor(hex)
   },
 
-  setTool: (tool) => set({ tool, selection: tool === 'select' || tool === 'rectErase' ? get().selection : null }),
+  setTool: (tool) => {
+    const keep = tool === 'select' || tool === 'rectErase'
+    set({ tool, selection: keep ? get().selection : null, colorSelectionMask: keep ? get().colorSelectionMask : null })
+  },
   setActiveSlot: (slot) => set({ activeSlot: slot }),
   setSlotColor: (slot, hex) => {
     set((s) => {
@@ -326,29 +344,35 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (id) scheduleAutosave(id, cells)
   },
 
-  setSelection: (rect) => set({ selection: rect ? normalizeRect(rect) : null }),
+  // A fresh manual drag always means "the whole rect" — any color mask from
+  // a previous `selectColor` no longer applies.
+  setSelection: (rect) => set({ selection: rect ? normalizeRect(rect) : null, colorSelectionMask: null }),
 
   eraseSelection: () => {
-    const { selection, cells } = get()
+    const { selection, cells, colorSelectionMask } = get()
     if (!selection) return
     const next = { ...cells }
     for (let r = selection.r0; r <= selection.r1; r++) {
       for (let c = selection.c0; c <= selection.c1; c++) {
-        delete next[cellKey(r, c)]
+        const key = cellKey(r, c)
+        if (colorSelectionMask && !colorSelectionMask.has(key)) continue
+        delete next[key]
       }
     }
     get().commit(next)
   },
 
   copySelection: () => {
-    const { selection, cells } = get()
+    const { selection, cells, colorSelectionMask } = get()
     if (!selection) return
     const width = selection.c1 - selection.c0 + 1
     const height = selection.r1 - selection.r0 + 1
     const relCells: ColorMap = {}
     for (let r = selection.r0; r <= selection.r1; r++) {
       for (let c = selection.c0; c <= selection.c1; c++) {
-        const hex = cells[cellKey(r, c)]
+        const key = cellKey(r, c)
+        if (colorSelectionMask && !colorSelectionMask.has(key)) continue
+        const hex = cells[key]
         if (hex) relCells[cellKey(r - selection.r0, c - selection.c0)] = hex
       }
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from '@/engine/types'
-import { letterForIndex, paletteFromCells, replaceColorInCells, swapColorsInCells } from './palette'
+import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from './palette'
 
 describe('letterForIndex', () => {
   it('cycles A-Z then rolls over to AA, AB, ...', () => {
@@ -68,5 +68,33 @@ describe('swapColorsInCells', () => {
   it('does nothing when neither hex is present in the cells', () => {
     const cells: ColorMap = { '0,0': '#111' }
     expect(swapColorsInCells(cells, '#888', '#999')).toEqual({ '0,0': '#111' })
+  })
+})
+
+describe('selectionForColor', () => {
+  it('returns the exact cell mask plus its bounding box for a scattered color', () => {
+    // '#111' cells at (0,0) and (2,3) — not a rectangle, and (1,1)/(0,3) belong to other colors.
+    const cells: ColorMap = { '0,0': '#111', '1,1': '#222', '2,3': '#111', '0,3': '#222' }
+    const result = selectionForColor(cells, '#111')
+    expect(result?.rect).toEqual({ r0: 0, c0: 0, r1: 2, c1: 3 })
+    expect(result?.mask).toEqual(new Set(['0,0', '2,3']))
+  })
+
+  it('returns null when the color is not present', () => {
+    const cells: ColorMap = { '0,0': '#111' }
+    expect(selectionForColor(cells, '#999')).toBeNull()
+  })
+
+  it('ignores empty (uncolored) cells even when scattered among matches', () => {
+    const cells: ColorMap = { '0,0': undefined, '0,1': '#111' }
+    const result = selectionForColor(cells, '#111')
+    expect(result?.mask).toEqual(new Set(['0,1']))
+  })
+
+  it('a single matching cell yields a 1x1 bounding box', () => {
+    const cells: ColorMap = { '3,4': '#111' }
+    const result = selectionForColor(cells, '#111')
+    expect(result?.rect).toEqual({ r0: 3, c0: 4, r1: 3, c1: 4 })
+    expect(result?.mask).toEqual(new Set(['3,4']))
   })
 })

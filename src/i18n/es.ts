@@ -149,6 +149,7 @@ export const t = {
     replaceAll: 'Reemplazar en todo el patrón',
     merge: 'Fusionar colores',
     swap: 'Intercambiar con…',
+    selectColor: 'Seleccionar mostacillas de este color',
     preview: 'Vista previa',
   },
   common: {
