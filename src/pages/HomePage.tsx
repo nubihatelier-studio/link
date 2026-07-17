@@ -133,7 +133,7 @@ export function HomePage() {
   const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
   const heroSummary =
     heroPattern && heroPatternId
-      ? summarizeWeaveProgress(heroPattern.config, weaveProgress[heroPatternId].currentIndex)
+      ? summarizeWeaveProgress(heroPattern.config, weaveProgress[heroPatternId].currentIndex, heroPattern.fringe)
       : null
 
   return (
@@ -232,8 +232,10 @@ export function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-warning">{t.home.continueWeaving}</p>
             <p className="truncate font-semibold">{heroPattern.name}</p>
             <p className="text-sm text-text-muted">
-              {heroSummary.unit === 'column' ? t.weave.column : t.weave.row} {heroSummary.unitIndex + 1} {t.weave.of}{' '}
-              {heroSummary.unitCount} · {heroSummary.percent}%
+              {heroSummary.isFringe
+                ? t.weave.fringeUnitLabel
+                : `${heroSummary.unit === 'column' ? t.weave.column : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
+              · {heroSummary.percent}%
             </p>
           </div>
         </button>
@@ -253,7 +255,7 @@ export function HomePage() {
             if (!p) return null
             const bead = getBeadType(p.config.beadTypeId)
             const colorCount = new Set(Object.values(p.cells)).size
-            const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1)
+            const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1, p.fringe)
             const isRenaming = id === renamingId
             const cardBody = (
               <>

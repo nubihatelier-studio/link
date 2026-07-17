@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { Cell, ColorMap, Technique } from '@/engine/types'
+import type { Cell, ColorMap, FringeData, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { directionAtStep } from '@/engine/weaveOrder'
 
@@ -9,6 +10,7 @@ interface WeaveCanvasProps {
   cols: number
   rows: number
   cells: ColorMap
+  fringe: FringeData
   order: Cell[]
   currentIndex: number
   onTapNext: () => void
@@ -17,9 +19,9 @@ interface WeaveCanvasProps {
 const CELL_PX = 24
 const MARGIN = 28
 
-export function WeaveCanvas({ technique, cols, rows, cells, order, currentIndex, onTapNext }: WeaveCanvasProps) {
+export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, currentIndex, onTapNext }: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const bounds = gridBoundsUnits(technique, cols, rows)
+  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const width = bounds.width * CELL_PX + MARGIN
   const height = bounds.height * CELL_PX + MARGIN
 
@@ -30,7 +32,10 @@ export function WeaveCanvas({ technique, cols, rows, cells, order, currentIndex,
   }, [order])
 
   const nextCell = order[currentIndex + 1]
-  const direction = useMemo(() => directionAtStep(technique, order, currentIndex + 1), [technique, order, currentIndex])
+  const direction = useMemo(
+    () => directionAtStep(technique, order, currentIndex + 1, rows),
+    [technique, order, currentIndex, rows],
+  )
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -68,8 +73,32 @@ export function WeaveCanvas({ technique, cols, rows, cells, order, currentIndex,
       }
     }
 
+    // fringe zone — same per-cell drawing as the body loop above, positioned
+    // via cellPosition's fringe branch (see engine/geometry.ts).
+    for (let col = 0; col < cols; col++) {
+      const length = fringe.lengths[col] ?? 0
+      for (let depth = 0; depth < length; depth++) {
+        const row = rows + depth
+        const pos = cellPosition(technique, row, col, rows)
+        const x = MARGIN + pos.x * CELL_PX + inset
+        const y = MARGIN + pos.y * CELL_PX + inset
+        const w = CELL_PX - inset * 2
+        const h = CELL_PX - inset * 2
+        const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
+        const idx = indexByCell.get(cellKey(row, col)) ?? -1
+        const done = idx <= currentIndex
+
+        ctx.globalAlpha = done ? 1 : 0.25
+        ctx.beginPath()
+        roundRect(ctx, x, y, w, h, radius)
+        ctx.fillStyle = hex
+        ctx.fill()
+        ctx.globalAlpha = 1
+      }
+    }
+
     if (nextCell) {
-      const pos = cellPosition(technique, nextCell.row, nextCell.col)
+      const pos = cellPosition(technique, nextCell.row, nextCell.col, rows)
       const x = MARGIN + pos.x * CELL_PX
       const y = MARGIN + pos.y * CELL_PX
       ctx.strokeStyle = '#c9a227'
@@ -103,7 +132,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, order, currentIndex,
       const pos = cellPosition(technique, r, 0)
       ctx.fillText(String(r + 1), MARGIN - 6, MARGIN + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, currentIndex, indexByCell, nextCell, direction, width, height])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height])
 
   function handleClick(e: React.MouseEvent) {
     const canvas = canvasRef.current!
@@ -111,7 +140,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, order, currentIndex,
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     if (!nextCell) return
-    const pos = cellPosition(technique, nextCell.row, nextCell.col)
+    const pos = cellPosition(technique, nextCell.row, nextCell.col, rows)
     const cx = MARGIN + pos.x * CELL_PX + CELL_PX / 2
     const cy = MARGIN + pos.y * CELL_PX + CELL_PX / 2
     if (Math.hypot(x - cx, y - cy) < CELL_PX * 1.5) onTapNext()

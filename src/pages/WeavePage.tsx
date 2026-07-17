@@ -4,8 +4,16 @@ import { Hand, Sun } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
-import { buildWeaveOrder, firstIndexOfUnit, unitIndexOf, weaveUnit } from '@/engine/weaveOrder'
+import {
+  buildWeaveOrder,
+  firstIndexOfNextFringeColumn,
+  firstIndexOfUnit,
+  isFringeStep,
+  unitIndexOf,
+  weaveUnit,
+} from '@/engine/weaveOrder'
 import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
+import { normalizeFringe } from '@/engine/fringe'
 import { paletteFromCells, letterForIndex } from '@/lib/palette'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
@@ -34,25 +42,41 @@ export function WeavePage() {
     if (id) loadProgress(id)
   }, [id, loadProgress])
 
+  const fringe = useMemo(
+    () => normalizeFringe(pattern?.fringe, pattern?.config.cols ?? 0),
+    [pattern?.fringe, pattern?.config.cols],
+  )
   const order = useMemo(
-    () => (pattern ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows) : []),
-    [pattern],
+    () => (pattern ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows, fringe) : []),
+    [pattern, fringe],
   )
   const technique = pattern?.config.technique ?? 'loom'
   const unit = weaveUnit(technique)
   const unitLabel = unit === 'column' ? t.weave.column : t.weave.row
   const currentIndex = id ? getIndex(id) : -1
   const total = order.length
-  const currentUnitIndex = order[currentIndex] ? unitIndexOf(technique, order[currentIndex]) : 0
+  const currentStep = order[currentIndex]
+  const onFringe = currentStep ? isFringeStep(currentStep) : false
+  const currentUnitIndex = currentStep ? unitIndexOf(technique, currentStep) : 0
   const unitCount = unit === 'column' ? (pattern?.config.cols ?? 0) : (pattern?.config.rows ?? 0)
 
   const wordChartLines = useMemo(() => {
     if (!pattern) return []
     const palette = paletteFromCells(pattern.cells)
     const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
-    return buildWordChart(technique, pattern.config.cols, pattern.config.rows, pattern.cells, (hex) => letterForHex.get(hex) ?? '?')
-  }, [pattern, technique])
-  const currentLineText = formatWordChartLineForDisplay(wordChartLines[currentUnitIndex]?.text ?? '')
+    return buildWordChart(
+      technique,
+      pattern.config.cols,
+      pattern.config.rows,
+      pattern.cells,
+      (hex) => letterForHex.get(hex) ?? '?',
+      fringe,
+    )
+  }, [pattern, technique, fringe])
+  const currentLine = onFringe
+    ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.col)
+    : wordChartLines[currentUnitIndex]
+  const currentLineText = formatWordChartLineForDisplay(currentLine?.text ?? '')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -86,7 +110,9 @@ export function WeavePage() {
     setIndex(id!, Math.max(-1, currentIndex - 1))
   }
   function markUnitDone() {
-    const nextStart = firstIndexOfUnit(technique, order, currentUnitIndex + 1)
+    const nextStart = onFringe
+      ? firstIndexOfNextFringeColumn(order, currentStep!.col)
+      : firstIndexOfUnit(technique, order, currentUnitIndex + 1)
     setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1)
   }
   function jumpToUnit(unitIdx: number) {
@@ -125,7 +151,8 @@ export function WeavePage() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-bold">{pattern.name}</p>
           <p className="text-xs text-text-muted">
-            {unitLabel} {currentUnitIndex + 1} · {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
+            {onFringe ? t.weave.fringeColumnHeader(currentStep!.col + 1) : `${unitLabel} ${currentUnitIndex + 1}`} ·{' '}
+            {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
           </p>
         </div>
         {wakeLock.isSupported && (
@@ -152,9 +179,9 @@ export function WeavePage() {
       <div className="relative min-h-0 flex-1">
         {handsBusyMode ? (
           <HandsBusyView
-            unitLabel={unitLabel}
-            unitIndex={currentUnitIndex}
-            unitCount={unitCount}
+            unitLabel={onFringe ? t.weave.fringeUnitLabel : unitLabel}
+            unitIndex={onFringe ? currentStep!.col : currentUnitIndex}
+            unitCount={onFringe ? pattern.config.cols : unitCount}
             lineText={currentLineText}
             onAdvance={advance}
             tapAnywhere={tapAnywhereToAdvance}
@@ -166,6 +193,7 @@ export function WeavePage() {
             cols={pattern.config.cols}
             rows={pattern.config.rows}
             cells={pattern.cells}
+            fringe={fringe}
             order={order}
             currentIndex={currentIndex}
             onTapNext={advance}
@@ -180,7 +208,7 @@ export function WeavePage() {
           </label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
-            value={currentUnitIndex}
+            value={onFringe ? unitCount - 1 : currentUnitIndex}
             onChange={(e) => jumpToUnit(Number(e.target.value))}
           >
             {Array.from({ length: unitCount }, (_, i) => (
@@ -190,7 +218,7 @@ export function WeavePage() {
             ))}
           </select>
           <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
-            {unit === 'column' ? t.weave.markColumnDone : t.weave.markRowDone}
+            {onFringe ? t.weave.markFringeDone : unit === 'column' ? t.weave.markColumnDone : t.weave.markRowDone}
           </button>
           {handsBusyMode && (
             <button

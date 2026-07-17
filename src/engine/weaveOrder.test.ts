@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { FringeData } from './types'
-import { buildWeaveOrder, firstIndexOfUnit, isFringeStep, unitIndexOf, weaveUnit } from './weaveOrder'
+import {
+  buildWeaveOrder,
+  directionAtStep,
+  firstIndexOfNextFringeColumn,
+  firstIndexOfUnit,
+  isFringeStep,
+  unitIndexOf,
+  weaveUnit,
+} from './weaveOrder'
 
 describe('buildWeaveOrder', () => {
   it('loom: row-major, left to right, same direction every row', () => {
@@ -115,6 +123,41 @@ describe('buildWeaveOrder with a fringe', () => {
     const fringe: FringeData = { lengths: [1], turnBeads: [false] }
     const order = buildWeaveOrder('loom', 1, 2, fringe)
     expect(order.map(isFringeStep)).toEqual([false, false, true])
+  })
+})
+
+describe('directionAtStep with a fringe', () => {
+  it('points straight down between two beads of the same fringe column', () => {
+    const fringe: FringeData = { lengths: [3], turnBeads: [false] }
+    const order = buildWeaveOrder('brick', 1, 2, fringe)
+    // order: [body 0,0], [body 1,0], [fringe depth0], [fringe depth1], [fringe depth2]
+    const direction = directionAtStep('brick', order, 2, 2)
+    expect(direction).toEqual({ dx: 0, dy: 1 })
+  })
+
+  it('matches the plain (no bodyRows) call when both steps are in the body', () => {
+    const order = buildWeaveOrder('brick', 3, 3)
+    expect(directionAtStep('brick', order, 1, 3)).toEqual(directionAtStep('brick', order, 1))
+  })
+})
+
+describe('firstIndexOfNextFringeColumn', () => {
+  it('finds the first fringe step of the next column that actually has a fringe', () => {
+    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }
+    const order = buildWeaveOrder('brick', 3, 2, fringe)
+    // col 0's fringe starts at index 6, col 2's (col 1 has none) starts at index 8.
+    expect(firstIndexOfNextFringeColumn(order, 0)).toBe(8)
+  })
+
+  it('returns -1 past the last fringe column', () => {
+    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }
+    const order = buildWeaveOrder('brick', 3, 2, fringe)
+    expect(firstIndexOfNextFringeColumn(order, 2)).toBe(-1)
+  })
+
+  it('returns -1 when there is no fringe at all', () => {
+    const order = buildWeaveOrder('brick', 3, 2)
+    expect(firstIndexOfNextFringeColumn(order, 0)).toBe(-1)
   })
 })
 

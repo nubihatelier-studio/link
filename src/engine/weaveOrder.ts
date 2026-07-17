@@ -75,17 +75,23 @@ export function buildWeaveOrder(technique: Technique, cols: number, rows: number
   return order
 }
 
-/** Direction vector (in bead units) from step `index` to `index + 1`, for drawing a "next bead" arrow. */
+/**
+ * Direction vector (in bead units) from step `index` to `index + 1`, for
+ * drawing a "next bead" arrow. Pass `bodyRows` (the pattern's body row
+ * count) so a step landing in the fringe zone positions correctly — see
+ * `cellPosition`.
+ */
 export function directionAtStep(
   technique: Technique,
   order: Cell[],
   index: number,
+  bodyRows?: number,
 ): { dx: number; dy: number } | null {
   const next = order[index + 1]
   if (!next) return null
   const current = order[index]
-  const p0 = cellPosition(technique, current.row, current.col)
-  const p1 = cellPosition(technique, next.row, next.col)
+  const p0 = cellPosition(technique, current.row, current.col, bodyRows)
+  const p1 = cellPosition(technique, next.row, next.col, bodyRows)
   return { dx: p1.x - p0.x, dy: p1.y - p0.y }
 }
 
@@ -110,4 +116,17 @@ export function unitIndexOf(technique: Technique, cell: Cell): number {
 /** Index of the first cell belonging to a given row/column (per `weaveUnit`) within the traversal order. */
 export function firstIndexOfUnit(technique: Technique, order: Cell[], unit: number): number {
   return order.findIndex((c) => unitIndexOf(technique, c) === unit)
+}
+
+/**
+ * Index of the first fringe bead in the next column after `afterCol` — the
+ * fringe-zone counterpart to `firstIndexOfUnit` ("marcar columna de fleco
+ * hecha" jumps here instead). Unlike body rows/columns, fringe steps don't
+ * have a single, technique-agnostic `unitIndexOf` value to search by (a
+ * fringe row number is shared by every column at that same depth), so this
+ * searches by `isFringe && col > afterCol` instead. Returns -1 if there's no
+ * further fringe column (the last one, or fringe columns are exhausted).
+ */
+export function firstIndexOfNextFringeColumn(order: WeaveStep[], afterCol: number): number {
+  return order.findIndex((step) => isFringeStep(step) && step.col > afterCol)
 }
