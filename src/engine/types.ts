@@ -33,12 +33,29 @@ export interface CellPosition {
 
 export type ColorMap = Record<string, string | undefined>
 
+/**
+ * Fringe hanging off the last body row — brick/loom only (see
+ * `engine/fringe.ts`). Bead colors live in the same `PatternDoc.cells` map
+ * as the body: a fringe cell at depth `d` (0 = closest to the body) under
+ * body column `col` is addressed as `cellKey(config.rows + d, col)`, so
+ * every existing color tool (paint, fill, replace…) already works on
+ * fringe cells with zero changes.
+ */
+export interface FringeData {
+  /** Bead count hanging below each body column; always `lengths.length === config.cols`. 0 = no fringe for that column. */
+  lengths: number[]
+  /** Whether a column's deepest fringe bead is a turn bead — only meaningful where `lengths[i] > 0`. Same length as `lengths`. */
+  turnBeads: boolean[]
+}
+
 export interface PatternDoc {
   id: string
   name: string
   config: PatternConfig
   /** sparse map "row,col" -> hex color */
   cells: ColorMap
+  /** Absent on patterns created before this feature — treat as "no fringe" (see `engine/fringe.ts#normalizeFringe`). */
+  fringe?: FringeData
   createdAt: number
   updatedAt: number
 }
