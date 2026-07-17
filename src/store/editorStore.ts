@@ -57,6 +57,10 @@ interface EditorState {
   setFringeLength: (col: number, length: number) => void
   setFringeTurnBead: (col: number, isTurnBead: boolean) => void
 
+  /** Free-text note, shown on the PDF's ficha page — see `engine/types.ts#PatternDoc.note`. */
+  note: string
+  setNote: (note: string) => void
+
   history: ColorMap[]
   future: ColorMap[]
 
@@ -156,6 +160,14 @@ function scheduleAutosave(patternId: string, cells: ColorMap) {
   }, 600)
 }
 
+let noteAutosaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleNoteAutosave(patternId: string, note: string) {
+  if (noteAutosaveTimer) clearTimeout(noteAutosaveTimer)
+  noteAutosaveTimer = setTimeout(() => {
+    usePatternsStore.getState().setNote(patternId, note)
+  }, 600)
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => ({
   patternId: null,
   name: '',
@@ -207,6 +219,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ fringe: nextFringe })
     const id = get().patternId
     if (id) usePatternsStore.getState().setFringe(id, nextFringe)
+  },
+
+  note: '',
+  setNote: (note) => {
+    set({ note })
+    const id = get().patternId
+    if (id) scheduleNoteAutosave(id, note)
   },
 
   history: [],
@@ -275,6 +294,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       beadTypeId: doc.config.beadTypeId,
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),
+      note: doc.note ?? '',
       history: [],
       future: [],
       selection: null,

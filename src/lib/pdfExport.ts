@@ -21,6 +21,8 @@ export interface ExportPatternOptions {
   beadType: BeadTypeDef
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
   fringe?: FringeData
+  /** Free-text note — printed in the ficha page's notes area instead of blank handwriting lines when present. */
+  note?: string
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
   showLetters?: boolean
 }
@@ -267,11 +269,28 @@ function drawFichaPage(
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.text(t.pdf.notes, margin, extrasY + 17)
-  doc.setDrawColor(220)
+
   const notesTop = extrasY + 19
-  for (let i = 1; i <= 3; i++) {
-    const ly = notesTop + i * 4.2
-    doc.line(margin, ly, pageWidth - margin, ly)
+  const note = opts.note?.trim()
+  if (note) {
+    // A saved note replaces the blank handwriting lines below — capped to a
+    // few lines so it always fits the same fixed-height area those lines did.
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(60)
+    const wrapped: string[] = doc.splitTextToSize(note, pageWidth - margin * 2)
+    let ly = notesTop + 3
+    for (const line of wrapped.slice(0, 4)) {
+      doc.text(line, margin, ly)
+      ly += 4.2
+    }
+    doc.setTextColor(0)
+  } else {
+    doc.setDrawColor(220)
+    for (let i = 1; i <= 3; i++) {
+      const ly = notesTop + i * 4.2
+      doc.line(margin, ly, pageWidth - margin, ly)
+    }
   }
 }
 

@@ -98,6 +98,8 @@ export const t = {
     shareImage: 'Compartir imagen',
     shareImageDownloadPng: 'Descargar imagen (PNG)',
     shareImageInstagram: 'Tarjeta para Instagram',
+    noteTitle: 'Nota',
+    notePlaceholder: 'Materiales, para quién es, ajustes de tensión…',
     tools: {
       pencil: 'Lápiz',
       line: 'Línea',

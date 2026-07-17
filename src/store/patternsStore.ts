@@ -33,6 +33,7 @@ interface PatternsState {
   setCells: (id: string, cells: ColorMap) => void
   setCell: (id: string, key: string, hex: string | null) => void
   setFringe: (id: string, fringe: FringeData) => void
+  setNote: (id: string, note: string) => void
   getPattern: (id: string) => PatternDoc | undefined
 }
 
@@ -223,6 +224,17 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       const doc = s.patterns[id]
       if (!doc) return s
       updated = { ...doc, fringe, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setNote: (id, note) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, note, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

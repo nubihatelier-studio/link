@@ -56,6 +56,8 @@ export interface PatternDoc {
   cells: ColorMap
   /** Absent on patterns created before this feature — treat as "no fringe" (see `engine/fringe.ts#normalizeFringe`). */
   fringe?: FringeData
+  /** Free-text note (materials, gift recipient, gauge tweaks…) — shown on the PDF's ficha page. Absent/empty means no note. */
+  note?: string
   createdAt: number
   updatedAt: number
 }

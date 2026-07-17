@@ -80,6 +80,30 @@ describe('patternsStore.hydrate', () => {
   })
 })
 
+describe('patternsStore.setNote', () => {
+  beforeEach(() => {
+    adapterError = null
+    fakeAdapter = createFakeAdapter([PATTERN])
+    vi.resetModules()
+  })
+
+  it('updates the pattern\'s note and bumps updatedAt', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    usePatternsStore.getState().setNote(PATTERN.id, 'Para el cumpleaños de mamá')
+    const doc = usePatternsStore.getState().patterns[PATTERN.id]
+    expect(doc?.note).toBe('Para el cumpleaños de mamá')
+    expect(doc?.updatedAt).toBeGreaterThan(PATTERN.updatedAt)
+  })
+
+  it('is a no-op for an unknown pattern id', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    usePatternsStore.getState().setNote('nope', 'x')
+    expect(usePatternsStore.getState().patterns['nope']).toBeUndefined()
+  })
+})
+
 describe('patternsStore.hydrate — first-launch onboarding', () => {
   beforeEach(() => {
     adapterError = null

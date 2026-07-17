@@ -107,6 +107,21 @@ describe('exportPatternToPdf', () => {
     ).resolves.not.toThrow()
   })
 
+  it('does not throw with a saved note, even a long one that has to wrap and get capped', async () => {
+    const { exportPatternToPdf } = await import('./pdfExport')
+    await expect(
+      exportPatternToPdf({
+        name: 'Con nota',
+        technique: 'loom',
+        cols: 8,
+        rows: 8,
+        cells: fillCells(8, 8),
+        beadType: bead,
+        note: 'Para el cumpleaños de mamá. '.repeat(20),
+      }),
+    ).resolves.not.toThrow()
+  })
+
   describe('with a fringe', () => {
     it('does not throw and draws fine with a fringe on a small pattern', async () => {
       const { exportPatternToPdf } = await import('./pdfExport')

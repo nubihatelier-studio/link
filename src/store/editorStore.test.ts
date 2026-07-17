@@ -12,6 +12,7 @@ function resetStore(overrides: { cells?: Record<string, string>; fringe?: Fringe
     cols: 10,
     rows: 10,
     fringe: overrides.fringe ?? createEmptyFringe(10),
+    note: '',
     tool: 'pencil',
     selection: null,
     colorSelectionMask: null,
@@ -166,5 +167,17 @@ describe('editorStore — setFringeLength / setFringeTurnBead', () => {
   it('setFringeTurnBead no hace nada en una columna sin fleco', () => {
     useEditorStore.getState().setFringeTurnBead(1, true)
     expect(useEditorStore.getState().fringe.turnBeads[1]).toBe(false)
+  })
+})
+
+describe('editorStore — nota', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('empieza vacía y setNote actualiza el estado de inmediato', () => {
+    expect(useEditorStore.getState().note).toBe('')
+    useEditorStore.getState().setNote('Para el cumpleaños de mamá')
+    expect(useEditorStore.getState().note).toBe('Para el cumpleaños de mamá')
   })
 })

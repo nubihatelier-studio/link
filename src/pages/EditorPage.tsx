@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Download, Image, Keyboard, Type } from 'lucide-react'
+import { Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
@@ -46,6 +46,8 @@ export function EditorPage() {
     beadTypeId,
     cells,
     fringe,
+    note,
+    setNote,
     zoom,
     setZoom,
     setTool,
@@ -59,6 +61,7 @@ export function EditorPage() {
   const [exportingImage, setExportingImage] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(false)
   const fringeCapable = isFringeCapable(technique)
 
   useEffect(() => {
@@ -93,6 +96,15 @@ export function EditorPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [shortcutsOpen])
+
+  useEffect(() => {
+    if (!noteOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setNoteOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [noteOpen])
 
   // Desktop shortcuts: tool letters, undo/redo, zoom. Ignored while typing
   // (e.g. renaming the pattern) so a letter like "e" doesn't hijack the name field.
@@ -149,7 +161,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, note, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }
@@ -219,6 +231,9 @@ export function EditorPage() {
           className="hidden h-9 w-9 md:flex"
         >
           <Keyboard size={16} />
+        </IconButton>
+        <IconButton active={!!note.trim()} label={t.editor.noteTitle} onClick={() => setNoteOpen(true)} className="h-9 w-9">
+          <StickyNote size={16} />
         </IconButton>
         <div className="relative">
           <IconButton
@@ -394,6 +409,34 @@ export function EditorPage() {
                 <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">+ / −</kbd>
               </li>
             </ul>
+          </div>
+        </div>
+      )}
+
+      {noteOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40" onClick={() => setNoteOpen(false)}>
+          <div
+            className="w-[90vw] max-w-md rounded-2xl border border-border bg-surface p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{t.editor.noteTitle}</h2>
+              <button
+                onClick={() => setNoteOpen(false)}
+                aria-label={t.common.close}
+                className="rounded-full p-1 text-text-muted hover:bg-surface-2"
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={t.editor.notePlaceholder}
+              rows={5}
+              className="w-full resize-none rounded-xl border border-border bg-surface-2 p-3 text-sm outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+            />
           </div>
         </div>
       )}
