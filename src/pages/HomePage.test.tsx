@@ -250,3 +250,62 @@ describe('HomePage — hero "Continuar tejiendo"', () => {
     await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
   })
 })
+
+describe('HomePage — duplicar con renombrado inline', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([PATTERN])
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN },
+      order: [PATTERN.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+  })
+
+  async function renderHome() {
+    const { HomePage } = await import('./HomePage')
+    return render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    )
+  }
+
+  it('duplicar deja el nombre en edición, con el texto seleccionado', async () => {
+    const user = userEvent.setup()
+    await renderHome()
+
+    await user.click(screen.getByText('Duplicar'))
+
+    const input = await screen.findByDisplayValue('Flor peyote (copia)')
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('Enter confirma el nuevo nombre y lo persiste', async () => {
+    const user = userEvent.setup()
+    await renderHome()
+
+    await user.click(screen.getByText('Duplicar'))
+    const input = await screen.findByDisplayValue('Flor peyote (copia)')
+    await user.clear(input)
+    await user.type(input, 'Aro dorado{Enter}')
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByText('Aro dorado')).toBeInTheDocument()
+    const newId = usePatternsStore.getState().order.find((id) => id !== PATTERN.id)!
+    expect(usePatternsStore.getState().patterns[newId].name).toBe('Aro dorado')
+  })
+
+  it('Escape cancela la edición y conserva el nombre duplicado original', async () => {
+    const user = userEvent.setup()
+    await renderHome()
+
+    await user.click(screen.getByText('Duplicar'))
+    const input = await screen.findByDisplayValue('Flor peyote (copia)')
+    await user.type(input, ' cambiado{Escape}')
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByText('Flor peyote (copia)')).toBeInTheDocument()
+  })
+})

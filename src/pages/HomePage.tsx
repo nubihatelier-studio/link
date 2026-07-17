@@ -37,7 +37,27 @@ export function HomePage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; doc: PatternDoc } | null>(null)
   const [reminderDismissed, setReminderDismissed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  // Right after duplicating, the new card's name field is focused and
+  // pre-selected instead of leaving it as "X (copia)" for someone to notice
+  // and fix by hand later — renameDraft is the input's live value; nothing
+  // is written back to the store until it's confirmed.
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
   const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
+
+  function handleDuplicate(id: string) {
+    const newId = duplicatePattern(id)
+    if (!newId) return
+    setRenamingId(newId)
+    setRenameDraft(usePatternsStore.getState().patterns[newId]?.name ?? '')
+  }
+
+  function commitRename() {
+    if (renamingId && renameDraft.trim()) {
+      usePatternsStore.getState().renamePattern(renamingId, renameDraft.trim())
+    }
+    setRenamingId(null)
+  }
 
   useEffect(() => {
     if (!menuOpen) return
@@ -234,38 +254,66 @@ export function HomePage() {
             const bead = getBeadType(p.config.beadTypeId)
             const colorCount = new Set(Object.values(p.cells)).size
             const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1)
+            const isRenaming = id === renamingId
+            const cardBody = (
+              <>
+                <PatternThumb pattern={p} size={64} />
+                <div className="min-w-0 flex-1">
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={commitRename}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          commitRename()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          setRenamingId(null)
+                        }
+                      }}
+                      className="w-full rounded bg-transparent font-semibold outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                    />
+                  ) : (
+                    <p className="truncate font-semibold">{p.name}</p>
+                  )}
+                  <p className="truncate text-sm text-text-muted">
+                    {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
+                  </p>
+                  <p className="text-xs text-text-muted">{colorCount} colores</p>
+                  {cardSummary && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
+                        <div className="h-full rounded-full bg-accent-500" style={{ width: `${cardSummary.percent}%` }} />
+                      </div>
+                      <span className="shrink-0 text-[10px] text-text-muted">{cardSummary.percent}%</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )
             return (
               <li
                 key={id}
                 className="flex items-center gap-4 rounded-2xl border border-border bg-surface-2 p-3 hover:border-accent-300"
               >
-                <button
-                  onClick={() => navigate(`/editor/${id}`)}
-                  className="flex min-w-0 flex-1 items-center gap-4 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-                >
-                  <PatternThumb pattern={p} size={64} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{p.name}</p>
-                    <p className="truncate text-sm text-text-muted">
-                      {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
-                    </p>
-                    <p className="text-xs text-text-muted">{colorCount} colores</p>
-                    {cardSummary && (
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
-                          <div
-                            className="h-full rounded-full bg-accent-500"
-                            style={{ width: `${cardSummary.percent}%` }}
-                          />
-                        </div>
-                        <span className="shrink-0 text-[10px] text-text-muted">{cardSummary.percent}%</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
+                {isRenaming ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-4 rounded-xl">{cardBody}</div>
+                ) : (
+                  <button
+                    onClick={() => navigate(`/editor/${id}`)}
+                    className="flex min-w-0 flex-1 items-center gap-4 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                  >
+                    {cardBody}
+                  </button>
+                )}
                 <button
                   className="shrink-0 rounded-full px-3 py-1 text-xs text-text-muted hover:bg-surface-3"
-                  onClick={() => duplicatePattern(id)}
+                  onClick={() => handleDuplicate(id)}
                 >
                   {t.common.duplicate}
                 </button>
