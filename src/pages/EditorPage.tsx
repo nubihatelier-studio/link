@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Download, Keyboard, Type } from 'lucide-react'
+import { Download, Image, Keyboard, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
 import { isFringeCapable } from '@/engine/fringe'
 import { exportPatternToPdf } from '@/lib/pdfExport'
+import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
 import { t } from '@/i18n/es'
 import { CanvasGrid } from '@/components/editor/CanvasGrid'
@@ -54,6 +55,8 @@ export function EditorPage() {
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [imageMenuOpen, setImageMenuOpen] = useState(false)
+  const [exportingImage, setExportingImage] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const fringeCapable = isFringeCapable(technique)
@@ -152,6 +155,26 @@ export function EditorPage() {
     }
   }
 
+  async function handleExportImage() {
+    setImageMenuOpen(false)
+    setExportingImage(true)
+    try {
+      await exportPatternImage({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
+    } finally {
+      setExportingImage(false)
+    }
+  }
+
+  async function handleExportInstagramCard() {
+    setImageMenuOpen(false)
+    setExportingImage(true)
+    try {
+      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
+    } finally {
+      setExportingImage(false)
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b border-border px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
@@ -197,6 +220,36 @@ export function EditorPage() {
         >
           <Keyboard size={16} />
         </IconButton>
+        <div className="relative">
+          <IconButton
+            label={t.editor.shareImage}
+            active={imageMenuOpen}
+            onClick={() => setImageMenuOpen((v) => !v)}
+            className="h-9 w-9"
+            disabled={exportingImage}
+          >
+            <Image size={16} />
+          </IconButton>
+          {imageMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setImageMenuOpen(false)} />
+              <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-border bg-surface p-2 shadow-lg">
+                <button
+                  onClick={handleExportImage}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
+                >
+                  {t.editor.shareImageDownloadPng}
+                </button>
+                <button
+                  onClick={handleExportInstagramCard}
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
+                >
+                  {t.editor.shareImageInstagram}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <Button onClick={handleExport} disabled={exporting} className="px-4 py-2 text-sm">
           {exporting ? '…' : t.editor.exportPdf}
         </Button>

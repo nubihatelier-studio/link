@@ -77,6 +77,9 @@ export const t = {
     back: 'Volver',
     exportPdf: 'Exportar PDF',
     exportLetters: 'Letras en el gráfico',
+    shareImage: 'Compartir imagen',
+    shareImageDownloadPng: 'Descargar imagen (PNG)',
+    shareImageInstagram: 'Tarjeta para Instagram',
     tools: {
       pencil: 'Lápiz',
       line: 'Línea',
