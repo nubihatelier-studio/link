@@ -1,9 +1,10 @@
 import type { BeadTypeDef, ColorMap, FringeData, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, physicalSizeMm } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { paletteFromCells, letterForIndex } from './palette'
 import { contrastTextColor } from './color'
+import { t } from '@/i18n/es'
 
 export interface ExportImageOptions {
   name: string
@@ -119,4 +120,126 @@ export function renderPatternCanvas(
   }
 
   return canvas
+}
+
+/** Standard Instagram feed portrait size (4:5). */
+export const INSTAGRAM_CARD_WIDTH = 1080
+export const INSTAGRAM_CARD_HEIGHT = 1350
+
+const LOGO_LOAD_TIMEOUT_MS = 3000
+
+/** Bounded by a timeout — a stuck/slow fetch (offline, blocked) shouldn't hang the whole export. */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const timer = setTimeout(() => reject(new Error(`Tiempo agotado cargando ${src}`)), LOGO_LOAD_TIMEOUT_MS)
+    img.onload = () => {
+      clearTimeout(timer)
+      resolve(img)
+    }
+    img.onerror = () => {
+      clearTimeout(timer)
+      reject(new Error(`No se pudo cargar ${src}`))
+    }
+    img.src = src
+  })
+}
+
+/**
+ * Composes the branded, shareable "Instagram card": title + spec line, the
+ * pattern centered in a white panel, brand footer. Deliberately one fixed
+ * dark teal/gold look regardless of the app's light/dark theme — a social
+ * share card is a standalone artifact meant to look the same wherever it
+ * lands (feed, story, saved), not a theme-aware UI surface.
+ */
+export async function composeInstagramCard(opts: ExportImageOptions): Promise<HTMLCanvasElement> {
+  const card = document.createElement('canvas')
+  card.width = INSTAGRAM_CARD_WIDTH
+  card.height = INSTAGRAM_CARD_HEIGHT
+  const ctx = card.getContext('2d')
+  if (!ctx) return card
+
+  const bg = ctx.createLinearGradient(0, 0, 0, INSTAGRAM_CARD_HEIGHT)
+  bg.addColorStop(0, '#2f5b66')
+  bg.addColorStop(1, '#14181a')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, INSTAGRAM_CARD_WIDTH, INSTAGRAM_CARD_HEIGHT)
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#f5f4f6'
+  ctx.font = '700 56px system-ui, sans-serif'
+  ctx.fillText(opts.name || 'Patrón Nubih', INSTAGRAM_CARD_WIDTH / 2, 130, INSTAGRAM_CARD_WIDTH - 160)
+
+  const size = physicalSizeMm(
+    opts.technique,
+    opts.cols,
+    opts.rows,
+    opts.beadType.widthMm,
+    opts.beadType.heightMm,
+    maxFringeLength(opts.fringe),
+  )
+  ctx.font = '400 30px system-ui, sans-serif'
+  ctx.fillStyle = 'rgba(245,244,246,0.8)'
+  ctx.fillText(
+    `${t.technique[opts.technique]} · ${opts.cols}×${opts.rows} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm`,
+    INSTAGRAM_CARD_WIDTH / 2,
+    180,
+  )
+
+  const panelMargin = 90
+  const panelTop = 240
+  const panelBottom = INSTAGRAM_CARD_HEIGHT - 170
+  const panelW = INSTAGRAM_CARD_WIDTH - panelMargin * 2
+  const panelH = panelBottom - panelTop
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  roundRect(ctx, panelMargin, panelTop, panelW, panelH, 36)
+  ctx.fill()
+
+  const patternPadding = 60
+  const patternCanvas = renderPatternCanvas(
+    opts,
+    '#ffffff',
+    Math.max(1, Math.min(panelW, panelH) - patternPadding * 2),
+  )
+  const fitScale = Math.min(
+    (panelW - patternPadding * 2) / patternCanvas.width,
+    (panelH - patternPadding * 2) / patternCanvas.height,
+    1,
+  )
+  const drawW = patternCanvas.width * fitScale
+  const drawH = patternCanvas.height * fitScale
+  ctx.drawImage(patternCanvas, panelMargin + (panelW - drawW) / 2, panelTop + (panelH - drawH) / 2, drawW, drawH)
+
+  // Footer: circular logo + wordmark, centered as one group. Logo fetch can
+  // fail (offline, blocked) without breaking the export — it's a nice-to-have.
+  const wordmark = 'Nubih Creator'
+  const footerY = INSTAGRAM_CARD_HEIGHT - 82
+  const logoSize = 44
+  const gap = 16
+  ctx.font = '700 34px system-ui, sans-serif'
+  const wordmarkWidth = ctx.measureText(wordmark).width
+  const groupWidth = logoSize + gap + wordmarkWidth
+  const groupStartX = INSTAGRAM_CARD_WIDTH / 2 - groupWidth / 2
+
+  try {
+    const logo = await loadImage('/logo.png')
+    const logoCx = groupStartX + logoSize / 2
+    const logoCy = footerY - logoSize * 0.32
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(logoCx, logoCy, logoSize / 2, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.drawImage(logo, logoCx - logoSize / 2, logoCy - logoSize / 2, logoSize, logoSize)
+    ctx.restore()
+  } catch {
+    // Nice-to-have — proceed without the logo.
+  }
+
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#c9a227'
+  ctx.font = '700 34px system-ui, sans-serif'
+  ctx.fillText(wordmark, groupStartX + logoSize + gap, footerY)
+
+  return card
 }

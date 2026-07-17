@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData } from '@/engine/types'
-import { computeExportCellPx, renderPatternCanvas } from './imageExport'
+import {
+  composeInstagramCard,
+  computeExportCellPx,
+  INSTAGRAM_CARD_HEIGHT,
+  INSTAGRAM_CARD_WIDTH,
+  renderPatternCanvas,
+} from './imageExport'
 
 const bead = getBeadType('miyuki-delica-11')
 
@@ -62,4 +68,35 @@ describe('renderPatternCanvas', () => {
       renderPatternCanvas({ name: 'x', technique: 'peyote', cols: 4, rows: 4, cells: {}, beadType: bead }, '#fff', 400),
     ).not.toThrow()
   })
+})
+
+describe('composeInstagramCard', () => {
+  // jsdom neither loads nor errors real <img> fetches, so the logo-load branch
+  // times out (LOGO_LOAD_TIMEOUT_MS) and is caught — same "no real canvas /
+  // network" limitation as renderPatternCanvas above; only shape is checked here.
+  it('always returns a fixed-size 4:5 card, with or without a fringe', async () => {
+    const cells: ColorMap = { '0,0': '#c9a227', '1,1': '#2f5b66' }
+    const card = await composeInstagramCard({ name: 'Pulsera', technique: 'brick', cols: 10, rows: 10, cells, beadType: bead })
+    expect(card.width).toBe(INSTAGRAM_CARD_WIDTH)
+    expect(card.height).toBe(INSTAGRAM_CARD_HEIGHT)
+
+    const fringe: FringeData = { lengths: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], turnBeads: [] }
+    const cardWithFringe = await composeInstagramCard({
+      name: 'Aro con flecos',
+      technique: 'brick',
+      cols: 10,
+      rows: 10,
+      cells,
+      fringe,
+      beadType: bead,
+    })
+    expect(cardWithFringe.width).toBe(INSTAGRAM_CARD_WIDTH)
+    expect(cardWithFringe.height).toBe(INSTAGRAM_CARD_HEIGHT)
+  }, 10000)
+
+  it('does not throw for an empty (uncolored) pattern', async () => {
+    await expect(
+      composeInstagramCard({ name: 'Vacío', technique: 'loom', cols: 8, rows: 8, cells: {}, beadType: bead }),
+    ).resolves.toBeInstanceOf(HTMLCanvasElement)
+  }, 10000)
 })
