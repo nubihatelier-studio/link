@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace } from 'lucide-react'
+import { ArrowDown, ArrowRight, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace, Shuffle } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
@@ -23,22 +23,32 @@ export function ColorPanel() {
     cloneSelection,
     colorLetters,
     mergeColors,
+    swapColors,
     reflectSelection,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceDraft, setReplaceDraft] = useState('#000000')
+  const [swapTarget, setSwapTarget] = useState<string | null>(null)
 
   function openReplace(hex: string) {
     setMergeTarget(null)
+    setSwapTarget(null)
     setReplaceDraft(hex)
     setReplaceTarget((current) => (current === hex ? null : hex))
   }
 
   function openMerge(hex: string) {
     setReplaceTarget(null)
+    setSwapTarget(null)
     setMergeTarget((current) => (current === hex ? null : hex))
+  }
+
+  function openSwap(hex: string) {
+    setReplaceTarget(null)
+    setMergeTarget(null)
+    setSwapTarget((current) => (current === hex ? null : hex))
   }
 
   function confirmReplace(fromHex: string) {
@@ -186,6 +196,7 @@ export function ColorPanel() {
             const match = catalogMatchForHex(p.hex)
             const isMergeOpen = mergeTarget === p.hex
             const isReplaceOpen = replaceTarget === p.hex
+            const isSwapOpen = swapTarget === p.hex
             const otherColors = palette.filter((o) => o.hex !== p.hex)
             return (
               <li key={p.hex} className="rounded-lg hover:bg-surface-2">
@@ -213,6 +224,17 @@ export function ColorPanel() {
                   >
                     <Replace size={13} />
                   </button>
+                  {otherColors.length > 0 && (
+                    <button
+                      aria-label={t.advancedColor.swap}
+                      title={t.advancedColor.swap}
+                      onClick={() => openSwap(p.hex)}
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
+                        ${isSwapOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
+                    >
+                      <Shuffle size={13} />
+                    </button>
+                  )}
                   {otherColors.length > 0 && (
                     <button
                       aria-label={t.advancedColor.merge}
@@ -255,8 +277,29 @@ export function ColorPanel() {
                     </div>
                   </div>
                 )}
+                {isSwapOpen && (
+                  <div data-testid="swap-panel" className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
+                    <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.swap}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {otherColors.map((o) => (
+                        <button
+                          key={o.hex}
+                          title={`${p.hex} ↔ ${o.hex}`}
+                          onClick={() => {
+                            swapColors(p.hex, o.hex)
+                            setSwapTarget(null)
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-[10px] font-bold"
+                          style={{ backgroundColor: o.hex, color: contrastTextColor(o.hex) }}
+                        >
+                          {colorLetters[o.hex] ?? ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {isMergeOpen && (
-                  <div className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
+                  <div data-testid="merge-panel" className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
                     <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.merge}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {otherColors.map((o) => (

@@ -148,6 +148,7 @@ export const t = {
     title: 'Editor de color avanzado',
     replaceAll: 'Reemplazar en todo el patrón',
     merge: 'Fusionar colores',
+    swap: 'Intercambiar con…',
     preview: 'Vista previa',
   },
   common: {

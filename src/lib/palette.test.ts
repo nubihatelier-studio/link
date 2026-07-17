@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from '@/engine/types'
-import { letterForIndex, paletteFromCells, replaceColorInCells } from './palette'
+import { letterForIndex, paletteFromCells, replaceColorInCells, swapColorsInCells } from './palette'
 
 describe('letterForIndex', () => {
   it('cycles A-Z then rolls over to AA, AB, ...', () => {
@@ -44,5 +44,29 @@ describe('replaceColorInCells', () => {
   it('does nothing when fromHex is not present in the cells', () => {
     const cells: ColorMap = { '0,0': '#111' }
     expect(replaceColorInCells(cells, '#999', '#222')).toEqual({ '0,0': '#111' })
+  })
+})
+
+describe('swapColorsInCells', () => {
+  it('swaps both colors in a single pass, leaving other colors untouched', () => {
+    const cells: ColorMap = { '0,0': '#111', '0,1': '#222', '0,2': '#111', '0,3': '#333' }
+    const next = swapColorsInCells(cells, '#111', '#222')
+    expect(next).toEqual({ '0,0': '#222', '0,1': '#111', '0,2': '#222', '0,3': '#333' })
+  })
+
+  it('is a no-op returning the same reference when both hexes are equal', () => {
+    const cells: ColorMap = { '0,0': '#111' }
+    expect(swapColorsInCells(cells, '#111', '#111')).toBe(cells)
+  })
+
+  it('preserves empty (uncolored) cells untouched', () => {
+    const cells: ColorMap = { '0,0': '#111', '0,1': undefined, '0,2': '#222' }
+    const next = swapColorsInCells(cells, '#111', '#222')
+    expect(next).toEqual({ '0,0': '#222', '0,1': undefined, '0,2': '#111' })
+  })
+
+  it('does nothing when neither hex is present in the cells', () => {
+    const cells: ColorMap = { '0,0': '#111' }
+    expect(swapColorsInCells(cells, '#888', '#999')).toEqual({ '0,0': '#111' })
   })
 })

@@ -58,3 +58,34 @@ describe('ColorPanel — reemplazar color globalmente', () => {
     expect(screen.queryByText('Confirmar')).not.toBeInTheDocument()
   })
 })
+
+describe('ColorPanel — intercambiar dos colores', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('intercambia ambos colores en todo el patrón en una sola operación de deshacer', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    // '#111111' (A) is the first palette row — its "Intercambiar" button comes first.
+    await user.click(screen.getAllByRole('button', { name: 'Intercambiar con…' })[0])
+    const panel = within(screen.getByTestId('swap-panel'))
+    await user.click(panel.getByTitle('#111111 ↔ #222222'))
+
+    const { cells, history } = useEditorStore.getState()
+    expect(cells).toEqual({ '0,0': '#222222', '0,1': '#222222', '0,2': '#111111' })
+    expect(history).toHaveLength(1)
+  })
+
+  it('no deja abierto el panel de fusión al abrir el de intercambio', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Fusionar colores' })[0])
+    expect(screen.getByTestId('merge-panel')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Intercambiar con…' })[0])
+    expect(screen.queryByTestId('merge-panel')).not.toBeInTheDocument()
+  })
+})

@@ -41,3 +41,18 @@ export function replaceColorInCells(cells: ColorMap, fromHex: string, toHex: str
   }
   return next
 }
+
+/**
+ * Swaps every cell of `hexA` with `hexB` and vice versa, in one pass — doing
+ * this as two sequential `replaceColorInCells` calls would collapse both
+ * colors into one, since the first call's output cells would already be
+ * indistinguishable from the ones the second call is supposed to touch.
+ */
+export function swapColorsInCells(cells: ColorMap, hexA: string, hexB: string): ColorMap {
+  if (hexA === hexB) return cells
+  const next: ColorMap = {}
+  for (const [key, hex] of Object.entries(cells)) {
+    next[key] = hex === hexA ? hexB : hex === hexB ? hexA : hex
+  }
+  return next
+}

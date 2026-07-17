@@ -4,7 +4,7 @@ import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
-import { letterForIndex, paletteFromCells, replaceColorInCells } from '@/lib/palette'
+import { letterForIndex, paletteFromCells, replaceColorInCells, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
 export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill'
@@ -94,6 +94,8 @@ interface EditorState {
   pickColor: (row: number, col: number) => void
   /** Repaints every cell of `fromHex` to `toHex` in one undo step — used by both "fusionar colores" and "reemplazar en todo el patrón". */
   mergeColors: (fromHex: string, toHex: string) => void
+  /** Swaps every cell of hexA with hexB (and vice versa) in one undo step — for testing contrast variants without repainting by hand. */
+  swapColors: (hexA: string, hexB: string) => void
   /** Flood-fills the contiguous same-color region starting at (row, col) with `hex` (or erases it). */
   floodFill: (row: number, col: number, hex: string | null) => void
 
@@ -276,6 +278,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   mergeColors: (fromHex, toHex) => {
     get().registerColor(toHex)
     get().commit(replaceColorInCells(get().cells, fromHex, toHex))
+  },
+
+  swapColors: (hexA, hexB) => {
+    get().commit(swapColorsInCells(get().cells, hexA, hexB))
   },
 
   floodFill: (row, col, hex) => {
