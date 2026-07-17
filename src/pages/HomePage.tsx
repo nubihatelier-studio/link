@@ -107,11 +107,6 @@ export function HomePage() {
         />
       </header>
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3">
-        <span className="text-sm text-text-muted">{t.home.stats}</span>
-        <span className="rounded-full bg-surface-3 px-3 py-1 text-xs text-text-muted">{t.home.comingSoon}</span>
-      </div>
-
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <input
           ref={fileInputRef}

@@ -64,10 +64,3 @@ export const useWeaveStore = create<WeaveState>()((set, get) => ({
     persistProgress(patternId, p)
   },
 }))
-
-/**
- * Próximo hito (fuera de alcance de esta iteración): un statsStore que agregue
- * cuentas tejidas / tiempo / rachas entre patrones para el dashboard de
- * estadísticas. La forma de WeaveProgress ya guarda lo necesario (índice y
- * timestamp por patrón) para poder derivarlo sin cambiar este store.
- */

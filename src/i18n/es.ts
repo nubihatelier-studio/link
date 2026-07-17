@@ -11,8 +11,6 @@ export const t = {
     title: 'Tus patrones',
     empty: 'Todavía no creaste ningún patrón',
     createNew: '+ Crear nuevo',
-    stats: 'Mis estadísticas',
-    comingSoon: 'Próximamente',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',
