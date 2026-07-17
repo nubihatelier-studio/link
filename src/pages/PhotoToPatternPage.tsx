@@ -130,7 +130,7 @@ export function PhotoToPatternPage() {
             <div className="flex-1">
               <p className="mb-2 text-xs font-semibold text-text-muted">
                 {t.photo.preview}
-                {processing && <span className="ml-1 text-text-soft">· {t.photo.updating}</span>}
+                {processing && <span className="ml-1 text-text-muted">· {t.photo.updating}</span>}
               </p>
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-2">
                 {previewDoc && <PatternThumb pattern={previewDoc} size={200} />}
@@ -200,7 +200,7 @@ export function PhotoToPatternPage() {
                       <span className="h-6 w-6 shrink-0 rounded-md border border-border" style={{ backgroundColor: p.color.hex }} />
                       <span className="flex-1 truncate text-xs text-text-muted">
                         {match.exact ? '' : '~'}
-                        {p.color.code} <span className="text-text-soft">· {p.color.name}</span>
+                        {p.color.code} <span className="text-text-muted">· {p.color.name}</span>
                       </span>
                       <span className="text-xs font-semibold">×{p.count}</span>
                     </li>

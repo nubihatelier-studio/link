@@ -224,7 +224,7 @@ export function ColorPanel() {
                   <span className="flex-1 truncate text-xs text-text-muted" title={p.hex}>
                     {match.exact ? '' : '~'}
                     {match.color.code}
-                    <span className="ml-1 text-text-soft">· {match.color.name}</span>
+                    <span className="ml-1 text-text-muted">· {match.color.name}</span>
                   </span>
                   <span className="text-xs font-semibold">{p.count}</span>
                   <button
@@ -342,7 +342,7 @@ export function ColorPanel() {
               </li>
             )
           })}
-          {palette.length === 0 && <p className="text-xs text-text-soft">{t.editor.paletteEmpty}</p>}
+          {palette.length === 0 && <p className="text-xs text-text-muted">{t.editor.paletteEmpty}</p>}
         </ul>
       </section>
     </div>

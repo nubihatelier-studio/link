@@ -32,7 +32,7 @@ export function HandsBusyView({
       aria-label={tapAnywhere ? unitLabel : undefined}
     >
       <p className="text-lg font-semibold uppercase tracking-wide text-text-muted md:text-2xl lg:text-3xl">
-        {unitLabel} {unitIndex + 1} <span className="text-text-soft">/ {unitCount}</span>
+        {unitLabel} {unitIndex + 1} <span className="text-text-muted">/ {unitCount}</span>
       </p>
       <p className="max-w-5xl text-4xl font-bold leading-snug tracking-wide sm:text-5xl md:text-7xl lg:text-8xl">
         {lineText}

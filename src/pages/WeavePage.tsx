@@ -158,7 +158,7 @@ export function WeavePage() {
         {wakeLock.isSupported && (
           <span
             title={wakeLock.isActive ? t.weave.wakeLockActive : t.weave.wakeLockInactive}
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${wakeLock.isActive ? 'text-accent-500' : 'text-text-soft'}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full ${wakeLock.isActive ? 'text-accent-500' : 'text-text-muted'}`}
           >
             <Sun size={16} />
           </span>

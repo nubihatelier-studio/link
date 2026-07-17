@@ -158,7 +158,7 @@ export function ConfiguratorPage() {
               </select>
             </label>
           </div>
-          <p className="text-xs text-text-soft">
+          <p className="text-xs text-text-muted">
             {t.configurator.columns}: {cols} · {t.configurator.rows}: {rows}
           </p>
         </section>
@@ -198,7 +198,7 @@ export function ConfiguratorPage() {
           </div>
           {fringeEnabled && (
             <div className="flex flex-col gap-5">
-              <p className="text-xs text-text-soft">{t.configurator.fringe.hint}</p>
+              <p className="text-xs text-text-muted">{t.configurator.fringe.hint}</p>
               <SliderField
                 label={t.configurator.fringe.maxLength}
                 value={fringeMaxLength}
