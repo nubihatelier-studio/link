@@ -54,6 +54,19 @@ export function fringeDepthOf(bodyRows: number, row: number): number {
 }
 
 /**
+ * Whether (row, col) is a real, paintable cell — either in the body, or in
+ * that column's current fringe (row/col tools all share this one check, so
+ * "does painting work on fringe" reduces to "does this function know about
+ * `fringe`", see engine/editorStore.ts).
+ */
+export function isPaintableCell(row: number, col: number, cols: number, bodyRows: number, fringe?: FringeData): boolean {
+  if (row < 0 || col < 0 || col >= cols) return false
+  if (row < bodyRows) return true
+  const fringeLength = fringe?.lengths[col] ?? 0
+  return row < bodyRows + fringeLength
+}
+
+/**
  * Initial per-column lengths for the three starter shapes offered at
  * creation. All three are just a starting point — every length is
  * individually editable afterward, so these don't need to be anything more

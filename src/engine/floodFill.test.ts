@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ColorMap } from './types'
+import type { ColorMap, FringeData } from './types'
 import { floodFillCells } from './floodFill'
 
 describe('floodFillCells', () => {
@@ -58,5 +58,36 @@ describe('floodFillCells', () => {
   it('ignores an out-of-bounds start cell', () => {
     const cells: ColorMap = { '0,0': '#A' }
     expect(floodFillCells(cells, 2, 2, 5, 5, '#C')).toBe(cells)
+  })
+
+  describe('with a fringe', () => {
+    it('spreads into a column\'s fringe zone, stopping at that column\'s fringe length', () => {
+      // 1 col x 2 rows body, fringe of length 3 below it — all one color.
+      const cells: ColorMap = { '0,0': '#A', '1,0': '#A', '2,0': '#A', '3,0': '#A', '4,0': '#A' }
+      const fringe: FringeData = { lengths: [3], turnBeads: [false] }
+      const next = floodFillCells(cells, 1, 2, 0, 0, '#C', fringe)
+      expect(next).toEqual({ '0,0': '#C', '1,0': '#C', '2,0': '#C', '3,0': '#C', '4,0': '#C' })
+    })
+
+    it('does not leak past a column\'s fringe length even if that cell has the same color', () => {
+      // Depth 3 (row 5) is beyond col 0's fringe length of 3 (rows 2-4) — should be untouched.
+      const cells: ColorMap = { '0,0': '#A', '2,0': '#A', '3,0': '#A', '4,0': '#A', '5,0': '#A' }
+      const fringe: FringeData = { lengths: [3], turnBeads: [false] }
+      const next = floodFillCells(cells, 1, 2, 0, 0, '#C', fringe)
+      expect(next['5,0']).toBe('#A')
+    })
+
+    it('spreads sideways between two columns\' fringes at the same depth', () => {
+      const cells: ColorMap = { '2,0': '#A', '2,1': '#A' }
+      const fringe: FringeData = { lengths: [1, 1], turnBeads: [false, false] }
+      const next = floodFillCells(cells, 2, 2, 2, 0, '#C', fringe)
+      expect(next).toEqual({ '2,0': '#C', '2,1': '#C' })
+    })
+
+    it('ignores an out-of-bounds start cell that would only be valid without a fringe', () => {
+      const cells: ColorMap = {}
+      const fringe: FringeData = { lengths: [0], turnBeads: [false] }
+      expect(floodFillCells(cells, 1, 2, 2, 0, '#C', fringe)).toBe(cells)
+    })
   })
 })

@@ -5,6 +5,7 @@ import {
   fringeDepthOf,
   isFringeCapable,
   isFringeRow,
+  isPaintableCell,
   maxFringeLength,
   normalizeFringe,
   totalFringeBeadCount,
@@ -65,6 +66,40 @@ describe('isFringeRow / fringeDepthOf', () => {
     expect(isFringeRow(16, 16)).toBe(true)
     expect(fringeDepthOf(16, 16)).toBe(0)
     expect(fringeDepthOf(16, 20)).toBe(4)
+  })
+})
+
+describe('isPaintableCell', () => {
+  const fringe = { lengths: [3, 0, 5], turnBeads: [false, false, true] }
+
+  it('accepts any body cell regardless of fringe', () => {
+    expect(isPaintableCell(0, 0, 3, 10, fringe)).toBe(true)
+    expect(isPaintableCell(9, 2, 3, 10, fringe)).toBe(true)
+  })
+
+  it('accepts a fringe cell within that column\'s current length', () => {
+    expect(isPaintableCell(10, 0, 3, 10, fringe)).toBe(true) // depth 0 of col 0 (length 3)
+    expect(isPaintableCell(12, 0, 3, 10, fringe)).toBe(true) // depth 2 of col 0 (length 3), the last one
+    expect(isPaintableCell(14, 2, 3, 10, fringe)).toBe(true) // depth 4 of col 2 (length 5), the last one
+  })
+
+  it('rejects a fringe cell past that column\'s current length', () => {
+    expect(isPaintableCell(13, 0, 3, 10, fringe)).toBe(false) // depth 3, col 0 only has length 3
+  })
+
+  it('rejects any depth at all for a column with no fringe', () => {
+    expect(isPaintableCell(10, 1, 3, 10, fringe)).toBe(false)
+  })
+
+  it('rejects negative rows/cols and out-of-range columns', () => {
+    expect(isPaintableCell(-1, 0, 3, 10, fringe)).toBe(false)
+    expect(isPaintableCell(0, -1, 3, 10, fringe)).toBe(false)
+    expect(isPaintableCell(0, 3, 3, 10, fringe)).toBe(false)
+  })
+
+  it('treats an omitted fringe as no fringe at all (body-only)', () => {
+    expect(isPaintableCell(9, 0, 3, 10)).toBe(true)
+    expect(isPaintableCell(10, 0, 3, 10)).toBe(false)
   })
 })
 

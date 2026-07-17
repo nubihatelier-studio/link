@@ -162,6 +162,32 @@ export function cellAtPosition(technique: Technique, xUnits: number, yUnits: num
 }
 
 /**
+ * `cellAtPosition`, extended to correctly invert a click that lands in the
+ * fringe zone hanging below a `bodyRows`-tall body (see
+ * `cellPosition`/`engine/fringe.ts`). Above the body/fringe boundary this is
+ * identical to `cellAtPosition`. Below it, every column's fringe hangs
+ * straight down from wherever its last body-row bead was (no row parity, no
+ * per-row offset), so depth is a plain linear inverse of y, and the column
+ * is read off the *last body row's* fixed x-offset instead of the (missing)
+ * offset a fringe row would otherwise have of its own.
+ */
+export function cellAtPositionWithFringe(
+  technique: Technique,
+  bodyRows: number,
+  xUnits: number,
+  yUnits: number,
+): { row: number; col: number } {
+  const bodyBottomY = cellPosition(technique, bodyRows, 0, bodyRows).y
+  if (yUnits < bodyBottomY) return cellAtPosition(technique, xUnits, yUnits)
+
+  const depth = Math.max(0, Math.floor(yUnits - bodyBottomY))
+  const row = bodyRows + depth
+  const lastBodyRowXOffset = cellPosition(technique, bodyRows - 1, 0).x
+  const col = Math.floor(xUnits - lastBodyRowXOffset)
+  return { row, col }
+}
+
+/**
  * Inverse of physicalSizeMm: given a desired finished size in mm, compute the
  * cols/rows needed for a given bead and technique ("crear desde tamaño final").
  */

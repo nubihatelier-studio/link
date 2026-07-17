@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   beadCount,
   cellAtPosition,
+  cellAtPositionWithFringe,
   cellPosition,
   gridBoundsUnits,
   gridFromPhysicalSizeMm,
@@ -106,6 +107,35 @@ describe('cellPosition with a fringe zone', () => {
 
   it('loom fringe formula is identical to its plain unbounded formula (pitch is already 1, no offset)', () => {
     expect(cellPosition('loom', 20, 3, 16)).toEqual({ x: 3, y: 20 })
+  })
+})
+
+describe('cellAtPositionWithFringe', () => {
+  it('matches plain cellAtPosition above the body/fringe boundary, for every technique', () => {
+    for (const technique of ['loom', 'brick'] as const) {
+      const bodyRows = 16
+      for (let row = 0; row < bodyRows; row++) {
+        for (let col = 0; col < 4; col++) {
+          const pos = cellPosition(technique, row, col)
+          const hit = cellAtPositionWithFringe(technique, bodyRows, pos.x + 0.4, pos.y + 0.4)
+          expect(hit).toEqual({ row, col })
+        }
+      }
+    }
+  })
+
+  it('recovers the right (row, col) for a click landing in the fringe zone', () => {
+    for (const technique of ['loom', 'brick'] as const) {
+      const bodyRows = 16
+      for (let col = 0; col < 4; col++) {
+        for (let depth = 0; depth < 5; depth++) {
+          const row = bodyRows + depth
+          const pos = cellPosition(technique, row, col, bodyRows)
+          const hit = cellAtPositionWithFringe(technique, bodyRows, pos.x + 0.4, pos.y + 0.4)
+          expect(hit).toEqual({ row, col })
+        }
+      }
+    }
   })
 })
 

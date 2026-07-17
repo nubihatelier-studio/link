@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
-import { cellAtPosition, cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { cellAtPositionWithFringe, cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { contrastTextColor } from '@/lib/color'
@@ -42,6 +43,7 @@ export function CanvasGrid() {
     cols,
     rows,
     cells,
+    fringe,
     tool,
     slots,
     activeSlot,
@@ -70,7 +72,8 @@ export function CanvasGrid() {
   } = useEditorStore()
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
-  const bounds = gridBoundsUnits(technique, cols, rows)
+  const bodyBounds = gridBoundsUnits(technique, cols, rows)
+  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const canvasWidth = bounds.width * cellPx + MARGIN
   const canvasHeight = bounds.height * cellPx + MARGIN
   const activeColor = slots[activeSlot]
@@ -95,11 +98,11 @@ export function CanvasGrid() {
 
   function cellFromEvent(e: { clientX: number; clientY: number }) {
     const { x, y } = toBeadUnits(e.clientX, e.clientY)
-    return cellAtPosition(technique, x, y)
+    return cellAtPositionWithFringe(technique, rows, x, y)
   }
 
   function inBounds(row: number, col: number) {
-    return row >= 0 && col >= 0 && row < rows && col < cols
+    return isPaintableCell(row, col, cols, rows, fringe)
   }
 
   // ---- rendering ----
@@ -193,6 +196,60 @@ export function CanvasGrid() {
       }
     }
 
+    // fringe zone — hangs below the body, one strip per column, set apart
+    // by a subtle dashed divider right where the body ends. Same per-cell
+    // drawing as the body loop above, plus a distinct accent ring on each
+    // column's turn bead (the deepest bead, where the thread turns back up).
+    const maxFringe = maxFringeLength(fringe)
+    if (maxFringe > 0) {
+      const dividerY = MARGIN + bodyBounds.height * cellPx
+      ctx.strokeStyle = borderColor
+      ctx.globalAlpha = 0.5
+      ctx.lineWidth = 1
+      ctx.setLineDash([2, 3])
+      ctx.beginPath()
+      ctx.moveTo(MARGIN, dividerY)
+      ctx.lineTo(canvasWidth, dividerY)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.globalAlpha = 1
+
+      for (let col = 0; col < cols; col++) {
+        const length = fringe.lengths[col] ?? 0
+        for (let depth = 0; depth < length; depth++) {
+          const row = rows + depth
+          const pos = cellPosition(technique, row, col, rows)
+          const x = MARGIN + pos.x * cellPx + inset
+          const y = MARGIN + pos.y * cellPx + inset
+          const w = cellPx - inset * 2
+          const h = cellPx - inset * 2
+          const hex = cells[cellKey(row, col)]
+
+          ctx.beginPath()
+          roundRect(ctx, x, y, w, h, radius)
+          ctx.fillStyle = hex ?? emptyColor
+          ctx.fill()
+          ctx.strokeStyle = borderColor
+          ctx.lineWidth = 1
+          ctx.stroke()
+
+          if (depth === length - 1 && fringe.turnBeads[col]) {
+            ctx.strokeStyle = accent
+            ctx.lineWidth = 2
+            ctx.stroke()
+          }
+
+          if (hex && showLetters) {
+            const letter = colorLetters[hex]
+            if (letter) {
+              ctx.fillStyle = contrastTextColor(hex)
+              ctx.fillText(letter, x + w / 2, y + h / 2 + 0.5)
+            }
+          }
+        }
+      }
+    }
+
     // paste ghost preview — shows exactly where the clipboard will land
     // (including per-cell colors and the current flip) before you commit
     // with a click, instead of pasting blind.
@@ -206,7 +263,7 @@ export function CanvasGrid() {
         const targetRow = hoverCell.row + fr
         const targetCol = hoverCell.col + fc
         if (!inBounds(targetRow, targetCol)) continue
-        const pos = cellPosition(technique, targetRow, targetCol)
+        const pos = cellPosition(technique, targetRow, targetCol, rows)
         ctx.beginPath()
         roundRect(
           ctx,
@@ -220,7 +277,7 @@ export function CanvasGrid() {
         ctx.fill()
       }
       ctx.globalAlpha = 1
-      const origin = cellPosition(technique, hoverCell.row, hoverCell.col)
+      const origin = cellPosition(technique, hoverCell.row, hoverCell.col, rows)
       ctx.strokeStyle = accent
       ctx.lineWidth = 1.5
       ctx.setLineDash([5, 3])
@@ -234,7 +291,7 @@ export function CanvasGrid() {
     } else if (hoverCell && inBounds(hoverCell.row, hoverCell.col) && !isPointerDown.current) {
       // hover highlight — shows exactly which cell a click will affect, so
       // targeting a specific bead on a dense grid stays easy on touch and mouse
-      const pos = cellPosition(technique, hoverCell.row, hoverCell.col)
+      const pos = cellPosition(technique, hoverCell.row, hoverCell.col, rows)
       const x = MARGIN + pos.x * cellPx
       const y = MARGIN + pos.y * cellPx
       ctx.fillStyle = 'rgba(201, 162, 39, 0.18)'
@@ -254,14 +311,14 @@ export function CanvasGrid() {
         ctx.globalAlpha = 0.25
         for (const key of colorSelectionMask) {
           const { row, col } = parseCellKey(key)
-          const pos = cellPosition(technique, row, col)
+          const pos = cellPosition(technique, row, col, rows)
           ctx.fillRect(MARGIN + pos.x * cellPx, MARGIN + pos.y * cellPx, cellPx, cellPx)
         }
         ctx.globalAlpha = 1
       }
 
-      const p0 = cellPosition(technique, selection.r0, selection.c0)
-      const p1 = cellPosition(technique, selection.r1, selection.c1)
+      const p0 = cellPosition(technique, selection.r0, selection.c0, rows)
+      const p1 = cellPosition(technique, selection.r1, selection.c1, rows)
       const x0 = MARGIN + Math.min(p0.x, p1.x) * cellPx
       const y0 = MARGIN + Math.min(p0.y, p1.y) * cellPx
       const w = (Math.max(p0.x, p1.x) - Math.min(p0.x, p1.x) + 1) * cellPx
@@ -277,7 +334,7 @@ export function CanvasGrid() {
     if (tool === 'line' && lineStart && hoverCell) {
       for (const c of lineCells(lineStart.row, lineStart.col, hoverCell.row, hoverCell.col)) {
         if (!inBounds(c.row, c.col)) continue
-        const pos = cellPosition(technique, c.row, c.col)
+        const pos = cellPosition(technique, c.row, c.col, rows)
         ctx.globalAlpha = 0.55
         ctx.beginPath()
         roundRect(ctx, MARGIN + pos.x * cellPx + inset, MARGIN + pos.y * cellPx + inset, cellPx - inset * 2, cellPx - inset * 2, radius)
@@ -289,7 +346,7 @@ export function CanvasGrid() {
 
     // keyboard focus ring
     if (inBounds(focusCell.row, focusCell.col)) {
-      const pos = cellPosition(technique, focusCell.row, focusCell.col)
+      const pos = cellPosition(technique, focusCell.row, focusCell.col, rows)
       ctx.strokeStyle = accent
       ctx.lineWidth = 1.5
       ctx.strokeRect(MARGIN + pos.x * cellPx, MARGIN + pos.y * cellPx, cellPx, cellPx)
@@ -299,6 +356,7 @@ export function CanvasGrid() {
     cols,
     rows,
     cells,
+    fringe,
     zoom,
     selection,
     colorSelectionMask,

@@ -113,6 +113,17 @@ export const t = {
       reflect: 'Reflejar',
     },
     shortcutsTitle: 'Atajos de teclado',
+    fringe: {
+      title: 'Flecos 🪶',
+      shortTitle: 'Flecos',
+      column: (n: number) => `Columna ${n}`,
+      beadsUnit: 'mostacillas',
+      decreaseLength: 'Acortar fleco',
+      increaseLength: 'Alargar fleco',
+      turnBead: 'Giro',
+      turnBeadHint: 'Mostacilla de giro — donde el hilo da la vuelta',
+      empty: 'Sin fleco',
+    },
   },
   weave: {
     title: 'Modo tejido',

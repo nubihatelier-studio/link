@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { ColorMap, PatternDoc, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, PatternDoc, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
+import { createEmptyFringe, isPaintableCell, normalizeFringe } from '@/engine/fringe'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
@@ -41,6 +42,20 @@ interface EditorState {
   rows: number
   beadTypeId: string
   cells: ColorMap
+
+  /**
+   * Always normalized to `fringe.lengths.length === cols` (see
+   * `engine/fringe.ts#normalizeFringe`) — legacy patterns saved before this
+   * feature existed load as an all-empty fringe. Structural, like
+   * `cols`/`rows`: length/turn-bead edits are NOT part of the `history`
+   * undo stack (only cell colors are) — but since fringe *cell colors* live
+   * in the same `cells` map as the body (see `engine/types.ts#FringeData`),
+   * painting a fringe bead is undoable for free through the exact same
+   * mechanism as painting a body cell.
+   */
+  fringe: FringeData
+  setFringeLength: (col: number, length: number) => void
+  setFringeTurnBead: (col: number, isTurnBead: boolean) => void
 
   history: ColorMap[]
   future: ColorMap[]
@@ -150,6 +165,50 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   beadTypeId: 'miyuki-delica-11',
   cells: {},
 
+  fringe: createEmptyFringe(20),
+  setFringeLength: (col, rawLength) => {
+    const { fringe, rows: bodyRows, cells } = get()
+    const oldLength = fringe.lengths[col] ?? 0
+    const length = Math.max(0, Math.min(60, Math.round(rawLength)))
+    if (length === oldLength) return
+
+    const nextLengths = [...fringe.lengths]
+    nextLengths[col] = length
+    const nextTurnBeads = [...fringe.turnBeads]
+    if (length === 0) nextTurnBeads[col] = false
+    const nextFringe: FringeData = { lengths: nextLengths, turnBeads: nextTurnBeads }
+    set({ fringe: nextFringe })
+
+    // Shrinking drops any painted color beyond the new, shorter length —
+    // those cells no longer exist. This goes through `commit` (undoable),
+    // unlike the length change itself.
+    if (length < oldLength) {
+      const next = { ...cells }
+      let changed = false
+      for (let d = length; d < oldLength; d++) {
+        const key = cellKey(bodyRows + d, col)
+        if (key in next) {
+          delete next[key]
+          changed = true
+        }
+      }
+      if (changed) get().commit(next)
+    }
+
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setFringe(id, nextFringe)
+  },
+  setFringeTurnBead: (col, isTurnBead) => {
+    const { fringe } = get()
+    if ((fringe.lengths[col] ?? 0) === 0) return
+    const nextTurnBeads = [...fringe.turnBeads]
+    nextTurnBeads[col] = isTurnBead
+    const nextFringe: FringeData = { lengths: fringe.lengths, turnBeads: nextTurnBeads }
+    set({ fringe: nextFringe })
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setFringe(id, nextFringe)
+  },
+
   history: [],
   future: [],
 
@@ -215,6 +274,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rows: doc.config.rows,
       beadTypeId: doc.config.beadTypeId,
       cells: { ...doc.cells },
+      fringe: normalizeFringe(doc.fringe, doc.config.cols),
       history: [],
       future: [],
       selection: null,
@@ -258,8 +318,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   paintCell: (row, col, hex) => {
-    const { cells, cols, rows } = get()
-    if (row < 0 || col < 0 || row >= rows || col >= cols) return
+    const { cells, cols, rows, fringe } = get()
+    if (!isPaintableCell(row, col, cols, rows, fringe)) return
     const key = cellKey(row, col)
     if (cells[key] === (hex ?? undefined)) return
     const next = { ...cells }
@@ -269,10 +329,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   paintLine: (r0, c0, r1, c1, hex) => {
-    const { cells, cols, rows } = get()
+    const { cells, cols, rows, fringe } = get()
     const next = { ...cells }
     for (const cell of lineCells(r0, c0, r1, c1)) {
-      if (cell.row < 0 || cell.col < 0 || cell.row >= rows || cell.col >= cols) continue
+      if (!isPaintableCell(cell.row, cell.col, cols, rows, fringe)) continue
       const key = cellKey(cell.row, cell.col)
       if (hex) next[key] = hex
       else delete next[key]
@@ -303,20 +363,20 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   floodFill: (row, col, hex) => {
-    const { cells, cols, rows } = get()
+    const { cells, cols, rows, fringe } = get()
     if (hex) get().registerColor(hex)
-    get().commit(floodFillCells(cells, cols, rows, row, col, hex))
+    get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe))
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),
 
   strokeCell: (row, col, hex) => {
-    const { cells, cols, rows, mirrorMode } = get()
+    const { cells, cols, rows, mirrorMode, fringe } = get()
     const next = { ...cells }
     let changed = false
 
     const paintOne = (r: number, c: number) => {
-      if (r < 0 || c < 0 || r >= rows || c >= cols) return
+      if (!isPaintableCell(r, c, cols, rows, fringe)) return
       const key = cellKey(r, c)
       if (cells[key] === (hex ?? undefined)) return
       if (hex) next[key] = hex
@@ -380,7 +440,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   pasteClipboardAt: (row, col, opts) => {
-    const { clipboard, cells, cols, rows } = get()
+    const { clipboard, cells, cols, rows, fringe } = get()
     if (!clipboard) return
     const next = { ...cells }
     for (const [key, hex] of Object.entries(clipboard.cells)) {
@@ -390,7 +450,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const fc = opts?.flipH ? clipboard.width - 1 - rc : rc
       const targetRow = row + fr
       const targetCol = col + fc
-      if (targetRow < 0 || targetCol < 0 || targetRow >= rows || targetCol >= cols) continue
+      if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe)) continue
       next[cellKey(targetRow, targetCol)] = hex
     }
     set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false })
@@ -399,7 +459,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   /** Repeats the selected block `times` total (the original plus `times - 1` copies) end to end in one direction. */
   cloneSelection: (direction, times) => {
-    const { selection, cells, cols, rows } = get()
+    const { selection, cells, cols, rows, fringe } = get()
     if (!selection) return
     const width = selection.c1 - selection.c0 + 1
     const height = selection.r1 - selection.r0 + 1
@@ -413,7 +473,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           if (!hex) continue
           const targetRow = r + rowOffset
           const targetCol = c + colOffset
-          if (targetRow < 0 || targetCol < 0 || targetRow >= rows || targetCol >= cols) continue
+          if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe)) continue
           next[cellKey(targetRow, targetCol)] = hex
         }
       }

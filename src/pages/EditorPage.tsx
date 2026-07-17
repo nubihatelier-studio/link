@@ -5,12 +5,14 @@ import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
+import { isFringeCapable } from '@/engine/fringe'
 import { exportPatternToPdf } from '@/lib/pdfExport'
 import { exportPatternBackup } from '@/storage/backup'
 import { t } from '@/i18n/es'
 import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
+import { FringePanel } from '@/components/editor/FringePanel'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -36,9 +38,11 @@ export function EditorPage() {
   const { loadPattern, name, renamePattern, technique, cols, rows, beadTypeId, cells, zoom, setZoom, setTool, undo, redo } =
     useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
+  const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const fringeCapable = isFringeCapable(technique)
 
   useEffect(() => {
     if (!id) return
@@ -54,6 +58,15 @@ export function EditorPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [colorDrawerOpen])
+
+  useEffect(() => {
+    if (!fringeDrawerOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setFringeDrawerOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fringeDrawerOpen])
 
   useEffect(() => {
     if (!shortcutsOpen) return
@@ -203,19 +216,36 @@ export function EditorPage() {
           </div>
         </div>
 
-        <aside className="hidden w-80 shrink-0 border-l border-border md:block">
-          <ColorPanel />
+        <aside className="hidden w-80 shrink-0 flex-col border-l border-border md:flex">
+          {fringeCapable && (
+            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
+              <FringePanel />
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <ColorPanel />
+          </div>
         </aside>
       </div>
 
       <nav className="flex flex-col gap-2 border-t border-border bg-surface px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
         <div className="flex items-center justify-between px-1">
-          <button
-            onClick={() => setColorDrawerOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
-          >
-            🎨 {t.editor.palette}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setColorDrawerOpen(true)}
+              className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+            >
+              🎨 {t.editor.palette}
+            </button>
+            {fringeCapable && (
+              <button
+                onClick={() => setFringeDrawerOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+              >
+                🪶 {t.editor.fringe.shortTitle}
+              </button>
+            )}
+          </div>
           <button
             onClick={() => navigate(`/editor/${id}/weave`)}
             className="rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
@@ -238,6 +268,20 @@ export function EditorPage() {
               <div className="h-1 w-10 rounded-full bg-surface-3" />
             </div>
             <ColorPanel />
+          </div>
+        </div>
+      )}
+
+      {fringeDrawerOpen && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setFringeDrawerOpen(false)}>
+          <div
+            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center py-2">
+              <div className="h-1 w-10 rounded-full bg-surface-3" />
+            </div>
+            <FringePanel />
           </div>
         </div>
       )}

@@ -27,6 +27,7 @@ interface PatternsState {
   duplicatePattern: (id: string) => string | null
   setCells: (id: string, cells: ColorMap) => void
   setCell: (id: string, key: string, hex: string | null) => void
+  setFringe: (id: string, fringe: FringeData) => void
   getPattern: (id: string) => PatternDoc | undefined
 }
 
@@ -172,6 +173,17 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       if (hex) cells[key] = hex
       else delete cells[key]
       updated = { ...doc, cells, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setFringe: (id, fringe) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, fringe, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)
