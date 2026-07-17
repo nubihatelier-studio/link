@@ -20,6 +20,76 @@ type SizeMode = 'count' | 'finalSize'
 const MIN_DIM = 4
 const MAX_DIM = 200
 
+interface TemplatePreset {
+  id: string
+  emoji: string
+  label: string
+  description: string
+  technique: Technique
+  cols: number
+  rows: number
+  fringeEnabled: boolean
+  fringeMaxLength: number
+  fringeShape: FringeShape
+}
+
+/**
+ * Starting points offered in "Crear patrón" — each just pre-fills the
+ * fields below (technique, size, fringe) with typical values for that kind
+ * of project; nothing here is locked in, every field stays editable
+ * afterward in this same screen and later in the editor.
+ */
+const TEMPLATES: TemplatePreset[] = [
+  {
+    id: 'pulsera',
+    emoji: '📿',
+    label: t.configurator.templates.pulsera,
+    description: t.configurator.templates.pulseraDesc,
+    technique: 'peyote',
+    cols: 10,
+    rows: 140,
+    fringeEnabled: false,
+    fringeMaxLength: 8,
+    fringeShape: 'straight',
+  },
+  {
+    id: 'aroFlecos',
+    emoji: '🪶',
+    label: t.configurator.templates.aroFlecos,
+    description: t.configurator.templates.aroFlecosDesc,
+    technique: 'brick',
+    cols: 12,
+    rows: 12,
+    fringeEnabled: true,
+    fringeMaxLength: 10,
+    fringeShape: 'v',
+  },
+  {
+    id: 'marcapaginas',
+    emoji: '🔖',
+    label: t.configurator.templates.marcapaginas,
+    description: t.configurator.templates.marcapaginasDesc,
+    technique: 'loom',
+    cols: 8,
+    rows: 80,
+    fringeEnabled: false,
+    fringeMaxLength: 8,
+    fringeShape: 'straight',
+  },
+  {
+    id: 'personalizado',
+    emoji: '🎨',
+    label: t.configurator.templates.personalizado,
+    description: t.configurator.templates.personalizadoDesc,
+    technique: 'loom',
+    cols: 16,
+    rows: 16,
+    fringeEnabled: false,
+    fringeMaxLength: 8,
+    fringeShape: 'straight',
+  },
+]
+
 export function ConfiguratorPage() {
   const navigate = useNavigate()
   const createPattern = usePatternsStore((s) => s.createPattern)
@@ -33,6 +103,7 @@ export function ConfiguratorPage() {
   const [fringeEnabled, setFringeEnabled] = useState(false)
   const [fringeMaxLength, setFringeMaxLength] = useState(8)
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
@@ -41,6 +112,17 @@ export function ConfiguratorPage() {
     [technique, cols, rows, bead, fringeActive, fringeMaxLength],
   )
   const total = beadCount(technique, cols, rows)
+
+  function applyTemplate(template: TemplatePreset) {
+    setSelectedTemplate(template.id)
+    setTechnique(template.technique)
+    setCols(template.cols)
+    setRows(template.rows)
+    setMode('count')
+    setFringeEnabled(template.fringeEnabled)
+    setFringeMaxLength(template.fringeMaxLength)
+    setFringeShape(template.fringeShape)
+  }
 
   function updateCols(next: number) {
     setCols(Math.max(MIN_DIM, Math.min(MAX_DIM, next)))
@@ -77,13 +159,34 @@ export function ConfiguratorPage() {
       <h1 className="mb-6 text-2xl font-bold">{t.configurator.title}</h1>
 
       <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.templates.title}</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {TEMPLATES.map((template) => (
+            <SelectableCard
+              key={template.id}
+              selected={selectedTemplate === template.id}
+              onClick={() => applyTemplate(template)}
+              className="flex flex-col items-center gap-1 py-4 text-center"
+            >
+              <span className="text-2xl">{template.emoji}</span>
+              <p className="font-semibold">{template.label}</p>
+              <p className="text-xs text-text-muted">{template.description}</p>
+            </SelectableCard>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.technique}</h2>
         <div className="grid grid-cols-3 gap-3">
           {TECHNIQUES.map((tech) => (
             <SelectableCard
               key={tech}
               selected={technique === tech}
-              onClick={() => setTechnique(tech)}
+              onClick={() => {
+                setTechnique(tech)
+                setSelectedTemplate(null)
+              }}
               className="flex flex-col items-center gap-2 py-5 text-center"
             >
               <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
@@ -188,7 +291,10 @@ export function ConfiguratorPage() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-text-muted">{t.configurator.fringe.title}</h2>
             <button
-              onClick={() => setFringeEnabled((v) => !v)}
+              onClick={() => {
+                setFringeEnabled((v) => !v)
+                setSelectedTemplate(null)
+              }}
               aria-pressed={fringeEnabled}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
                 ${fringeEnabled ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}

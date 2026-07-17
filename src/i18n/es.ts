@@ -47,6 +47,17 @@ export const t = {
     photoToPattern: 'Foto a patrón',
     photoToPatternDesc: 'Genera un patrón a partir de una foto',
     createButton: '+ Crear patrón',
+    templates: {
+      title: 'Empezar desde una plantilla',
+      pulsera: 'Pulsera',
+      pulseraDesc: 'Tira angosta y larga para la muñeca',
+      aroFlecos: 'Aro con flecos',
+      aroFlecosDesc: 'Cuerpo chico + flecos colgando',
+      marcapaginas: 'Marcapáginas',
+      marcapaginasDesc: 'Tira angosta tejida en telar',
+      personalizado: 'Personalizado',
+      personalizadoDesc: 'Empieza desde cero',
+    },
     fringe: {
       title: 'Flecos 🪶',
       add: '+ Agregar flecos',
