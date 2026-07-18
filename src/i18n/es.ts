@@ -155,6 +155,8 @@ export const t = {
     of: 'de',
     jumpToRow: 'Ir a fila',
     jumpToColumn: 'Ir a columna',
+    /** Used instead of jumpToRow/jumpToColumn once the selector also offers fringe columns — "Ir a fila" would misdescribe an option like "Fleco · Columna 5". */
+    jumpTo: 'Ir a',
     markRowDone: 'Marcar fila hecha',
     markColumnDone: 'Marcar columna hecha',
     markFringeDone: 'Marcar fleco hecho',

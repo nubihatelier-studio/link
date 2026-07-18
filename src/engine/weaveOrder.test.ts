@@ -6,6 +6,7 @@ import {
   firstIndexOfNextFringeColumn,
   firstIndexOfUnit,
   isFringeStep,
+  jumpTargetToIndex,
   unitIndexOf,
   weaveUnit,
 } from './weaveOrder'
@@ -174,5 +175,41 @@ describe('firstIndexOfUnit', () => {
     expect(firstIndexOfUnit('peyote', order, 0)).toBe(0)
     expect(firstIndexOfUnit('peyote', order, 1)).toBe(4)
     expect(firstIndexOfUnit('peyote', order, 2)).toBe(8)
+  })
+})
+
+describe('jumpTargetToIndex — mapeo del selector "Ir a" a índice de bead', () => {
+  // The QA repro pattern: 8x6 brick with fringe lengths 1,2,4,5,5,4,2,1 (72 beads total).
+  const fringe: FringeData = {
+    lengths: [1, 2, 4, 5, 5, 4, 2, 1],
+    turnBeads: [true, true, true, true, true, true, true, true],
+  }
+  const order = buildWeaveOrder('brick', 8, 6, fringe)
+
+  it('kind "body" delegates to firstIndexOfUnit', () => {
+    expect(jumpTargetToIndex('brick', order, { kind: 'body', index: 0 })).toBe(firstIndexOfUnit('brick', order, 0))
+    expect(jumpTargetToIndex('brick', order, { kind: 'body', index: 3 })).toBe(firstIndexOfUnit('brick', order, 3))
+  })
+
+  it('kind "fringe" delegates to firstIndexOfNextFringeColumn (target column minus one)', () => {
+    // Body is 8x6 = 48 steps (indices 0-47). Fringe then walks column by column:
+    // col 0 (len 1) -> index 48, col 1 (len 2) -> 49-50, col 2 (len 4) -> 51-54, ...
+    expect(jumpTargetToIndex('brick', order, { kind: 'fringe', index: 0 })).toBe(48)
+    expect(jumpTargetToIndex('brick', order, { kind: 'fringe', index: 4 })).toBe(
+      firstIndexOfNextFringeColumn(order, 3),
+    )
+  })
+
+  it('"Fleco · Columna 5" (1-based, index 4) lands on the first bead of that column', () => {
+    const target = jumpTargetToIndex('brick', order, { kind: 'fringe', index: 4 })
+    expect(order[target]).toMatchObject({ col: 4, isFringe: true })
+    // No earlier step in the order belongs to column 4's fringe.
+    expect(order.slice(0, target).some((step) => isFringeStep(step) && step.col === 4)).toBe(false)
+  })
+
+  it('returns -1 for a fringe column with no beads (never offered by the selector, but stays a safe no-op)', () => {
+    const noFringe: FringeData = { lengths: [0, 0], turnBeads: [false, false] }
+    const bodyOnlyOrder = buildWeaveOrder('brick', 2, 2, noFringe)
+    expect(jumpTargetToIndex('brick', bodyOnlyOrder, { kind: 'fringe', index: 0 })).toBe(-1)
   })
 })

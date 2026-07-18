@@ -130,3 +130,29 @@ export function firstIndexOfUnit(technique: Technique, order: Cell[], unit: numb
 export function firstIndexOfNextFringeColumn(order: WeaveStep[], afterCol: number): number {
   return order.findIndex((step) => isFringeStep(step) && step.col > afterCol)
 }
+
+/**
+ * A target for the "Ir a" jump selector — either a body row/column (per
+ * `weaveUnit`) or a fringe column. Kept as a typed object (rather than the
+ * two raw indices `firstIndexOfUnit`/`firstIndexOfNextFringeColumn` each
+ * take) so the selector's option-building and index-resolution share one
+ * unambiguous shape.
+ */
+export interface JumpTarget {
+  kind: 'body' | 'fringe'
+  /** Body row/column index (kind 'body') or fringe column index (kind 'fringe') — both 0-based. */
+  index: number
+}
+
+/**
+ * Resolves a `JumpTarget` to its first step's index in `order` — the single
+ * entry point behind the "Ir a" selector, dispatching to whichever of
+ * `firstIndexOfUnit` / `firstIndexOfNextFringeColumn` matches `kind`.
+ * Returns -1 if the target isn't in `order` (e.g. a fringe column with no
+ * beads), same "not found" convention as both underlying functions.
+ */
+export function jumpTargetToIndex(technique: Technique, order: WeaveStep[], target: JumpTarget): number {
+  return target.kind === 'fringe'
+    ? firstIndexOfNextFringeColumn(order, target.index - 1)
+    : firstIndexOfUnit(technique, order, target.index)
+}

@@ -9,8 +9,10 @@ import {
   firstIndexOfNextFringeColumn,
   firstIndexOfUnit,
   isFringeStep,
+  jumpTargetToIndex,
   unitIndexOf,
   weaveUnit,
+  type JumpTarget,
 } from '@/engine/weaveOrder'
 import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
 import { normalizeFringe } from '@/engine/fringe'
@@ -23,6 +25,17 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { InfoScreen } from '@/components/shared/InfoScreen'
+
+/** Serializes a JumpTarget as an <option value> for the "Ir a" selector — plain numeric values can't tell a body index and a fringe column apart. */
+function encodeJumpValue(target: JumpTarget): string {
+  return `${target.kind}:${target.index}`
+}
+
+/** Inverse of encodeJumpValue — parses the selector's raw string value back into a JumpTarget. */
+function decodeJumpValue(value: string): JumpTarget {
+  const [kind, index] = value.split(':')
+  return { kind: kind === 'fringe' ? 'fringe' : 'body', index: Number(index) }
+}
 
 export function WeavePage() {
   const { id } = useParams<{ id: string }>()
@@ -59,6 +72,7 @@ export function WeavePage() {
   const onFringe = currentStep ? isFringeStep(currentStep) : false
   const currentUnitIndex = currentStep ? unitIndexOf(technique, currentStep) : 0
   const unitCount = unit === 'column' ? (pattern?.config.cols ?? 0) : (pattern?.config.rows ?? 0)
+  const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
 
   const wordChartLines = useMemo(() => {
     if (!pattern) return []
@@ -115,8 +129,8 @@ export function WeavePage() {
       : firstIndexOfUnit(technique, order, currentUnitIndex + 1)
     setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1)
   }
-  function jumpToUnit(unitIdx: number) {
-    const start = firstIndexOfUnit(technique, order, unitIdx)
+  function jumpTo(target: JumpTarget) {
+    const start = jumpTargetToIndex(technique, order, target)
     if (start !== -1) setIndex(id!, start - 1)
   }
   function requestReset() {
@@ -204,16 +218,21 @@ export function WeavePage() {
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <label className="text-xs text-text-muted">
-            {unit === 'column' ? t.weave.jumpToColumn : t.weave.jumpToRow}
+            {fringeColumns.length > 0 ? t.weave.jumpTo : unit === 'column' ? t.weave.jumpToColumn : t.weave.jumpToRow}
           </label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
-            value={onFringe ? unitCount - 1 : currentUnitIndex}
-            onChange={(e) => jumpToUnit(Number(e.target.value))}
+            value={encodeJumpValue(onFringe ? { kind: 'fringe', index: currentStep!.col } : { kind: 'body', index: currentUnitIndex })}
+            onChange={(e) => jumpTo(decodeJumpValue(e.target.value))}
           >
             {Array.from({ length: unitCount }, (_, i) => (
-              <option key={i} value={i}>
+              <option key={`body-${i}`} value={encodeJumpValue({ kind: 'body', index: i })}>
                 {unitLabel} {i + 1}
+              </option>
+            ))}
+            {fringeColumns.map((col) => (
+              <option key={`fringe-${col}`} value={encodeJumpValue({ kind: 'fringe', index: col })}>
+                {t.weave.fringeColumnHeader(col + 1)}
               </option>
             ))}
           </select>
