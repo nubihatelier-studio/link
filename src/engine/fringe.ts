@@ -1,4 +1,4 @@
-import type { FringeData, Technique } from './types'
+import type { FringeData, RowShape, Technique } from './types'
 
 /** Initial shape offered at creation time — purely a starting point, every length stays editable afterward. */
 export type FringeShape = 'straight' | 'v' | 'cascade'
@@ -54,14 +54,33 @@ export function fringeDepthOf(bodyRows: number, row: number): number {
 }
 
 /**
- * Whether (row, col) is a real, paintable cell — either in the body, or in
- * that column's current fringe (row/col tools all share this one check, so
- * "does painting work on fringe" reduces to "does this function know about
- * `fringe`", see engine/editorStore.ts).
+ * Whether (row, col) is a real, paintable cell — in the body (respecting a
+ * shaped row's own offset/length, if given), or in that column's current
+ * fringe (row/col tools all share this one check, so "does painting work on
+ * fringe" reduces to "does this function know about `fringe`", see
+ * engine/editorStore.ts).
+ *
+ * A fringe strand can only hang from a column the body's LAST row actually
+ * reaches — for a shaped (triangle/rhombus) body that's not every column,
+ * just that row's own span — so `rowShape`'s last entry gates the fringe
+ * branch too, even though fringe rows themselves have no shape of their own.
  */
-export function isPaintableCell(row: number, col: number, cols: number, bodyRows: number, fringe?: FringeData): boolean {
+export function isPaintableCell(
+  row: number,
+  col: number,
+  cols: number,
+  bodyRows: number,
+  fringe?: FringeData,
+  rowShape?: RowShape[],
+): boolean {
   if (row < 0 || col < 0 || col >= cols) return false
-  if (row < bodyRows) return true
+  if (row < bodyRows) {
+    const shape = rowShape?.[row]
+    if (!shape) return true
+    return col >= shape.offset && col < shape.offset + shape.length
+  }
+  const lastRowShape = rowShape?.[bodyRows - 1]
+  if (lastRowShape && (col < lastRowShape.offset || col >= lastRowShape.offset + lastRowShape.length)) return false
   const fringeLength = fringe?.lengths[col] ?? 0
   return row < bodyRows + fringeLength
 }

@@ -1,4 +1,4 @@
-import type { Technique, CellPosition } from './types'
+import type { Technique, CellPosition, RowShape } from './types'
 
 /**
  * Geometry model for the three supported weaving techniques.
@@ -103,9 +103,16 @@ export function gridBoundsUnits(technique: Technique, cols: number, rows: number
   }
 }
 
-/** Total bead count for a cols x rows grid. See module doc for the ±1 simplification. */
-export function beadCount(_technique: Technique, cols: number, rows: number): number {
-  return cols * rows
+/**
+ * Total bead count for a cols x rows grid. See module doc for the ±1
+ * simplification. When `rowShape` is given (a shaped brick body), sums each
+ * row's own length instead of assuming every row is `cols` wide.
+ */
+export function beadCount(_technique: Technique, cols: number, rows: number, rowShape?: RowShape[]): number {
+  if (!rowShape) return cols * rows
+  let total = 0
+  for (let r = 0; r < rows; r++) total += rowShape[r]?.length ?? cols
+  return total
 }
 
 /**

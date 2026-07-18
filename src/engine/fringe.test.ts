@@ -101,6 +101,52 @@ describe('isPaintableCell', () => {
     expect(isPaintableCell(9, 0, 3, 10)).toBe(true)
     expect(isPaintableCell(10, 0, 3, 10)).toBe(false)
   })
+
+  describe('with a shaped (rowShape) body', () => {
+    // A 5-col, 3-row triangle: row 0 has 1 col centered, row 1 has 3, row 2 (the last, full-width) has 5.
+    const rowShape = [
+      { offset: 2, length: 1 },
+      { offset: 1, length: 3 },
+      { offset: 0, length: 5 },
+    ]
+
+    it('accepts a body cell within its own row\'s span', () => {
+      expect(isPaintableCell(0, 2, 5, 3, undefined, rowShape)).toBe(true) // row 0's only column
+      expect(isPaintableCell(1, 1, 5, 3, undefined, rowShape)).toBe(true) // row 1's left edge
+      expect(isPaintableCell(1, 3, 5, 3, undefined, rowShape)).toBe(true) // row 1's right edge
+    })
+
+    it('rejects a body cell outside its own row\'s span, even though the column exists in the grid', () => {
+      expect(isPaintableCell(0, 0, 5, 3, undefined, rowShape)).toBe(false)
+      expect(isPaintableCell(0, 4, 5, 3, undefined, rowShape)).toBe(false)
+      expect(isPaintableCell(1, 0, 5, 3, undefined, rowShape)).toBe(false)
+      expect(isPaintableCell(1, 4, 5, 3, undefined, rowShape)).toBe(false)
+    })
+
+    it('an omitted rowShape entry for a row falls back to full width (defensive, matches normalizeRowShape default)', () => {
+      const shortRowShape = [{ offset: 2, length: 1 }] // only row 0 has an entry, though bodyRows is 3
+      expect(isPaintableCell(2, 0, 5, 3, undefined, shortRowShape)).toBe(true)
+    })
+
+    it('a fringe strand only exists under a column the LAST row reaches', () => {
+      const fringe = { lengths: [3, 3, 3, 3, 3], turnBeads: [false, false, false, false, false] }
+      // Last row (index 2) is full width (offset 0, length 5) here, so every column can have fringe.
+      expect(isPaintableCell(3, 0, 5, 3, fringe, rowShape)).toBe(true)
+      expect(isPaintableCell(3, 4, 5, 3, fringe, rowShape)).toBe(true)
+    })
+
+    it('rejects fringe under a column outside the last row\'s span, even with a positive fringe length', () => {
+      const narrowLastRow = [
+        { offset: 0, length: 5 },
+        { offset: 0, length: 5 },
+        { offset: 2, length: 1 }, // last row tapers to a single center column
+      ]
+      const fringe = { lengths: [3, 3, 3, 3, 3], turnBeads: [false, false, false, false, false] }
+      expect(isPaintableCell(3, 2, 5, 3, fringe, narrowLastRow)).toBe(true) // the one column the point reaches
+      expect(isPaintableCell(3, 0, 5, 3, fringe, narrowLastRow)).toBe(false) // outside the point
+      expect(isPaintableCell(3, 4, 5, 3, fringe, narrowLastRow)).toBe(false)
+    })
+  })
 })
 
 describe('createFringeLengths', () => {

@@ -68,6 +68,19 @@ describe('gridBoundsUnits / beadCount', () => {
     expect(beadCount('peyote', 10, 20)).toBe(200)
     expect(beadCount('brick', 10, 20)).toBe(200)
   })
+
+  it('with a rowShape, sums each row\'s own length instead of assuming full width', () => {
+    const rowShape = [
+      { offset: 2, length: 1 },
+      { offset: 1, length: 3 },
+      { offset: 0, length: 5 },
+    ]
+    expect(beadCount('brick', 5, 3, rowShape)).toBe(1 + 3 + 5)
+  })
+
+  it('a rowShape entry missing for a row falls back to cols (defensive)', () => {
+    expect(beadCount('brick', 5, 2, [{ offset: 2, length: 1 }])).toBe(1 + 5)
+  })
 })
 
 describe('cellPosition / cellAtPosition — inverse hit-testing', () => {
