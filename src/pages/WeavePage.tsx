@@ -16,6 +16,7 @@ import {
 } from '@/engine/weaveOrder'
 import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
 import { normalizeFringe } from '@/engine/fringe'
+import { normalizeRowShape } from '@/engine/shape'
 import { paletteFromCells, letterForIndex } from '@/lib/palette'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
@@ -59,9 +60,16 @@ export function WeavePage() {
     () => normalizeFringe(pattern?.fringe, pattern?.config.cols ?? 0),
     [pattern?.fringe, pattern?.config.cols],
   )
+  const rowShape = useMemo(
+    () => (pattern?.rowShape ? normalizeRowShape(pattern.rowShape, pattern.config.cols, pattern.config.rows) : undefined),
+    [pattern?.rowShape, pattern?.config.cols, pattern?.config.rows],
+  )
   const order = useMemo(
-    () => (pattern ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows, fringe) : []),
-    [pattern, fringe],
+    () =>
+      pattern
+        ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows, fringe, rowShape)
+        : [],
+    [pattern, fringe, rowShape],
   )
   const technique = pattern?.config.technique ?? 'loom'
   const unit = weaveUnit(technique)
@@ -85,8 +93,9 @@ export function WeavePage() {
       pattern.cells,
       (hex) => letterForHex.get(hex) ?? '?',
       fringe,
+      rowShape,
     )
-  }, [pattern, technique, fringe])
+  }, [pattern, technique, fringe, rowShape])
   const currentLine = onFringe
     ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.col)
     : wordChartLines[currentUnitIndex]

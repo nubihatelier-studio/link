@@ -1,4 +1,4 @@
-import type { ColorMap, FringeData, Technique } from './types'
+import type { ColorMap, FringeData, RowShape, Technique } from './types'
 import { cellKey } from './cellKey'
 import { buildWeaveOrder, unitIndexOf } from './weaveOrder'
 
@@ -51,6 +51,13 @@ function runLengthEncode(tokens: string[]): string[] {
  * regardless of technique, so they're never merged into the body's own
  * row/column lines (that would misgroup them for brick/loom, whose body
  * unit is the row, not the column).
+ *
+ * When `rowShape` is given (a shaped brick body), a narrower row simply
+ * produces a shorter line — `buildWeaveOrder` already only visits that
+ * row's active cells. The fringe section's own loop below also checks
+ * `rowShape` directly (not just trusting `fringe.lengths` to already be
+ * zero outside the last row's span) so the two stay correct even if fringe
+ * and shape data ever come from different places and drift apart.
  */
 export function buildWordChart(
   technique: Technique,
@@ -59,8 +66,11 @@ export function buildWordChart(
   cells: ColorMap,
   letterForHex: (hex: string) => string,
   fringe?: FringeData,
+  rowShape?: RowShape[],
 ): WordChartLine[] {
-  const order = buildWeaveOrder(technique, cols, rows)
+  // No `fringe` arg here on purpose — this pass is body-only; the fringe section is
+  // built separately below, so passing fringe would double the fringe beads into both.
+  const order = buildWeaveOrder(technique, cols, rows, undefined, rowShape)
   const lines: WordChartLine[] = []
 
   let currentUnit = -1
@@ -98,7 +108,12 @@ export function buildWordChart(
   flushLine()
 
   if (fringe) {
+    const lastRowShape = rowShape?.[rows - 1]
     for (let col = 0; col < cols; col++) {
+      // Same rule as isPaintableCell/buildWeaveOrder: a fringe strand only exists under a column
+      // the body's LAST row actually reaches — checked here too (not just trusted from
+      // createFringeLengthsForShape's zero-padding) in case fringe/shape data ever drift apart.
+      if (lastRowShape && (col < lastRowShape.offset || col >= lastRowShape.offset + lastRowShape.length)) continue
       const length = fringe.lengths[col] ?? 0
       if (length === 0) continue
       const letters: string[] = []

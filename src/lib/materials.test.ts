@@ -36,6 +36,19 @@ describe('estimateThreadMeters', () => {
   it('defaults to no fringe when the argument is omitted', () => {
     expect(estimateThreadMeters('brick', 10, 10, DELICA_WIDTH)).toBe(estimateThreadMeters('brick', 10, 10, DELICA_WIDTH, 0))
   })
+
+  it('a shaped (rowShape) body uses its real, smaller bead count instead of cols x rows', () => {
+    // 2-col, 2-row triangle: row 0 has 1 col, row 1 has 2 — 3 beads, not 4.
+    const rowShape = [
+      { offset: 0, length: 1 },
+      { offset: 0, length: 2 },
+    ]
+    const shaped = estimateThreadMeters('loom', 2, 2, DELICA_WIDTH, 0, rowShape)
+    const rectangle = estimateThreadMeters('loom', 2, 2, DELICA_WIDTH)
+    // 3 beads * 1 pass * 1.6mm * 1.3 margin = 6.24mm = 0.00624m
+    expect(shaped).toBeCloseTo(0.00624, 5)
+    expect(shaped).toBeLessThan(rectangle)
+  })
 })
 
 describe('suggestedNeedle', () => {

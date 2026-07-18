@@ -1,4 +1,4 @@
-import type { BeadTypeDef, Technique } from '@/engine/types'
+import type { BeadTypeDef, RowShape, Technique } from '@/engine/types'
 import { beadCount } from '@/engine/geometry'
 
 /**
@@ -35,8 +35,9 @@ export function estimateThreadMeters(
   rows: number,
   beadWidthMm: number,
   fringeBeadCount = 0,
+  rowShape?: RowShape[],
 ): number {
-  const total = beadCount(technique, cols, rows)
+  const total = beadCount(technique, cols, rows, rowShape)
   const bodyMm = total * THREAD_PASSES_PER_BEAD[technique] * beadWidthMm
   const fringeMm = fringeBeadCount * FRINGE_THREAD_PASSES_PER_BEAD * beadWidthMm
   return ((bodyMm + fringeMm) * THREAD_SAFETY_MARGIN) / 1000

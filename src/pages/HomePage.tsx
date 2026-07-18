@@ -139,7 +139,12 @@ export function HomePage() {
   const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
   const heroSummary =
     heroPattern && heroPatternId
-      ? summarizeWeaveProgress(heroPattern.config, weaveProgress[heroPatternId].currentIndex, heroPattern.fringe)
+      ? summarizeWeaveProgress(
+          heroPattern.config,
+          weaveProgress[heroPatternId].currentIndex,
+          heroPattern.fringe,
+          heroPattern.rowShape,
+        )
       : null
 
   const visiblePatterns = order
@@ -303,7 +308,12 @@ export function HomePage() {
             const id = p.id
             const bead = getBeadType(p.config.beadTypeId)
             const colorCount = new Set(Object.values(p.cells)).size
-            const cardSummary = summarizeWeaveProgress(p.config, weaveProgress[id]?.currentIndex ?? -1, p.fringe)
+            const cardSummary = summarizeWeaveProgress(
+              p.config,
+              weaveProgress[id]?.currentIndex ?? -1,
+              p.fringe,
+              p.rowShape,
+            )
             const isRenaming = id === renamingId
             const cardBody = (
               <>

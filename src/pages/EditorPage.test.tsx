@@ -161,3 +161,43 @@ describe('EditorPage — conteo de mostacillas en el subtítulo', () => {
     expect(screen.queryByText(/48 mostacillas/)).not.toBeInTheDocument()
   })
 })
+
+const PATTERN_WITH_SHAPE: PatternDoc = {
+  id: 'p_3',
+  name: 'Aro triangular',
+  config: { technique: 'brick', cols: 4, rows: 2, beadTypeId: 'miyuki-delica-11' },
+  cells: {},
+  // Triangle: row 0 has 2 cols (centered), row 1 (the last) is full width — 2 + 4 = 6, not 4×2=8.
+  rowShape: [
+    { offset: 1, length: 2 },
+    { offset: 0, length: 4 },
+  ],
+  createdAt: 1,
+  updatedAt: 1,
+}
+
+describe('EditorPage — conteo de mostacillas con cuerpo con forma', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([PATTERN_WITH_SHAPE])
+    usePatternsStore.setState({
+      patterns: { [PATTERN_WITH_SHAPE.id]: PATTERN_WITH_SHAPE },
+      order: [PATTERN_WITH_SHAPE.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+  })
+
+  it('usa el conteo real de celdas activas, no cols × rows', async () => {
+    const { EditorPage } = await import('./EditorPage')
+    render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN_WITH_SHAPE.id}`]}>
+        <Routes>
+          <Route path="/editor/:id" element={<EditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/6 mostacillas/)).toBeInTheDocument()
+    expect(screen.queryByText(/8 mostacillas/)).not.toBeInTheDocument()
+  })
+})

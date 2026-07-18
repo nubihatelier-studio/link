@@ -1,9 +1,10 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, PatternDoc, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, normalizeFringe } from '@/engine/fringe'
+import { createRectangleRowShape, normalizeRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
@@ -56,6 +57,16 @@ interface EditorState {
   fringe: FringeData
   setFringeLength: (col: number, length: number) => void
   setFringeTurnBead: (col: number, isTurnBead: boolean) => void
+
+  /**
+   * Always normalized to `rowShape.length === rows` (see
+   * `engine/shape.ts#normalizeRowShape`) — legacy patterns and any technique
+   * that isn't shape-capable load as a full rectangle. Read-only for now:
+   * editing a row's own width is the "forma del cuerpo" editor mode, not yet
+   * built — this exists so totals (header, PDF, materials) stay accurate for
+   * a pattern already created with a shape.
+   */
+  rowShape: RowShape[]
 
   /** Free-text note, shown on the PDF's ficha page — see `engine/types.ts#PatternDoc.note`. */
   note: string
@@ -178,6 +189,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   cells: {},
 
   fringe: createEmptyFringe(20),
+  rowShape: createRectangleRowShape(20, 20),
   setFringeLength: (col, rawLength) => {
     const { fringe, rows: bodyRows, cells } = get()
     const oldLength = fringe.lengths[col] ?? 0
@@ -294,6 +306,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       beadTypeId: doc.config.beadTypeId,
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),
+      rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
       note: doc.note ?? '',
       history: [],
       future: [],

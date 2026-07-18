@@ -46,6 +46,7 @@ export function EditorPage() {
     beadTypeId,
     cells,
     fringe,
+    rowShape,
     note,
     setNote,
     zoom,
@@ -151,7 +152,7 @@ export function EditorPage() {
   }
 
   const bead = getBeadType(beadTypeId)
-  const total = beadCount(technique, cols, rows) + totalFringeBeadCount(fringe)
+  const total = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe)
 
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
@@ -161,7 +162,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, note, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, note, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }

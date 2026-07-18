@@ -65,6 +65,20 @@ describe('summarizeWeaveProgress', () => {
       expect(summary).toEqual({ unit: 'row', unitIndex: 1, unitCount: 2, percent: 83, isFringe: true })
     })
   })
+
+  describe('with a shaped (rowShape) body', () => {
+    it('a narrower shape means fewer total beads, so percent reflects the real (smaller) total', () => {
+      // 2-col, 2-row triangle: row 0 has 1 col, row 1 has 2 — 3 beads total, not 4.
+      const config = { technique: 'brick' as const, cols: 2, rows: 2, beadTypeId: 'x' }
+      const rowShape = [
+        { offset: 0, length: 1 },
+        { offset: 0, length: 2 },
+      ]
+      // Finishing bead index 2 (the last of 3) is 100% for the shaped body, not 75% as a full rectangle would read.
+      expect(summarizeWeaveProgress(config, 2, undefined, rowShape)?.percent).toBe(100)
+      expect(summarizeWeaveProgress(config, 2)?.percent).toBe(75) // no rowShape arg: unaffected, as before
+    })
+  })
 })
 
 describe('pickMostRecentInProgress', () => {

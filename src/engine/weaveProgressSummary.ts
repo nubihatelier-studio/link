@@ -1,4 +1,4 @@
-import type { FringeData, PatternConfig } from './types'
+import type { FringeData, PatternConfig, RowShape } from './types'
 import { buildWeaveOrder, isFringeStep, unitIndexOf, weaveUnit } from './weaveOrder'
 
 export interface WeaveProgressSummary {
@@ -18,17 +18,19 @@ export interface WeaveProgressSummary {
  * order — see `buildWeaveOrder`) into the "Columna 23 de 50 · 46%" summary
  * shown on the home screen. Returns null when there's no real progress yet
  * (`currentIndex` < 0, i.e. weaving hasn't started) or the pattern has no
- * cells to weave at all. `fringe`, when given, is folded into the total so
- * `percent` stays accurate for a pattern with fringe.
+ * cells to weave at all. `fringe` and `rowShape`, when given, are folded
+ * into the total so `percent` stays accurate for a pattern with fringe
+ * and/or a shaped (triangle/rhombus) body.
  */
 export function summarizeWeaveProgress(
   config: PatternConfig,
   currentIndex: number,
   fringe?: FringeData,
+  rowShape?: RowShape[],
 ): WeaveProgressSummary | null {
   if (currentIndex < 0) return null
   const { technique, cols, rows } = config
-  const order = buildWeaveOrder(technique, cols, rows, fringe)
+  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape)
   const total = order.length
   if (total === 0) return null
 

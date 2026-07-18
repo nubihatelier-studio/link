@@ -162,4 +162,52 @@ describe('exportPatternToPdf', () => {
       expect(pagesWithFringe - pagesWithoutFringe).toBeLessThanOrEqual(2)
     })
   })
+
+  describe('with a shaped (rowShape) body', () => {
+    it('does not throw exporting a shaped body, with the usual ficha + chart + word-chart pages', async () => {
+      const { exportPatternToPdf } = await import('./pdfExport')
+      // 4-col, 2-row triangle: row 0 has 2 cols (centered), row 1 (last) is full width — 2 + 4 = 6, not 8.
+      const rowShape = [
+        { offset: 1, length: 2 },
+        { offset: 0, length: 4 },
+      ]
+      await exportPatternToPdf({
+        name: 'Aro triangular',
+        technique: 'brick',
+        cols: 4,
+        rows: 2,
+        cells: fillCells(4, 2),
+        beadType: bead,
+        rowShape,
+      })
+
+      expect(lastDoc).toBeDefined()
+      // The ficha total text itself (beadCount with rowShape summing the real 6 cells, not 4×2=8)
+      // is exercised directly in geometry.test.ts and materials.test.ts — this integration test
+      // just confirms exportPatternToPdf actually threads `rowShape` through end to end without
+      // throwing, producing the normal ficha + chart + word-chart page set.
+      expect(lastDoc!.getNumberOfPages()).toBeGreaterThanOrEqual(3)
+    })
+
+    it('does not throw exporting a shaped body combined with a fringe under its narrow last row', async () => {
+      const { exportPatternToPdf } = await import('./pdfExport')
+      const rowShape = [
+        { offset: 1, length: 1 },
+        { offset: 0, length: 3 },
+      ]
+      const fringe: FringeData = { lengths: [2, 2, 2], turnBeads: [true, true, true] }
+      await expect(
+        exportPatternToPdf({
+          name: 'Triángulo con fleco',
+          technique: 'brick',
+          cols: 3,
+          rows: 2,
+          cells: fillCells(3, 2),
+          beadType: bead,
+          rowShape,
+          fringe,
+        }),
+      ).resolves.not.toThrow()
+    })
+  })
 })

@@ -100,6 +100,41 @@ describe('buildWordChart with a fringe', () => {
   })
 })
 
+describe('buildWordChart with a shaped (rowShape) body', () => {
+  it('a narrower row produces a shorter line, not a padded/dropped one', () => {
+    // 3-col, 2-row triangle: row 0 has 1 col (centered), row 1 is full width.
+    const rowShape = [
+      { offset: 1, length: 1 },
+      { offset: 0, length: 3 },
+    ]
+    const cells: ColorMap = { '0,1': '#111111', '1,0': '#111111', '1,1': '#222222', '1,2': '#111111' }
+    const lines = buildWordChart('brick', 3, 2, cells, letterForHex, undefined, rowShape)
+    expect(lines).toEqual([
+      { unitIndex: 0, text: '1A' },
+      { unitIndex: 1, text: '1A, 1B, 1A' },
+    ])
+  })
+
+  it('fringe still only appends under the columns the last (shaped) row reaches', () => {
+    const rowShape = [
+      { offset: 0, length: 3 },
+      { offset: 1, length: 1 }, // last row tapers to the single center column
+    ]
+    const fringe: FringeData = { lengths: [2, 2, 2], turnBeads: [false, false, false] }
+    const cells: ColorMap = { '2,1': '#111111', '3,1': '#222222' }
+    const lines = buildWordChart('brick', 3, 2, cells, letterForHex, fringe, rowShape)
+    const fringeLines = lines.filter((l) => l.isFringe)
+    expect(fringeLines).toEqual([{ unitIndex: 1, text: '1A, 1B', isFringe: true }])
+  })
+
+  it('an omitted rowShape leaves output byte-identical to before', () => {
+    const cells: ColorMap = { '0,0': '#111111', '0,1': '#222222' }
+    expect(buildWordChart('loom', 2, 1, cells, letterForHex)).toEqual(
+      buildWordChart('loom', 2, 1, cells, letterForHex, undefined, undefined),
+    )
+  })
+})
+
 describe('formatWordChartLineForDisplay', () => {
   it('inserts a multiplication sign between the run count and its letter(s)', () => {
     expect(formatWordChartLineForDisplay('3A, 2B, 1A')).toBe('3×A, 2×B, 1×A')

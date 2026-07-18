@@ -1,4 +1,4 @@
-import type { ColorMap, FringeData, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, RowShape, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
 import { cellPosition, physicalSizeMm, beadCount } from '@/engine/geometry'
@@ -20,6 +20,8 @@ export interface ExportPatternOptions {
   beadType: BeadTypeDef
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
   fringe?: FringeData
+  /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
+  rowShape?: RowShape[]
   /** Free-text note — printed in the ficha page's notes area instead of blank handwriting lines when present. */
   note?: string
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
@@ -175,7 +177,7 @@ function drawFichaPage(
     opts.beadType.heightMm,
     maxFringeLength(opts.fringe),
   )
-  const total = beadCount(opts.technique, opts.cols, opts.rows) + totalFringeBeadCount(opts.fringe)
+  const total = beadCount(opts.technique, opts.cols, opts.rows, opts.rowShape) + totalFringeBeadCount(opts.fringe)
   const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
   doc.text(
     `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${size.widthMm.toFixed(1)} × ${size.heightMm.toFixed(1)} mm · Total: ${total} mostacillas`,
@@ -230,6 +232,7 @@ function drawFichaPage(
     opts.rows,
     opts.beadType.widthMm,
     totalFringeBeadCount(opts.fringe),
+    opts.rowShape,
   )
   const needle = suggestedNeedle(opts.beadType)
 
@@ -297,6 +300,7 @@ function drawWordChartPages(
     opts.cells,
     (hex) => letterForHex.get(hex) ?? '?',
     opts.fringe,
+    opts.rowShape,
   )
   const unitLabel = weaveUnit(opts.technique) === 'column' ? 'Columna' : 'Fila'
   const lineHeight = 4.6

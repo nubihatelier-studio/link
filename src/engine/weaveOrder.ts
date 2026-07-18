@@ -1,4 +1,4 @@
-import type { Cell, FringeData, Technique } from './types'
+import type { Cell, FringeData, RowShape, Technique } from './types'
 import { cellPosition } from './geometry'
 
 /** A fringe bead's step in the traversal order — see `buildWeaveOrder`. */
@@ -36,8 +36,22 @@ export function isFringeStep(step: WeaveStep): step is FringeStep {
  * is done, then adds each column's fringe in one pass: down to the turn
  * bead, then back up (the "back up" is the same thread physically
  * retracing its path, not additional beads, so it isn't a separate step).
+ *
+ * When `rowShape` is given (a shaped brick body — see `engine/shape.ts`), a
+ * row's increase/decrease doesn't change the reading direction, only how
+ * much of it exists: each row is still walked left to right, just starting
+ * and stopping at that row's own `offset`/`offset + length` instead of the
+ * full `0..cols`. A weaver shaping a triangle or rhombus does exactly this —
+ * adds or drops beads at a row's edge, but never changes which direction the
+ * needle is already moving.
  */
-export function buildWeaveOrder(technique: Technique, cols: number, rows: number, fringe?: FringeData): WeaveStep[] {
+export function buildWeaveOrder(
+  technique: Technique,
+  cols: number,
+  rows: number,
+  fringe?: FringeData,
+  rowShape?: RowShape[],
+): WeaveStep[] {
   const order: WeaveStep[] = []
 
   if (technique === 'peyote') {
@@ -51,15 +65,25 @@ export function buildWeaveOrder(technique: Technique, cols: number, rows: number
     return order
   }
 
-  // loom & brick: row-major, constant left-to-right direction
+  // loom & brick: row-major, constant left-to-right direction, narrowed to
+  // each row's own shape when one is given.
   for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
+    const shape = rowShape?.[row]
+    const colStart = shape?.offset ?? 0
+    const colEnd = shape ? shape.offset + shape.length : cols
+    for (let col = colStart; col < colEnd; col++) {
       order.push({ row, col })
     }
   }
 
   if (fringe) {
+    const lastRowShape = rowShape?.[rows - 1]
     for (let col = 0; col < cols; col++) {
+      // Same rule as isPaintableCell (engine/fringe.ts): a fringe strand only exists under a column
+      // the body's LAST row actually reaches. `fringe.lengths` is expected to already be zero there
+      // (see createFringeLengthsForShape), but this stays defensive in case shape and fringe data
+      // ever drift apart (e.g. a body reshaped after its fringe was set).
+      if (lastRowShape && (col < lastRowShape.offset || col >= lastRowShape.offset + lastRowShape.length)) continue
       const length = fringe.lengths[col] ?? 0
       for (let depth = 0; depth < length; depth++) {
         order.push({

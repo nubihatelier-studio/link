@@ -127,6 +127,63 @@ describe('buildWeaveOrder with a fringe', () => {
   })
 })
 
+describe('buildWeaveOrder with a shaped (rowShape) body', () => {
+  // A 5-col, 3-row triangle: row 0 has 1 col centered, row 1 has 3, row 2 (the last, full-width) has 5.
+  const rowShape = [
+    { offset: 2, length: 1 },
+    { offset: 1, length: 3 },
+    { offset: 0, length: 5 },
+  ]
+
+  it('each row is still walked left to right, just narrowed to its own offset/length', () => {
+    const order = buildWeaveOrder('brick', 5, 3, undefined, rowShape)
+    expect(order).toEqual([
+      { row: 0, col: 2 },
+      { row: 1, col: 1 },
+      { row: 1, col: 2 },
+      { row: 1, col: 3 },
+      { row: 2, col: 0 },
+      { row: 2, col: 1 },
+      { row: 2, col: 2 },
+      { row: 2, col: 3 },
+      { row: 2, col: 4 },
+    ])
+  })
+
+  it('visits exactly the cells the shape says exist — 1 + 3 + 5, not 5 x 3', () => {
+    const order = buildWeaveOrder('brick', 5, 3, undefined, rowShape)
+    expect(order).toHaveLength(1 + 3 + 5)
+  })
+
+  it('an omitted rowShape (undefined) is byte-identical to the old full-rectangle traversal', () => {
+    expect(buildWeaveOrder('brick', 5, 3)).toEqual(buildWeaveOrder('brick', 5, 3, undefined, undefined))
+  })
+
+  it('a fringe strand is only appended under a column the LAST row (the shape\'s own span) reaches', () => {
+    const fringe: FringeData = { lengths: [3, 3, 3, 3, 3], turnBeads: [false, false, false, false, false] }
+    // Last row here is full width (offset 0, length 5), so fringe applies to every column, same as no shape.
+    const order = buildWeaveOrder('brick', 5, 3, fringe, rowShape)
+    expect(order).toHaveLength(1 + 3 + 5 + 3 * 5)
+  })
+
+  it('fringe under a column outside the last row\'s span is dropped even if fringe.lengths says otherwise', () => {
+    const narrowLastRow = [
+      { offset: 0, length: 5 },
+      { offset: 0, length: 5 },
+      { offset: 2, length: 1 }, // last row tapers to a single center column
+    ]
+    const fringe: FringeData = { lengths: [3, 3, 3, 3, 3], turnBeads: [false, false, false, false, false] }
+    const order = buildWeaveOrder('brick', 5, 3, fringe, narrowLastRow)
+    const fringeSteps = order.filter(isFringeStep)
+    expect(fringeSteps).toHaveLength(3) // only column 2's fringe, not all 5 columns'
+    expect(fringeSteps.every((s) => s.col === 2)).toBe(true)
+  })
+
+  it('peyote ignores rowShape (not shape-capable) — same output with or without one', () => {
+    expect(buildWeaveOrder('peyote', 5, 3, undefined, rowShape)).toEqual(buildWeaveOrder('peyote', 5, 3))
+  })
+})
+
 describe('directionAtStep with a fringe', () => {
   it('points straight down between two beads of the same fringe column', () => {
     const fringe: FringeData = { lengths: [3], turnBeads: [false] }
