@@ -6,6 +6,7 @@ import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
 import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
+import { isShapeCapable } from '@/engine/shape'
 import { exportPatternToPdf } from '@/lib/pdfExport'
 import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
@@ -14,6 +15,7 @@ import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { FringePanel } from '@/components/editor/FringePanel'
+import { ShapePanel } from '@/components/editor/ShapePanel'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -57,6 +59,7 @@ export function EditorPage() {
   } = useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
+  const [shapeDrawerOpen, setShapeDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
@@ -64,6 +67,7 @@ export function EditorPage() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const fringeCapable = isFringeCapable(technique)
+  const shapeCapable = isShapeCapable(technique)
 
   useEffect(() => {
     if (!id) return
@@ -88,6 +92,15 @@ export function EditorPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [fringeDrawerOpen])
+
+  useEffect(() => {
+    if (!shapeDrawerOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShapeDrawerOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [shapeDrawerOpen])
 
   useEffect(() => {
     if (!shortcutsOpen) return
@@ -300,6 +313,11 @@ export function EditorPage() {
         </div>
 
         <aside className="hidden w-80 shrink-0 flex-col border-l border-border md:flex">
+          {shapeCapable && (
+            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
+              <ShapePanel />
+            </div>
+          )}
           {fringeCapable && (
             <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
               <FringePanel />
@@ -320,6 +338,14 @@ export function EditorPage() {
             >
               🎨 {t.editor.palette}
             </button>
+            {shapeCapable && (
+              <button
+                onClick={() => setShapeDrawerOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+              >
+                ◆ {t.editor.shape.shortTitle}
+              </button>
+            )}
             {fringeCapable && (
               <button
                 onClick={() => setFringeDrawerOpen(true)}
@@ -365,6 +391,20 @@ export function EditorPage() {
               <div className="h-1 w-10 rounded-full bg-surface-3" />
             </div>
             <FringePanel />
+          </div>
+        </div>
+      )}
+
+      {shapeDrawerOpen && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setShapeDrawerOpen(false)}>
+          <div
+            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center py-2">
+              <div className="h-1 w-10 rounded-full bg-surface-3" />
+            </div>
+            <ShapePanel />
           </div>
         </div>
       )}

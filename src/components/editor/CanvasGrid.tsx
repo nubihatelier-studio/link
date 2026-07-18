@@ -44,6 +44,7 @@ export function CanvasGrid() {
     rows,
     cells,
     fringe,
+    rowShape,
     tool,
     slots,
     activeSlot,
@@ -102,7 +103,7 @@ export function CanvasGrid() {
   }
 
   function inBounds(row: number, col: number) {
-    return isPaintableCell(row, col, cols, rows, fringe)
+    return isPaintableCell(row, col, cols, rows, fringe, rowShape)
   }
 
   // ---- rendering ----
@@ -160,6 +161,9 @@ export function CanvasGrid() {
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
+        // A shaped (triangle/rhombus) row simply has no cell here — skip drawing anything at all
+        // (not even an empty placeholder) so the silhouette itself is what the canvas shows.
+        if (!isPaintableCell(row, col, cols, rows, undefined, rowShape)) continue
         const pos = cellPosition(technique, row, col)
         const x = MARGIN + pos.x * cellPx + inset
         const y = MARGIN + pos.y * cellPx + inset
@@ -357,6 +361,7 @@ export function CanvasGrid() {
     rows,
     cells,
     fringe,
+    rowShape,
     zoom,
     selection,
     colorSelectionMask,

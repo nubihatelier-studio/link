@@ -1,6 +1,6 @@
 import { cellKey } from './cellKey'
 import { isPaintableCell } from './fringe'
-import type { ColorMap, FringeData } from './types'
+import type { ColorMap, FringeData, RowShape } from './types'
 
 /**
  * Classic 4-connected flood fill over the row/col grid — deliberately grid
@@ -21,8 +21,9 @@ export function floodFillCells(
   startCol: number,
   newHex: string | null,
   fringe?: FringeData,
+  rowShape?: RowShape[],
 ): ColorMap {
-  if (!isPaintableCell(startRow, startCol, cols, rows, fringe)) return cells
+  if (!isPaintableCell(startRow, startCol, cols, rows, fringe, rowShape)) return cells
 
   const targetHex = cells[cellKey(startRow, startCol)] ?? null
   if (targetHex === newHex) return cells
@@ -33,7 +34,7 @@ export function floodFillCells(
 
   while (stack.length > 0) {
     const [row, col] = stack.pop()!
-    if (!isPaintableCell(row, col, cols, rows, fringe)) continue
+    if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) continue
     const key = cellKey(row, col)
     if (visited.has(key)) continue
     visited.add(key)

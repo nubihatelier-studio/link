@@ -155,6 +155,17 @@ export const t = {
       turnBeadHint: 'Mostacilla de giro — donde el hilo da la vuelta',
       empty: 'Sin fleco',
     },
+    shape: {
+      title: 'Forma del cuerpo ◆',
+      shortTitle: 'Forma',
+      row: (n: number) => `Fila ${n}`,
+      beadsUnit: 'mostacillas',
+      hint: 'Aumenta o achica cada fila de a una mostacilla por lado, como un aumento o disminución real en brick stitch.',
+      shrinkLeft: 'Achicar por la izquierda',
+      growLeft: 'Agrandar por la izquierda',
+      shrinkRight: 'Achicar por la derecha',
+      growRight: 'Agrandar por la derecha',
+    },
   },
   weave: {
     title: 'Modo tejido',

@@ -90,4 +90,33 @@ describe('floodFillCells', () => {
       expect(floodFillCells(cells, 1, 2, 2, 0, '#C', fringe)).toBe(cells)
     })
   })
+
+  describe('with a shaped (rowShape) body', () => {
+    it('does not spread into a column outside the row\'s own span', () => {
+      // 5-col, 1-row triangle point: only column 2 exists in row 0.
+      const cells: ColorMap = { '0,2': '#A' }
+      const rowShape = [{ offset: 2, length: 1 }]
+      // Starting fill at (0,2) with no neighbors inside the shape — result is just that one cell recolored.
+      const next = floodFillCells(cells, 5, 1, 0, 2, '#C', undefined, rowShape)
+      expect(next).toEqual({ '0,2': '#C' })
+    })
+
+    it('ignores a start cell outside the row\'s shape even though it\'s inside cols', () => {
+      const cells: ColorMap = {}
+      const rowShape = [{ offset: 2, length: 1 }]
+      expect(floodFillCells(cells, 5, 1, 0, 0, '#C', undefined, rowShape)).toBe(cells)
+    })
+
+    it('fills across a wider row without leaking into a narrower neighboring row', () => {
+      // Row 0 is narrow (col 2 only), row 1 is full width — a fill starting in row 1 must not
+      // spread up into row 0's out-of-shape columns even though they're vertically adjacent.
+      const cells: ColorMap = { '1,0': '#A', '1,1': '#A', '1,2': '#A' }
+      const rowShape = [
+        { offset: 2, length: 1 },
+        { offset: 0, length: 3 },
+      ]
+      const next = floodFillCells(cells, 3, 2, 1, 0, '#C', undefined, rowShape)
+      expect(next).toEqual({ '1,0': '#C', '1,1': '#C', '1,2': '#C' })
+    })
+  })
 })

@@ -61,12 +61,16 @@ interface EditorState {
   /**
    * Always normalized to `rowShape.length === rows` (see
    * `engine/shape.ts#normalizeRowShape`) — legacy patterns and any technique
-   * that isn't shape-capable load as a full rectangle. Read-only for now:
-   * editing a row's own width is the "forma del cuerpo" editor mode, not yet
-   * built — this exists so totals (header, PDF, materials) stay accurate for
-   * a pattern already created with a shape.
+   * that isn't shape-capable load as a full rectangle. Structural, like
+   * `fringe`: edge grow/shrink itself is NOT part of the `history` undo
+   * stack, but a shrink that drops a painted cell goes through `commit`
+   * (undoable), same split as `setFringeLength`.
    */
   rowShape: RowShape[]
+  /** Extends row `row` by 1 bead at `edge` — no-op past the grid's own `cols` bound. */
+  growRowEdge: (row: number, edge: 'left' | 'right') => void
+  /** Shrinks row `row` by 1 bead at `edge` — no-op at the 1-bead-wide floor (a row never disappears). */
+  shrinkRowEdge: (row: number, edge: 'left' | 'right') => void
 
   /** Free-text note, shown on the PDF's ficha page — see `engine/types.ts#PatternDoc.note`. */
   note: string
@@ -233,6 +237,42 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (id) usePatternsStore.getState().setFringe(id, nextFringe)
   },
 
+  growRowEdge: (row, edge) => {
+    const { rowShape, cols } = get()
+    const shape = rowShape[row]
+    if (!shape) return
+    const next = edge === 'left' ? { offset: shape.offset - 1, length: shape.length + 1 } : { offset: shape.offset, length: shape.length + 1 }
+    if (next.offset < 0 || next.offset + next.length > cols) return // already at the grid's own edge
+    const nextRowShape = [...rowShape]
+    nextRowShape[row] = next
+    set({ rowShape: nextRowShape })
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setRowShape(id, nextRowShape)
+  },
+
+  shrinkRowEdge: (row, edge) => {
+    const { rowShape, cells } = get()
+    const shape = rowShape[row]
+    if (!shape || shape.length <= 1) return // a row always keeps at least 1 bead
+    const droppedCol = edge === 'left' ? shape.offset : shape.offset + shape.length - 1
+    const next = edge === 'left' ? { offset: shape.offset + 1, length: shape.length - 1 } : { offset: shape.offset, length: shape.length - 1 }
+    const nextRowShape = [...rowShape]
+    nextRowShape[row] = next
+    set({ rowShape: nextRowShape })
+
+    // Shrinking drops any painted color in the bead that just fell outside the row's new span —
+    // it no longer exists. Goes through commit() (undoable), unlike the shape edit itself.
+    const key = cellKey(row, droppedCol)
+    if (key in cells) {
+      const nextCells = { ...cells }
+      delete nextCells[key]
+      get().commit(nextCells)
+    }
+
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setRowShape(id, nextRowShape)
+  },
+
   note: '',
   setNote: (note) => {
     set({ note })
@@ -351,8 +391,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   paintCell: (row, col, hex) => {
-    const { cells, cols, rows, fringe } = get()
-    if (!isPaintableCell(row, col, cols, rows, fringe)) return
+    const { cells, cols, rows, fringe, rowShape } = get()
+    if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) return
     const key = cellKey(row, col)
     if (cells[key] === (hex ?? undefined)) return
     const next = { ...cells }
@@ -362,10 +402,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   paintLine: (r0, c0, r1, c1, hex) => {
-    const { cells, cols, rows, fringe } = get()
+    const { cells, cols, rows, fringe, rowShape } = get()
     const next = { ...cells }
     for (const cell of lineCells(r0, c0, r1, c1)) {
-      if (!isPaintableCell(cell.row, cell.col, cols, rows, fringe)) continue
+      if (!isPaintableCell(cell.row, cell.col, cols, rows, fringe, rowShape)) continue
       const key = cellKey(cell.row, cell.col)
       if (hex) next[key] = hex
       else delete next[key]
@@ -396,20 +436,20 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   floodFill: (row, col, hex) => {
-    const { cells, cols, rows, fringe } = get()
+    const { cells, cols, rows, fringe, rowShape } = get()
     if (hex) get().registerColor(hex)
-    get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe))
+    get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe, rowShape))
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),
 
   strokeCell: (row, col, hex) => {
-    const { cells, cols, rows, mirrorMode, fringe } = get()
+    const { cells, cols, rows, mirrorMode, fringe, rowShape } = get()
     const next = { ...cells }
     let changed = false
 
     const paintOne = (r: number, c: number) => {
-      if (!isPaintableCell(r, c, cols, rows, fringe)) return
+      if (!isPaintableCell(r, c, cols, rows, fringe, rowShape)) return
       const key = cellKey(r, c)
       if (cells[key] === (hex ?? undefined)) return
       if (hex) next[key] = hex
@@ -473,7 +513,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   pasteClipboardAt: (row, col, opts) => {
-    const { clipboard, cells, cols, rows, fringe } = get()
+    const { clipboard, cells, cols, rows, fringe, rowShape } = get()
     if (!clipboard) return
     const next = { ...cells }
     for (const [key, hex] of Object.entries(clipboard.cells)) {
@@ -483,7 +523,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       const fc = opts?.flipH ? clipboard.width - 1 - rc : rc
       const targetRow = row + fr
       const targetCol = col + fc
-      if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe)) continue
+      if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe, rowShape)) continue
       next[cellKey(targetRow, targetCol)] = hex
     }
     set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false })
@@ -492,7 +532,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   /** Repeats the selected block `times` total (the original plus `times - 1` copies) end to end in one direction. */
   cloneSelection: (direction, times) => {
-    const { selection, cells, cols, rows, fringe } = get()
+    const { selection, cells, cols, rows, fringe, rowShape } = get()
     if (!selection) return
     const width = selection.c1 - selection.c0 + 1
     const height = selection.r1 - selection.r0 + 1
@@ -506,7 +546,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           if (!hex) continue
           const targetRow = r + rowOffset
           const targetCol = c + colOffset
-          if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe)) continue
+          if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe, rowShape)) continue
           next[cellKey(targetRow, targetCol)] = hex
         }
       }

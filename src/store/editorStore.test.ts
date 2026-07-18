@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
-import type { FringeData } from '@/engine/types'
+import { createRectangleRowShape } from '@/engine/shape'
+import type { FringeData, RowShape } from '@/engine/types'
 import { useEditorStore } from './editorStore'
 
-function resetStore(overrides: { cells?: Record<string, string>; fringe?: FringeData; patternId?: string | null } = {}) {
+function resetStore(
+  overrides: {
+    cells?: Record<string, string>
+    fringe?: FringeData
+    rowShape?: RowShape[]
+    patternId?: string | null
+  } = {},
+) {
   useEditorStore.setState({
     patternId: overrides.patternId ?? null,
     technique: 'brick',
@@ -12,6 +20,7 @@ function resetStore(overrides: { cells?: Record<string, string>; fringe?: Fringe
     cols: 10,
     rows: 10,
     fringe: overrides.fringe ?? createEmptyFringe(10),
+    rowShape: overrides.rowShape ?? createRectangleRowShape(10, 10),
     note: '',
     tool: 'pencil',
     selection: null,
@@ -208,6 +217,73 @@ describe('editorStore — setFringeLength / setFringeTurnBead', () => {
   it('setFringeTurnBead no hace nada en una columna sin fleco', () => {
     useEditorStore.getState().setFringeTurnBead(1, true)
     expect(useEditorStore.getState().fringe.turnBeads[1]).toBe(false)
+  })
+})
+
+describe('editorStore — forma del cuerpo (growRowEdge / shrinkRowEdge)', () => {
+  beforeEach(() => {
+    resetStore()
+    // A 5-col, 1-row pattern with row 0 shaped as offset 1, length 3 (columns 1,2,3 active).
+    useEditorStore.setState({
+      cols: 5,
+      rows: 1,
+      cells: { '0,1': '#111111', '0,2': '#222222', '0,3': '#111111' },
+      rowShape: [{ offset: 1, length: 3 }],
+      history: [],
+      future: [],
+    })
+  })
+
+  it('growRowEdge("left") mueve el offset hacia afuera y agranda el largo en 1', () => {
+    useEditorStore.getState().growRowEdge(0, 'left')
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 0, length: 4 })
+  })
+
+  it('growRowEdge("right") solo agranda el largo en 1, el offset no cambia', () => {
+    useEditorStore.getState().growRowEdge(0, 'right')
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 1, length: 4 })
+  })
+
+  it('growRowEdge no hace nada más allá del borde propio de la grilla (cols)', () => {
+    useEditorStore.getState().growRowEdge(0, 'right') // length 3 -> 4, offset 1 + 4 = 5 = cols, at the limit
+    useEditorStore.getState().growRowEdge(0, 'right') // would need offset 1 + 5 = 6 > cols=5 — rejected
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 1, length: 4 })
+  })
+
+  it('growRowEdge no modifica el historial de deshacer (es estructural)', () => {
+    useEditorStore.getState().growRowEdge(0, 'left')
+    expect(useEditorStore.getState().history).toHaveLength(0)
+  })
+
+  it('shrinkRowEdge("left") borra el color de la mostacilla que cae fuera de la fila, y sí es deshacible', () => {
+    useEditorStore.getState().shrinkRowEdge(0, 'left')
+    const { rowShape, cells, history } = useEditorStore.getState()
+    expect(rowShape[0]).toEqual({ offset: 2, length: 2 })
+    expect(cells['0,1']).toBeUndefined() // dropped — was the row's old left edge
+    expect(cells['0,2']).toBe('#222222') // untouched
+    expect(cells['0,3']).toBe('#111111') // untouched
+    expect(history).toHaveLength(1) // the color drop went through commit()
+  })
+
+  it('shrinkRowEdge("right") borra el color de la mostacilla del otro extremo', () => {
+    useEditorStore.getState().shrinkRowEdge(0, 'right')
+    const { rowShape, cells } = useEditorStore.getState()
+    expect(rowShape[0]).toEqual({ offset: 1, length: 2 })
+    expect(cells['0,3']).toBeUndefined() // dropped — was the row's old right edge
+    expect(cells['0,1']).toBe('#111111')
+  })
+
+  it('shrinkRowEdge nunca deja una fila en 0 (mínimo 1 mostacilla)', () => {
+    useEditorStore.setState({ rowShape: [{ offset: 2, length: 1 }] })
+    useEditorStore.getState().shrinkRowEdge(0, 'left')
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 2, length: 1 })
+  })
+
+  it('pintar fuera de la forma de la fila no hace nada (isPaintableCell ahora conoce rowShape)', () => {
+    useEditorStore.getState().paintCell(0, 0, '#c9a227') // column 0 is outside offset:1,length:3
+    expect(useEditorStore.getState().cells['0,0']).toBeUndefined()
+    useEditorStore.getState().paintCell(0, 2, '#c9a227') // column 2 is inside the shape
+    expect(useEditorStore.getState().cells['0,2']).toBe('#c9a227')
   })
 })
 
