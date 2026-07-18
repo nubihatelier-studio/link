@@ -271,6 +271,63 @@ describe('editorStore — sculptFringeLengths', () => {
   })
 })
 
+describe('editorStore — sesión de esculpido por arrastre (fringeSculptStart/SetColumn/End)', () => {
+  beforeEach(() => {
+    resetStore({
+      cells: { '10,0': '#111111', '11,0': '#111111', '12,0': '#111111' },
+      fringe: { lengths: [3, 0, 0], turnBeads: [true, false, false] },
+    })
+    useEditorStore.setState({ cols: 3 })
+  })
+
+  it('actualiza fringe y cells en vivo sin generar commits intermedios', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(0, 1) // shrink 3 -> 1, drops depth 1 and 2
+    useEditorStore.getState().fringeSculptSetColumn(1, 4) // grow
+    const { fringe, cells, history } = useEditorStore.getState()
+    expect(fringe.lengths).toEqual([1, 4, 0])
+    expect(cells['11,0']).toBeUndefined()
+    expect(cells['12,0']).toBeUndefined()
+    expect(history).toHaveLength(0) // nothing committed mid-drag
+  })
+
+  it('toda la pasada del arrastre colapsa en un solo commit al soltar', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(0, 1)
+    useEditorStore.getState().fringeSculptSetColumn(0, 0) // further shrink within the same drag
+    useEditorStore.getState().fringeSculptEnd()
+    expect(useEditorStore.getState().history).toHaveLength(1)
+  })
+
+  it('un arrastre que solo agranda columnas no genera ningún commit al soltar', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(1, 5)
+    useEditorStore.getState().fringeSculptSetColumn(2, 2)
+    useEditorStore.getState().fringeSculptEnd()
+    expect(useEditorStore.getState().history).toHaveLength(0)
+  })
+
+  it('llevar una columna a largo 0 apaga su mostacilla de giro', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(0, 0)
+    expect(useEditorStore.getState().fringe.turnBeads[0]).toBe(false)
+  })
+
+  it('respeta MAX_FRINGE_LENGTH', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(1, 9999)
+    expect(useEditorStore.getState().fringe.lengths[1]).toBe(100)
+  })
+
+  it('fringeSculptMode se puede activar y desactivar', () => {
+    expect(useEditorStore.getState().fringeSculptMode).toBe(false)
+    useEditorStore.getState().setFringeSculptMode(true)
+    expect(useEditorStore.getState().fringeSculptMode).toBe(true)
+    useEditorStore.getState().setFringeSculptMode(false)
+    expect(useEditorStore.getState().fringeSculptMode).toBe(false)
+  })
+})
+
 describe('editorStore — forma del cuerpo (growRowEdge / shrinkRowEdge)', () => {
   beforeEach(() => {
     resetStore()

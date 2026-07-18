@@ -15,6 +15,7 @@ export function CanvasGrid() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPointerDown = useRef(false)
   const lastCell = useRef<{ row: number; col: number } | null>(null)
+  const isFringeSculpting = useRef(false)
   // Line tool supports two gestures: click-cell-then-click-cell (no drag
   // needed), or the classic press-drag-release. `lineArmedByThisPress` is
   // true only for the very press that just set `lineStart`, so pointerUp
@@ -71,6 +72,10 @@ export function CanvasGrid() {
     disarmPaste,
     colorLetters,
     showFringeDivider,
+    fringeSculptMode,
+    fringeSculptStart,
+    fringeSculptSetColumn,
+    fringeSculptEnd,
   } = useEditorStore()
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
@@ -101,6 +106,19 @@ export function CanvasGrid() {
   function cellFromEvent(e: { clientX: number; clientY: number }) {
     const { x, y } = toBeadUnits(e.clientX, e.clientY)
     return cellAtPositionWithFringe(technique, rows, x, y)
+  }
+
+  /**
+   * Drag-to-sculpt target: which column the pointer is over, and what fringe
+   * length that implies — depth+1 for a point in the fringe zone, 0 if the
+   * pointer is back up over the body (dragging up "erases" that column's
+   * fringe). Reuses `cellAtPositionWithFringe`'s own row/col resolution so
+   * this always agrees with how a tap would be read in either zone.
+   */
+  function fringeSculptTargetFromEvent(e: { clientX: number; clientY: number }) {
+    const cell = cellFromEvent(e)
+    const length = cell.row < rows ? 0 : cell.row - rows + 1
+    return { col: cell.col, length }
   }
 
   function inBounds(row: number, col: number) {
@@ -395,8 +413,10 @@ export function CanvasGrid() {
     if (activePointers.current.size === 2) {
       // Second finger just landed: abandon whatever single-finger gesture
       // was in progress (closing its undo step properly) and switch to pinch.
-      if (isPointerDown.current) strokeEnd()
+      if (isFringeSculpting.current) fringeSculptEnd()
+      else if (isPointerDown.current) strokeEnd()
       isPointerDown.current = false
+      isFringeSculpting.current = false
       lastCell.current = null
       setLineStart(null)
       lineArmedByThisPress.current = false
@@ -407,6 +427,21 @@ export function CanvasGrid() {
       return
     }
     if (activePointers.current.size > 2) return // ignore a third finger
+
+    if (fringeSculptMode) {
+      try {
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+      } catch {
+        // ignore — capture is a nice-to-have, not required for sculpting to work
+      }
+      const { col, length } = fringeSculptTargetFromEvent(e)
+      if (col < 0 || col >= cols) return
+      fringeSculptStart()
+      fringeSculptSetColumn(col, length)
+      isFringeSculpting.current = true
+      isPointerDown.current = true
+      return
+    }
 
     const cell = cellFromEvent(e)
     if (!inBounds(cell.row, cell.col)) return
@@ -487,6 +522,12 @@ export function CanvasGrid() {
     }
     if (activePointers.current.size >= 2) return
 
+    if (isFringeSculpting.current) {
+      const { col, length } = fringeSculptTargetFromEvent(e)
+      if (col >= 0 && col < cols) fringeSculptSetColumn(col, length)
+      return
+    }
+
     const cell = cellFromEvent(e)
     setHoverCell(cell)
 
@@ -515,6 +556,13 @@ export function CanvasGrid() {
     activePointers.current.delete(e.pointerId)
     if (activePointers.current.size < 2) pinch.current = null
     if (activePointers.current.size >= 1) return // still mid-pinch (or settling back to one finger): don't treat as a draw release
+
+    if (isFringeSculpting.current) {
+      fringeSculptEnd()
+      isFringeSculpting.current = false
+      isPointerDown.current = false
+      return
+    }
 
     if (tool === 'pencil' || tool === 'eraser') {
       if (isPointerDown.current) strokeEnd()

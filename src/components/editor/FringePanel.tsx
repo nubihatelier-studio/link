@@ -13,8 +13,17 @@ const QUICK_SHAPES: { shape: FringeSculptShape; label: string }[] = [
 ]
 
 export function FringePanel() {
-  const { cols, fringe, setFringeLength, setFringeTurnBead, sculptFringeLengths, showFringeDivider, setShowFringeDivider } =
-    useEditorStore()
+  const {
+    cols,
+    fringe,
+    setFringeLength,
+    setFringeTurnBead,
+    sculptFringeLengths,
+    showFringeDivider,
+    setShowFringeDivider,
+    fringeSculptMode,
+    setFringeSculptMode,
+  } = useEditorStore()
   const [shapeMin, setShapeMin] = useState(1)
   const [shapeMax, setShapeMax] = useState(() => Math.max(4, maxFringeLength(fringe)))
 
@@ -78,6 +87,18 @@ export function FringePanel() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
+        <button
+          onClick={() => setFringeSculptMode(!fringeSculptMode)}
+          aria-pressed={fringeSculptMode}
+          className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors
+            ${fringeSculptMode ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+        >
+          {t.editor.fringe.sculptMode}
+        </button>
+        {fringeSculptMode && <p className="text-[11px] text-text-muted">{t.editor.fringe.sculptHint}</p>}
       </div>
 
       <ul className="flex flex-col gap-1.5">

@@ -167,6 +167,7 @@ export const t = {
       maxLength: 'Máx.',
       symmetric: 'Simétrico',
       symmetricHint: 'Refleja los cambios de largo respecto al centro',
+      sculptMode: 'Esculpir por arrastre',
       sculptHint: 'Arrastra a lo largo del borde inferior para esculpir varios flecos de una pasada',
     },
     shape: {

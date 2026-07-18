@@ -58,14 +58,32 @@ interface EditorState {
   setFringeLength: (col: number, length: number) => void
   setFringeTurnBead: (col: number, isTurnBead: boolean) => void
   /**
-   * Sets many fringe columns' lengths in one shot — quick shapes (V,
-   * diagonal…) and the drag-to-sculpt gesture both funnel through this
-   * instead of calling `setFringeLength` in a loop, so painted cells
-   * dropped by shrinking columns collapse into a SINGLE `commit()` (one
-   * undo step for the whole gesture) rather than one per column. `lengths`
-   * is sparse — `undefined`/missing entries leave that column untouched.
+   * Sets many fringe columns' lengths in one shot — the "quick shape"
+   * buttons (V, diagonal…) funnel through this instead of calling
+   * `setFringeLength` in a loop, so painted cells dropped by shrinking
+   * columns collapse into a SINGLE `commit()` (one undo step for the whole
+   * operation) rather than one per column. `lengths` is sparse —
+   * `undefined`/missing entries leave that column untouched.
    */
   sculptFringeLengths: (lengths: (number | undefined)[]) => void
+
+  /**
+   * Drag-to-sculpt session (dragging along the bottom edge of the pattern
+   * to set several fringe columns' lengths in one continuous gesture) —
+   * same live-preview-then-single-commit shape as `strokeStart`/
+   * `strokeCell`/`strokeEnd`. `fringeSculptSetColumn` updates `fringe` and
+   * `cells` immediately (for live visual feedback while dragging) but does
+   * NOT commit or persist — that only happens once, in `fringeSculptEnd`,
+   * so a long drag across many columns doesn't spam undo history or
+   * IndexedDB writes.
+   */
+  fringeSculptBase: ColorMap | null
+  fringeSculptStart: () => void
+  fringeSculptSetColumn: (col: number, length: number) => void
+  fringeSculptEnd: () => void
+  /** Whether the canvas interprets drags as fringe-sculpting instead of painting — toggled from FringePanel. */
+  fringeSculptMode: boolean
+  setFringeSculptMode: (on: boolean) => void
 
   /**
    * Always normalized to `rowShape.length === rows` (see
@@ -290,6 +308,38 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const id = get().patternId
     if (id) usePatternsStore.getState().setFringe(id, nextFringe)
   },
+  fringeSculptBase: null,
+  fringeSculptStart: () => set({ fringeSculptBase: get().cells }),
+  fringeSculptSetColumn: (col, rawLength) => {
+    const { fringe, rows: bodyRows, cells } = get()
+    const oldLength = fringe.lengths[col] ?? 0
+    const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(rawLength)))
+    if (length === oldLength) return
+
+    const nextLengths = [...fringe.lengths]
+    nextLengths[col] = length
+    const nextTurnBeads = [...fringe.turnBeads]
+    if (length === 0) nextTurnBeads[col] = false
+
+    let nextCells = cells
+    if (length < oldLength) {
+      nextCells = { ...cells }
+      for (let d = length; d < oldLength; d++) delete nextCells[cellKey(bodyRows + d, col)]
+    }
+    // Bare set — no commit, no persistence. Both happen once in fringeSculptEnd,
+    // so a drag across many columns produces one undo step and one IndexedDB write.
+    set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
+  },
+  fringeSculptEnd: () => {
+    const { fringeSculptBase, cells, history, fringe, patternId } = get()
+    if (fringeSculptBase && fringeSculptBase !== cells) {
+      set({ history: [...history, fringeSculptBase].slice(-100), future: [] })
+    }
+    set({ fringeSculptBase: null })
+    if (patternId) usePatternsStore.getState().setFringe(patternId, fringe)
+  },
+  fringeSculptMode: false,
+  setFringeSculptMode: (on) => set({ fringeSculptMode: on }),
 
   growRowEdge: (row, edge) => {
     const { rowShape, cols } = get()
