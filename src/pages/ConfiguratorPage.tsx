@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FringeData, MeasurementUnit, Technique } from '@/engine/types'
 import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
-import { createFringeLengths, isFringeCapable, totalFringeBeadCount, type FringeShape } from '@/engine/fringe'
+import {
+  createFringeLengths,
+  createFringeLengthsForShape,
+  isFringeCapable,
+  totalFringeBeadCount,
+  type FringeShape,
+} from '@/engine/fringe'
+import { createShapedRowShape, isShapeCapable, type BodyShapePreset } from '@/engine/shape'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -31,6 +38,15 @@ interface TemplatePreset {
   fringeEnabled: boolean
   fringeMaxLength: number
   fringeShape: FringeShape
+  bodyShape: BodyShapePreset
+}
+
+const BODY_SHAPE_PRESETS: BodyShapePreset[] = ['rectangle', 'triangle', 'triangleInverted', 'rhombus']
+const BODY_SHAPE_ICON: Record<BodyShapePreset, string> = {
+  rectangle: '▭',
+  triangle: '▲',
+  triangleInverted: '▽',
+  rhombus: '◆',
 }
 
 /**
@@ -51,6 +67,7 @@ const TEMPLATES: TemplatePreset[] = [
     fringeEnabled: false,
     fringeMaxLength: 8,
     fringeShape: 'straight',
+    bodyShape: 'rectangle',
   },
   {
     id: 'aroFlecos',
@@ -59,10 +76,11 @@ const TEMPLATES: TemplatePreset[] = [
     description: t.configurator.templates.aroFlecosDesc,
     technique: 'brick',
     cols: 12,
-    rows: 12,
+    rows: 10,
     fringeEnabled: true,
     fringeMaxLength: 10,
     fringeShape: 'v',
+    bodyShape: 'rhombus',
   },
   {
     id: 'marcapaginas',
@@ -75,6 +93,7 @@ const TEMPLATES: TemplatePreset[] = [
     fringeEnabled: false,
     fringeMaxLength: 8,
     fringeShape: 'straight',
+    bodyShape: 'rectangle',
   },
   {
     id: 'personalizado',
@@ -87,6 +106,7 @@ const TEMPLATES: TemplatePreset[] = [
     fringeEnabled: false,
     fringeMaxLength: 8,
     fringeShape: 'straight',
+    bodyShape: 'rectangle',
   },
 ]
 
@@ -103,20 +123,29 @@ export function ConfiguratorPage() {
   const [fringeEnabled, setFringeEnabled] = useState(false)
   const [fringeMaxLength, setFringeMaxLength] = useState(8)
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
+  const [bodyShape, setBodyShape] = useState<BodyShapePreset>('rectangle')
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
+  const shapeActive = isShapeCapable(technique) && bodyShape !== 'rectangle'
   const size = useMemo(
     () => physicalSizeMm(technique, cols, rows, bead.widthMm, bead.heightMm, fringeActive ? fringeMaxLength : 0),
     [technique, cols, rows, bead, fringeActive, fringeMaxLength],
   )
-  const fringePreviewLengths = useMemo(
-    () => (fringeActive ? createFringeLengths(fringeShape, cols, fringeMaxLength) : null),
-    [fringeActive, fringeShape, cols, fringeMaxLength],
+  const rowShapePreview = useMemo(
+    () => (shapeActive ? createShapedRowShape(bodyShape, cols, rows) : null),
+    [shapeActive, bodyShape, cols, rows],
   )
+  const fringePreviewLengths = useMemo(() => {
+    if (!fringeActive) return null
+    const lastRowShape = rowShapePreview?.[rows - 1]
+    return lastRowShape
+      ? createFringeLengthsForShape(fringeShape, cols, fringeMaxLength, lastRowShape)
+      : createFringeLengths(fringeShape, cols, fringeMaxLength)
+  }, [fringeActive, fringeShape, cols, fringeMaxLength, rowShapePreview, rows])
   const total =
-    beadCount(technique, cols, rows) +
+    beadCount(technique, cols, rows, rowShapePreview ?? undefined) +
     (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
 
   function applyTemplate(template: TemplatePreset) {
@@ -128,6 +157,7 @@ export function ConfiguratorPage() {
     setFringeEnabled(template.fringeEnabled)
     setFringeMaxLength(template.fringeMaxLength)
     setFringeShape(template.fringeShape)
+    setBodyShape(template.bodyShape)
   }
 
   function updateCols(next: number) {
@@ -154,7 +184,7 @@ export function ConfiguratorPage() {
     const fringe: FringeData | undefined = fringePreviewLengths
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
       : undefined
-    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe)
+    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined)
     navigate(`/editor/${id}`)
   }
 
@@ -268,6 +298,29 @@ export function ConfiguratorPage() {
           <p className="text-xs text-text-muted">
             {t.configurator.columns}: {cols} · {t.configurator.rows}: {rows}
           </p>
+        </section>
+      )}
+
+      {isShapeCapable(technique) && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.bodyShape.title}</h2>
+          <p className="mb-3 text-xs text-text-muted">{t.configurator.bodyShape.hint}</p>
+          <div className="grid grid-cols-4 gap-3">
+            {BODY_SHAPE_PRESETS.map((preset) => (
+              <SelectableCard
+                key={preset}
+                selected={bodyShape === preset}
+                onClick={() => {
+                  setBodyShape(preset)
+                  setSelectedTemplate(null)
+                }}
+                className="flex flex-col items-center gap-1 py-4 text-center"
+              >
+                <span className="text-2xl text-accent-500">{BODY_SHAPE_ICON[preset]}</span>
+                <p className="text-xs font-semibold">{t.configurator.bodyShape[preset]}</p>
+              </SelectableCard>
+            ))}
+          </div>
         </section>
       )}
 

@@ -123,3 +123,23 @@ export function createFringeLengths(shape: FringeShape, cols: number, maxLength:
     }
   }
 }
+
+/**
+ * Same as `createFringeLengths`, but for a shaped (rowShape) body — a
+ * fringe strand can only hang from a column the body's LAST row actually
+ * reaches (see `isPaintableCell`), so a rhombus/triangle tapering to a
+ * narrow point needs its starter shape (e.g. "V") generated across just
+ * that row's own span, not the full `cols` width, with every other column
+ * zero-padded (they have no bead there to hang from in the first place).
+ */
+export function createFringeLengthsForShape(
+  fringeShape: FringeShape,
+  cols: number,
+  maxLength: number,
+  lastRowShape: RowShape,
+): number[] {
+  const subLengths = createFringeLengths(fringeShape, lastRowShape.length, maxLength)
+  const lengths = Array.from({ length: cols }, () => 0)
+  for (let i = 0; i < lastRowShape.length; i++) lengths[lastRowShape.offset + i] = subLengths[i]
+  return lengths
+}

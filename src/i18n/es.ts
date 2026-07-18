@@ -77,6 +77,14 @@ export const t = {
       shapeV: 'En V',
       shapeCascade: 'Cascada',
     },
+    bodyShape: {
+      title: 'Forma del cuerpo',
+      hint: 'Solo brick stitch admite aumentos y disminuciones — es solo un punto de partida, cada fila se puede editar después en el editor.',
+      rectangle: 'Rectángulo',
+      triangle: 'Triángulo',
+      triangleInverted: 'Triángulo invertido',
+      rhombus: 'Rombo',
+    },
   },
   photo: {
     title: 'Foto a patrón',

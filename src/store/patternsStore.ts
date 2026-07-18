@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, PatternConfig, PatternDoc } from '@/engine/types'
+import type { ColorMap, FringeData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 import { requestPersistentStorageOnce } from '@/storage/persistence'
@@ -25,7 +25,7 @@ interface PatternsState {
   /** Re-lists patterns from the storage adapter without re-running migration — use after an import. */
   refresh: () => Promise<void>
 
-  createPattern: (config: PatternConfig, name?: string, fringe?: FringeData) => string
+  createPattern: (config: PatternConfig, name?: string, fringe?: FringeData, rowShape?: RowShape[]) => string
   createPatternWithCells: (config: PatternConfig, cells: ColorMap, name?: string) => string
   renamePattern: (id: string, name: string) => void
   deletePattern: (id: string) => void
@@ -117,7 +117,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     set({ patterns, order })
   },
 
-  createPattern: (config, name, fringe) => {
+  createPattern: (config, name, fringe, rowShape) => {
     const id = makeId()
     const doc: PatternDoc = {
       id,
@@ -125,6 +125,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       config,
       cells: {},
       ...(fringe ? { fringe } : {}),
+      ...(rowShape ? { rowShape } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }

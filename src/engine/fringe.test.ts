@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createEmptyFringe,
   createFringeLengths,
+  createFringeLengthsForShape,
   fringeDepthOf,
   isFringeCapable,
   isFringeRow,
@@ -146,6 +147,27 @@ describe('isPaintableCell', () => {
       expect(isPaintableCell(3, 0, 5, 3, fringe, narrowLastRow)).toBe(false) // outside the point
       expect(isPaintableCell(3, 4, 5, 3, fringe, narrowLastRow)).toBe(false)
     })
+  })
+})
+
+describe('createFringeLengthsForShape', () => {
+  it('generates the shape pattern only across the last row\'s span, zero-padding everywhere else', () => {
+    const lengths = createFringeLengthsForShape('straight', 8, 5, { offset: 3, length: 2 })
+    expect(lengths).toEqual([0, 0, 0, 5, 5, 0, 0, 0])
+  })
+
+  it('a "V" shape still peaks at the center of the (narrower) last row, not the full grid', () => {
+    const lengths = createFringeLengthsForShape('v', 10, 9, { offset: 4, length: 3 })
+    expect(lengths[4]).toBe(1) // left edge of the row's own span
+    expect(lengths[5]).toBe(9) // center of the row's own span
+    expect(lengths[6]).toBe(1) // right edge
+    expect(lengths.slice(0, 4)).toEqual([0, 0, 0, 0])
+    expect(lengths.slice(7)).toEqual([0, 0, 0])
+  })
+
+  it('a full-width last row behaves exactly like createFringeLengths', () => {
+    const fullRow = { offset: 0, length: 6 }
+    expect(createFringeLengthsForShape('v', 6, 7, fullRow)).toEqual(createFringeLengths('v', 6, 7))
   })
 })
 
