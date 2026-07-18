@@ -81,6 +81,47 @@ describe('editorStore — seleccionar por color', () => {
   })
 })
 
+describe('editorStore — seleccionar por color incluye cuerpo y flecos (Corrección 3)', () => {
+  beforeEach(() => {
+    // Color A pintado en el cuerpo (0,0) y en dos mostacillas del fleco de la columna 0
+    // (filas 10 y 11, ya que rows=10). Color B es ruido de body y de fleco que NO debe
+    // aparecer en la selección.
+    resetStore({
+      cells: { '0,0': '#111111', '10,0': '#111111', '11,0': '#111111', '1,1': '#222222', '10,1': '#222222' },
+      fringe: { lengths: [3, 3, 0], turnBeads: [false, false, false] },
+    })
+  })
+
+  it('selectColor arma la máscara con exactamente las celdas de ese color, cuerpo y fleco incluidos', () => {
+    useEditorStore.getState().selectColor('#111111')
+    const { selection, colorSelectionMask, tool } = useEditorStore.getState()
+    expect(colorSelectionMask).toEqual(new Set(['0,0', '10,0', '11,0']))
+    expect(selection).toEqual({ r0: 0, c0: 0, r1: 11, c1: 0 })
+    expect(tool).toBe('select')
+    // El ruido de color B (cuerpo y fleco) queda fuera de la máscara.
+    expect(colorSelectionMask?.has('1,1')).toBe(false)
+    expect(colorSelectionMask?.has('10,1')).toBe(false)
+  })
+
+  it('borrar la selección de color quita cuerpo y fleco, respeta el resto, y es deshacible', () => {
+    useEditorStore.getState().selectColor('#111111')
+    useEditorStore.getState().eraseSelection()
+
+    const { cells, history } = useEditorStore.getState()
+    expect(cells['0,0']).toBeUndefined()
+    expect(cells['10,0']).toBeUndefined()
+    expect(cells['11,0']).toBeUndefined()
+    expect(cells['1,1']).toBe('#222222')
+    expect(cells['10,1']).toBe('#222222')
+    expect(history).toHaveLength(1)
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().cells['0,0']).toBe('#111111')
+    expect(useEditorStore.getState().cells['10,0']).toBe('#111111')
+    expect(useEditorStore.getState().cells['11,0']).toBe('#111111')
+  })
+})
+
 describe('editorStore — pintar sobre flecos', () => {
   beforeEach(() => {
     resetStore({ cells: {}, fringe: { lengths: [3, 0], turnBeads: [false, false] } })
