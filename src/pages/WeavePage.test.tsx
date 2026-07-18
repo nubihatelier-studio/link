@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,21 @@ import type { PatternDoc } from '@/engine/types'
 import type { StorageAdapter, WeaveProgressRecord } from '@/storage/types'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
+
+// Defaults to "supported and acquires successfully" so the pre-existing tests below (which don't
+// care about wake lock at all) render the "active" state without extra setup; the dedicated
+// "indicador de wake lock" describe block below overrides `wakeLockState` per test.
+const wakeLockState = { supported: true, keepAwakeShouldFail: false }
+
+vi.mock('@capacitor-community/keep-awake', () => ({
+  KeepAwake: {
+    isSupported: vi.fn(async () => ({ isSupported: wakeLockState.supported })),
+    keepAwake: vi.fn(async () => {
+      if (wakeLockState.keepAwakeShouldFail) throw new Error('unavailable')
+    }),
+    allowSleep: vi.fn(async () => {}),
+  },
+}))
 
 function createFakeAdapter(): StorageAdapter {
   const progress = new Map<string, WeaveProgressRecord>()
@@ -55,6 +70,11 @@ const PATTERN_WITH_FRINGE: PatternDoc = {
 }
 
 let fakeAdapter: StorageAdapter
+
+beforeEach(() => {
+  wakeLockState.supported = true
+  wakeLockState.keepAwakeShouldFail = false
+})
 
 vi.mock('@/storage', () => ({
   getStorageAdapter: () => Promise.resolve(fakeAdapter),
@@ -190,5 +210,54 @@ describe('WeavePage — selector "Ir a" con flecos', () => {
     expect(screen.getByRole('option', { name: 'Fleco · Columna 4' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Fleco · Columna 1' })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Fleco · Columna 3' })).not.toBeInTheDocument()
+  })
+})
+
+describe('WeavePage — indicador de wake lock (Endurecimiento 4)', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN },
+      order: [PATTERN.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderWeave() {
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN.id}/weave`]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('estado activo: contexto seguro y KeepAwake disponible', async () => {
+    await renderWeave()
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Pantalla siempre encendida' })).toBeInTheDocument())
+  })
+
+  it('estado no disponible: contexto/navegador sin soporte — el ícono sigue visible con su propio tooltip', async () => {
+    wakeLockState.supported = false
+    await renderWeave()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('img', { name: 'Pantalla siempre encendida no disponible en este navegador o conexión' }),
+      ).toBeInTheDocument(),
+    )
+    // Antes de este endurecimiento el ícono directamente no se renderizaba si no había soporte.
+    expect(screen.queryByRole('img', { name: 'Pantalla siempre encendida' })).not.toBeInTheDocument()
+  })
+
+  it('estado perdido/reintentando: soportado pero KeepAwake aún no lo readquirió (p. ej. justo al volver de background)', async () => {
+    wakeLockState.keepAwakeShouldFail = true
+    await renderWeave()
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: 'Reactivando pantalla siempre encendida…' })).toBeInTheDocument(),
+    )
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Hand, Sun } from 'lucide-react'
+import { Hand, Moon, RefreshCw, Sun } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
@@ -144,6 +144,16 @@ export function WeavePage() {
 
   const canAdvance = currentIndex < total - 1
 
+  // Weave Mode always keeps this on (see the useWakeLock(true) call above), so "supported but not
+  // active" only ever means "hasn't acquired yet" or "lost it and is re-acquiring" (e.g. right
+  // after returning from background) — both read the same to the weaver: it's trying.
+  const wakeLockLabel = !wakeLock.isSupported
+    ? t.weave.wakeLockUnsupported
+    : wakeLock.isActive
+      ? t.weave.wakeLockActive
+      : t.weave.wakeLockRetrying
+  const WakeLockIcon = !wakeLock.isSupported ? Moon : wakeLock.isActive ? Sun : RefreshCw
+
   return (
     <div
       className="flex h-screen flex-col"
@@ -169,14 +179,14 @@ export function WeavePage() {
             {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
           </p>
         </div>
-        {wakeLock.isSupported && (
-          <span
-            title={wakeLock.isActive ? t.weave.wakeLockActive : t.weave.wakeLockInactive}
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${wakeLock.isActive ? 'text-accent-500' : 'text-text-muted'}`}
-          >
-            <Sun size={16} />
-          </span>
-        )}
+        <span
+          role="img"
+          aria-label={wakeLockLabel}
+          title={wakeLockLabel}
+          className={`flex h-8 w-8 items-center justify-center rounded-full ${wakeLock.isActive ? 'text-accent-500' : 'text-text-muted'}`}
+        >
+          <WakeLockIcon size={16} className={!wakeLock.isSupported ? '' : wakeLock.isActive ? '' : 'animate-spin'} />
+        </span>
         <IconButton
           label={t.weave.handsBusyMode}
           active={handsBusyMode}

@@ -169,8 +169,9 @@ export const t = {
     resetDone: 'Se reinició el progreso de tejido.',
     handsBusyMode: 'Modo manos ocupadas',
     tapToAdvance: 'Tocar el patrón para avanzar',
-    wakeLockActive: 'Pantalla activa',
-    wakeLockInactive: 'Pantalla puede apagarse',
+    wakeLockActive: 'Pantalla siempre encendida',
+    wakeLockRetrying: 'Reactivando pantalla siempre encendida…',
+    wakeLockUnsupported: 'Pantalla siempre encendida no disponible en este navegador o conexión',
   },
   pwa: {
     updateAvailable: 'Hay una nueva versión',
