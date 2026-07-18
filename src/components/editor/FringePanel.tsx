@@ -3,11 +3,24 @@ import { useEditorStore } from '@/store/editorStore'
 import { t } from '@/i18n/es'
 
 export function FringePanel() {
-  const { cols, fringe, setFringeLength, setFringeTurnBead } = useEditorStore()
+  const { cols, fringe, setFringeLength, setFringeTurnBead, showFringeDivider, setShowFringeDivider } =
+    useEditorStore()
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.fringe.title}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.fringe.title}</h3>
+        <button
+          aria-label={t.editor.fringe.showDivider}
+          title={t.editor.fringe.showDividerHint}
+          onClick={() => setShowFringeDivider(!showFringeDivider)}
+          aria-pressed={showFringeDivider}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors
+            ${showFringeDivider ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+        >
+          {t.editor.fringe.showDivider}
+        </button>
+      </div>
       <ul className="flex flex-col gap-1.5">
         {Array.from({ length: cols }, (_, col) => {
           const length = fringe.lengths[col] ?? 0

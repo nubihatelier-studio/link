@@ -154,6 +154,8 @@ export const t = {
       turnBead: 'Giro',
       turnBeadHint: 'Mostacilla de giro — donde el hilo da la vuelta',
       empty: 'Sin fleco',
+      showDivider: 'Línea divisoria',
+      showDividerHint: 'Solo una guía en el editor — nunca aparece en el PDF, la imagen ni la tarjeta',
     },
     shape: {
       title: 'Forma del cuerpo ◆',

@@ -96,6 +96,14 @@ interface EditorState {
   registerColor: (hex: string) => void
 
   zoom: number
+  /**
+   * Purely an editing aid — a thin dashed line marking where the body ends
+   * and the fringe begins on the canvas. Never affects PDF/PNG/Instagram
+   * exports (those render the seamless continuation with no divider at
+   * all). Ephemeral view preference, not part of the pattern document.
+   */
+  showFringeDivider: boolean
+  setShowFringeDivider: (show: boolean) => void
   selection: SelectionRect | null
   /**
    * When set, `selection` is only this mask's bounding box — `eraseSelection`
@@ -299,6 +307,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   zoom: 100,
+  showFringeDivider: true,
   selection: null,
   colorSelectionMask: null,
   selectColor: (hex) => {
@@ -376,6 +385,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     get().registerColor(hex)
   },
   setZoom: (zoom) => set({ zoom: Math.max(25, Math.min(400, zoom)) }),
+  setShowFringeDivider: (show) => set({ showFringeDivider: show }),
 
   renamePattern: (name) => {
     set({ name })

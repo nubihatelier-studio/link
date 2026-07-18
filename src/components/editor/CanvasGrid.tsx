@@ -70,6 +70,7 @@ export function CanvasGrid() {
     armPaste,
     disarmPaste,
     colorLetters,
+    showFringeDivider,
   } = useEditorStore()
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
@@ -200,23 +201,29 @@ export function CanvasGrid() {
       }
     }
 
-    // fringe zone — hangs below the body, one strip per column, set apart
-    // by a subtle dashed divider right where the body ends. Same per-cell
-    // drawing as the body loop above, plus a distinct accent ring on each
-    // column's turn bead (the deepest bead, where the thread turns back up).
+    // fringe zone — a seamless continuation of the body (same cell size,
+    // same row pitch via cellPosition's bodyRows branch, no gap, no opacity
+    // change). The only body/fringe marker is an optional thin dashed guide
+    // line, editor-only (see showFringeDivider in FringePanel) — it never
+    // appears in PDF/PNG/Instagram-card exports, which share this same
+    // per-cell drawing logic with no divider at all. The turn bead (where
+    // the thread turns back up) has no visual distinction here either — it
+    // reads as a bead like any other; its own toggle lives in FringePanel.
     const maxFringe = maxFringeLength(fringe)
     if (maxFringe > 0) {
-      const dividerY = MARGIN + bodyBounds.height * cellPx
-      ctx.strokeStyle = borderColor
-      ctx.globalAlpha = 0.5
-      ctx.lineWidth = 1
-      ctx.setLineDash([2, 3])
-      ctx.beginPath()
-      ctx.moveTo(MARGIN, dividerY)
-      ctx.lineTo(canvasWidth, dividerY)
-      ctx.stroke()
-      ctx.setLineDash([])
-      ctx.globalAlpha = 1
+      if (showFringeDivider) {
+        const dividerY = MARGIN + bodyBounds.height * cellPx
+        ctx.strokeStyle = borderColor
+        ctx.globalAlpha = 0.5
+        ctx.lineWidth = 1
+        ctx.setLineDash([2, 3])
+        ctx.beginPath()
+        ctx.moveTo(MARGIN, dividerY)
+        ctx.lineTo(canvasWidth, dividerY)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.globalAlpha = 1
+      }
 
       for (let col = 0; col < cols; col++) {
         const length = fringe.lengths[col] ?? 0
@@ -236,12 +243,6 @@ export function CanvasGrid() {
           ctx.strokeStyle = borderColor
           ctx.lineWidth = 1
           ctx.stroke()
-
-          if (depth === length - 1 && fringe.turnBeads[col]) {
-            ctx.strokeStyle = accent
-            ctx.lineWidth = 2
-            ctx.stroke()
-          }
 
           if (hex && showLetters) {
             const letter = colorLetters[hex]
@@ -363,6 +364,7 @@ export function CanvasGrid() {
     fringe,
     rowShape,
     zoom,
+    showFringeDivider,
     selection,
     colorSelectionMask,
     tool,
