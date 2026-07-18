@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FringeData } from './types'
+import { rowPitch } from './geometry'
 import {
   buildWeaveOrder,
   directionAtStep,
@@ -185,12 +186,13 @@ describe('buildWeaveOrder with a shaped (rowShape) body', () => {
 })
 
 describe('directionAtStep with a fringe', () => {
-  it('points straight down between two beads of the same fringe column', () => {
+  it('points straight down between two beads of the same fringe column, at the same pitch as between body rows (no kink at the boundary)', () => {
     const fringe: FringeData = { lengths: [3], turnBeads: [false] }
     const order = buildWeaveOrder('brick', 1, 2, fringe)
     // order: [body 0,0], [body 1,0], [fringe depth0], [fringe depth1], [fringe depth2]
     const direction = directionAtStep('brick', order, 2, 2)
-    expect(direction).toEqual({ dx: 0, dy: 1 })
+    expect(direction?.dx).toBe(0)
+    expect(direction?.dy).toBeCloseTo(rowPitch('brick'), 10)
   })
 
   it('matches the plain (no bodyRows) call when both steps are in the body', () => {

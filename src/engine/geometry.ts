@@ -56,17 +56,20 @@ export function rowPitch(technique: Technique): number {
  *
  * When `bodyRows` is given and `row` falls in the fringe zone (`row >=
  * bodyRows`, see `engine/fringe.ts`), the position instead anchors at the
- * last body row's position for that column and hangs straight down at a
- * full 1.0 bead-pitch per additional row — a fringe strand dangles freely
- * on thread, so unlike body rows it is never compacted or row-parity
- * offset. For loom this is a no-op vs. the plain formula (loom's own pitch
- * is already 1 with no offset); brick's fringe zone is what actually
- * diverges from its body formula.
+ * last body row's position for that column and continues straight down at
+ * the *same* row pitch the body itself uses — a fringe strand is a seamless
+ * continuation of the weave, not a separate free-hanging element, so a
+ * diagonal of color crossing the body/fringe boundary must not kink. It
+ * still carries no row-parity offset (peyote's column stagger, brick's
+ * row shift) since a hanging strand doesn't interlock sideways — only the
+ * anchor column's own x is carried forward. For loom this is a no-op vs.
+ * the plain formula (loom's pitch is already 1 with no offset).
  */
 export function cellPosition(technique: Technique, row: number, col: number, bodyRows?: number): CellPosition {
   if (bodyRows !== undefined && row >= bodyRows) {
     const anchor = cellPosition(technique, bodyRows - 1, col)
-    return { x: anchor.x, y: anchor.y + (row - (bodyRows - 1)) }
+    const pitch = rowPitch(technique)
+    return { x: anchor.x, y: anchor.y + (row - (bodyRows - 1)) * pitch }
   }
   switch (technique) {
     case 'loom':
@@ -88,10 +91,11 @@ export function cellPosition(technique: Technique, row: number, col: number, bod
  * Total bounding size, in bead units, for a cols x rows grid of a technique.
  *
  * `maxFringeBeads` (the longest fringe among all columns, see
- * `engine/fringe.ts#maxFringeLength`) extends the height by that many whole
- * units — fringe beads hang at a full, uncompacted 1.0 pitch each, and the
- * first fringe bead picks up immediately where the last body row's own
- * bead-height extent ends, so no extra gap or overlap needs accounting for.
+ * `engine/fringe.ts#maxFringeLength`) extends the height by that many rows
+ * at the technique's own row pitch — fringe rows interlock with each other
+ * (and with the body's last row) exactly the same way consecutive body rows
+ * do, so the transition is seamless. The final `+1` accounts for the
+ * deepest row's own full bead-height extent, whichever row that is.
  */
 export function gridBoundsUnits(technique: Technique, cols: number, rows: number, maxFringeBeads = 0) {
   const pitch = rowPitch(technique)
@@ -99,7 +103,7 @@ export function gridBoundsUnits(technique: Technique, cols: number, rows: number
   const extraY = technique === 'peyote' ? pitch / 2 : 0
   return {
     width: cols + extraX,
-    height: rows > 0 ? (rows - 1) * pitch + 1 + extraY + maxFringeBeads : 0,
+    height: rows > 0 ? (rows - 1 + maxFringeBeads) * pitch + 1 + extraY : 0,
   }
 }
 
@@ -172,11 +176,13 @@ export function cellAtPosition(technique: Technique, xUnits: number, yUnits: num
  * `cellAtPosition`, extended to correctly invert a click that lands in the
  * fringe zone hanging below a `bodyRows`-tall body (see
  * `cellPosition`/`engine/fringe.ts`). Above the body/fringe boundary this is
- * identical to `cellAtPosition`. Below it, every column's fringe hangs
- * straight down from wherever its last body-row bead was (no row parity, no
- * per-row offset), so depth is a plain linear inverse of y, and the column
- * is read off the *last body row's* fixed x-offset instead of the (missing)
- * offset a fringe row would otherwise have of its own.
+ * identical to `cellAtPosition`. Below it, every column's fringe continues
+ * straight down from wherever its last body-row bead was, stepping at the
+ * same row pitch the body uses (no row parity, no per-row offset — just the
+ * pitch), so depth is `(y - anchorY) / pitch` bucketed the same way
+ * `cellAtPosition` buckets the body's own rows, and the column is read off
+ * the *last body row's* fixed x-offset instead of the (missing) offset a
+ * fringe row would otherwise have of its own.
  */
 export function cellAtPositionWithFringe(
   technique: Technique,
@@ -184,10 +190,11 @@ export function cellAtPositionWithFringe(
   xUnits: number,
   yUnits: number,
 ): { row: number; col: number } {
-  const bodyBottomY = cellPosition(technique, bodyRows, 0, bodyRows).y
-  if (yUnits < bodyBottomY) return cellAtPosition(technique, xUnits, yUnits)
+  const pitch = rowPitch(technique)
+  const anchorY = cellPosition(technique, bodyRows - 1, 0).y
+  if (yUnits < anchorY + pitch) return cellAtPosition(technique, xUnits, yUnits)
 
-  const depth = Math.max(0, Math.floor(yUnits - bodyBottomY))
+  const depth = Math.max(0, Math.floor((yUnits - anchorY) / pitch) - 1)
   const row = bodyRows + depth
   const lastBodyRowXOffset = cellPosition(technique, bodyRows - 1, 0).x
   const col = Math.floor(xUnits - lastBodyRowXOffset)

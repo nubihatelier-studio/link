@@ -7,6 +7,7 @@ import {
   gridBoundsUnits,
   gridFromPhysicalSizeMm,
   physicalSizeMm,
+  rowPitch,
 } from './geometry'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
@@ -105,16 +106,17 @@ describe('cellPosition with a fringe zone', () => {
     }
   })
 
-  it('hangs straight down (x fixed, y +1 per row) below the last body row, no compaction/offset', () => {
+  it('continues straight down (x fixed, y +pitch per row) below the last body row — same pitch as the body, no row-parity offset', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {
       const bodyRows = 16
+      const pitch = rowPitch(technique)
       const lastBodyRow = cellPosition(technique, bodyRows - 1, 3)
       const fringe0 = cellPosition(technique, bodyRows, 3, bodyRows)
       const fringe1 = cellPosition(technique, bodyRows + 1, 3, bodyRows)
       expect(fringe0.x).toBe(lastBodyRow.x)
-      expect(fringe0.y).toBeCloseTo(lastBodyRow.y + 1, 10)
+      expect(fringe0.y).toBeCloseTo(lastBodyRow.y + pitch, 10)
       expect(fringe1.x).toBe(lastBodyRow.x)
-      expect(fringe1.y).toBeCloseTo(lastBodyRow.y + 2, 10)
+      expect(fringe1.y).toBeCloseTo(lastBodyRow.y + 2 * pitch, 10)
     }
   })
 
@@ -153,27 +155,35 @@ describe('cellAtPositionWithFringe', () => {
 })
 
 describe('gridBoundsUnits / physicalSizeMm with a fringe', () => {
-  it('extends the height by exactly maxFringeBeads whole units, width untouched', () => {
+  it('extends the height by maxFringeBeads rows at the technique\'s own row pitch (same vertical step as the body)', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {
       const plain = gridBoundsUnits(technique, 6, 16)
       const withFringe = gridBoundsUnits(technique, 6, 16, 5)
       expect(withFringe.width).toBe(plain.width)
-      expect(withFringe.height).toBeCloseTo(plain.height + 5, 10)
+      expect(withFringe.height).toBeCloseTo(plain.height + 5 * rowPitch(technique), 10)
     }
   })
 
-  it('the first fringe bead picks up exactly where the body bounds end (no gap, no overlap)', () => {
-    const bodyRows = 16
-    const bounds = gridBoundsUnits('brick', 6, bodyRows)
-    const firstFringePos = cellPosition('brick', bodyRows, 0, bodyRows)
-    expect(firstFringePos.y).toBeCloseTo(bounds.height, 10)
+  it('fringe rows interlock with the body\'s last row exactly like consecutive body rows interlock with each other', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const bodyRows = 16
+      const pitch = rowPitch(technique)
+      const lastBodyRow = cellPosition(technique, bodyRows - 1, 0)
+      const secondToLastBodyRow = cellPosition(technique, bodyRows - 2, 0)
+      const firstFringe = cellPosition(technique, bodyRows, 0, bodyRows)
+      // The step from the last body row to the first fringe row is identical
+      // to the step between any two consecutive body rows — no kink at the
+      // boundary.
+      expect(firstFringe.y - lastBodyRow.y).toBeCloseTo(lastBodyRow.y - secondToLastBodyRow.y, 10)
+      expect(firstFringe.y - lastBodyRow.y).toBeCloseTo(pitch, 10)
+    }
   })
 
-  it('physicalSizeMm folds maxFringeBeads into the total height, in mm', () => {
+  it('physicalSizeMm folds maxFringeBeads into the total height, in mm, at the technique\'s row pitch', () => {
     const plain = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
     const withFringe = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 5)
     expect(withFringe.widthMm).toBeCloseTo(plain.widthMm, 10)
-    expect(withFringe.heightMm).toBeCloseTo(plain.heightMm + 5 * DELICA_H, 10)
+    expect(withFringe.heightMm).toBeCloseTo(plain.heightMm + 5 * rowPitch('brick') * DELICA_H, 10)
   })
 
   it('defaults to no fringe when maxFringeBeads is omitted', () => {
