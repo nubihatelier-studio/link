@@ -3,7 +3,7 @@ import type { ColorMap, FringeData, PatternDoc, RowShape, Technique } from '@/en
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
-import { createEmptyFringe, isPaintableCell, normalizeFringe } from '@/engine/fringe'
+import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, normalizeFringe } from '@/engine/fringe'
 import { createRectangleRowShape, normalizeRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
@@ -57,6 +57,15 @@ interface EditorState {
   fringe: FringeData
   setFringeLength: (col: number, length: number) => void
   setFringeTurnBead: (col: number, isTurnBead: boolean) => void
+  /**
+   * Sets many fringe columns' lengths in one shot — quick shapes (V,
+   * diagonal…) and the drag-to-sculpt gesture both funnel through this
+   * instead of calling `setFringeLength` in a loop, so painted cells
+   * dropped by shrinking columns collapse into a SINGLE `commit()` (one
+   * undo step for the whole gesture) rather than one per column. `lengths`
+   * is sparse — `undefined`/missing entries leave that column untouched.
+   */
+  sculptFringeLengths: (lengths: (number | undefined)[]) => void
 
   /**
    * Always normalized to `rowShape.length === rows` (see
@@ -205,7 +214,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setFringeLength: (col, rawLength) => {
     const { fringe, rows: bodyRows, cells } = get()
     const oldLength = fringe.lengths[col] ?? 0
-    const length = Math.max(0, Math.min(60, Math.round(rawLength)))
+    const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(rawLength)))
     if (length === oldLength) return
 
     const nextLengths = [...fringe.lengths]
@@ -241,6 +250,43 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     nextTurnBeads[col] = isTurnBead
     const nextFringe: FringeData = { lengths: fringe.lengths, turnBeads: nextTurnBeads }
     set({ fringe: nextFringe })
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setFringe(id, nextFringe)
+  },
+  sculptFringeLengths: (lengths) => {
+    const { fringe, rows: bodyRows, cells, cols } = get()
+    const nextLengths = [...fringe.lengths]
+    const nextTurnBeads = [...fringe.turnBeads]
+    const nextCells = { ...cells }
+    let cellsChanged = false
+    let anyChanged = false
+
+    for (let col = 0; col < cols; col++) {
+      const raw = lengths[col]
+      if (raw === undefined) continue
+      const oldLength = fringe.lengths[col] ?? 0
+      const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(raw)))
+      if (length === oldLength) continue
+      anyChanged = true
+      nextLengths[col] = length
+      if (length === 0) nextTurnBeads[col] = false
+      if (length < oldLength) {
+        for (let d = length; d < oldLength; d++) {
+          const key = cellKey(bodyRows + d, col)
+          if (key in nextCells) {
+            delete nextCells[key]
+            cellsChanged = true
+          }
+        }
+      }
+    }
+    if (!anyChanged) return
+
+    const nextFringe: FringeData = { lengths: nextLengths, turnBeads: nextTurnBeads }
+    set({ fringe: nextFringe })
+    // Whole gesture (any number of columns) collapses into one commit for undo purposes.
+    if (cellsChanged) get().commit(nextCells)
+
     const id = get().patternId
     if (id) usePatternsStore.getState().setFringe(id, nextFringe)
   },

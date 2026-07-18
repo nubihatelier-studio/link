@@ -3,6 +3,9 @@ import type { FringeData, RowShape, Technique } from './types'
 /** Initial shape offered at creation time — purely a starting point, every length stays editable afterward. */
 export type FringeShape = 'straight' | 'v' | 'cascade'
 
+/** Hard ceiling on a single fringe strand's length — 100 covers the long "pluma" style, still bounded for performance. */
+export const MAX_FRINGE_LENGTH = 100
+
 /** Peyote's column-major zigzag traversal doesn't have a clean "last body row" to hang a fringe from — brick and loom do. */
 export function isFringeCapable(technique: Technique): boolean {
   return technique !== 'peyote'
@@ -142,4 +145,56 @@ export function createFringeLengthsForShape(
   const lengths = Array.from({ length: cols }, () => 0)
   for (let i = 0; i < lastRowShape.length; i++) lengths[lastRowShape.offset + i] = subLengths[i]
   return lengths
+}
+
+/**
+ * "Quick shape" presets applied to an EXISTING fringe's lengths in the
+ * editor's sculpting panel — distinct from `createFringeLengths` (the
+ * one-shot starting point offered at creation time, scaled 1..maxLength).
+ * These take an explicit `min`/`max` range instead, since the fringe being
+ * reshaped may already have any starting lengths.
+ */
+export type FringeSculptShape = 'v' | 'vInverted' | 'diagonalLR' | 'diagonalRL' | 'curve'
+
+export function createFringeLengthShape(shape: FringeSculptShape, cols: number, min: number, max: number): number[] {
+  const lo = Math.max(0, Math.round(Math.min(min, max)))
+  const hi = Math.max(lo, Math.round(Math.max(min, max)))
+  if (cols <= 0) return []
+  if (cols === 1) return [hi]
+
+  const center = (cols - 1) / 2
+  const maxDist = center || 1
+
+  return Array.from({ length: cols }, (_, i) => {
+    switch (shape) {
+      case 'v': {
+        // Longest at the center column, tapering linearly to the shortest at the edges.
+        const t = Math.abs(i - center) / maxDist
+        return Math.round(hi - (hi - lo) * t)
+      }
+      case 'vInverted': {
+        // Shortest at the center column, tapering linearly to the longest at the edges.
+        const t = Math.abs(i - center) / maxDist
+        return Math.round(lo + (hi - lo) * t)
+      }
+      case 'diagonalLR': {
+        // Shortest at column 1, ramping linearly up to the longest at the last column.
+        const t = i / (cols - 1)
+        return Math.round(lo + (hi - lo) * t)
+      }
+      case 'diagonalRL': {
+        // Longest at column 1, ramping linearly down to the shortest at the last column.
+        const t = i / (cols - 1)
+        return Math.round(hi - (hi - lo) * t)
+      }
+      case 'curve': {
+        // Same endpoints as 'v' (longest at center, shortest at edges), but
+        // eased with a cosine curve instead of a straight linear taper — a
+        // rounded arc silhouette instead of a sharp point.
+        const t = Math.abs(i - center) / maxDist
+        const eased = 0.5 + 0.5 * Math.cos(Math.PI * t)
+        return Math.round(lo + (hi - lo) * eased)
+      }
+    }
+  })
 }

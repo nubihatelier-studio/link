@@ -6,6 +6,7 @@ import {
   createFringeLengths,
   createFringeLengthsForShape,
   isFringeCapable,
+  MAX_FRINGE_LENGTH,
   totalFringeBeadCount,
   type FringeShape,
 } from '@/engine/fringe'
@@ -366,7 +367,7 @@ export function ConfiguratorPage() {
                 label={t.configurator.fringe.maxLength}
                 value={fringeMaxLength}
                 min={1}
-                max={40}
+                max={MAX_FRINGE_LENGTH}
                 suffix={t.configurator.fringe.beadsUnit}
                 onChange={setFringeMaxLength}
               />

@@ -220,6 +220,57 @@ describe('editorStore — setFringeLength / setFringeTurnBead', () => {
   })
 })
 
+describe('editorStore — sculptFringeLengths', () => {
+  beforeEach(() => {
+    resetStore({
+      cells: { '10,0': '#111111', '11,0': '#111111', '12,0': '#111111' },
+      fringe: { lengths: [3, 0, 0], turnBeads: [true, false, false] },
+    })
+    useEditorStore.setState({ cols: 3 })
+  })
+
+  it('aplica varios largos en una sola llamada', () => {
+    useEditorStore.getState().sculptFringeLengths([1, 4, 2])
+    expect(useEditorStore.getState().fringe.lengths).toEqual([1, 4, 2])
+  })
+
+  it('las entradas undefined dejan esa columna sin tocar', () => {
+    useEditorStore.getState().sculptFringeLengths([undefined, 5, undefined])
+    expect(useEditorStore.getState().fringe.lengths).toEqual([3, 5, 0])
+  })
+
+  it('todo el recorte de mostacillas pintadas de la pasada completa cae en UN solo commit (un solo paso de deshacer)', () => {
+    // Shrinks column 0 (drops 2 painted cells) in the same call as growing others —
+    // must still be exactly one history entry, not one per column.
+    useEditorStore.getState().sculptFringeLengths([1, 3, 2])
+    const { cells, history } = useEditorStore.getState()
+    expect(cells['10,0']).toBe('#111111')
+    expect(cells['11,0']).toBeUndefined()
+    expect(cells['12,0']).toBeUndefined()
+    expect(history).toHaveLength(1)
+  })
+
+  it('un largo de 0 apaga la mostacilla de giro de esa columna', () => {
+    useEditorStore.getState().sculptFringeLengths([0])
+    expect(useEditorStore.getState().fringe.turnBeads[0]).toBe(false)
+  })
+
+  it('respeta MAX_FRINGE_LENGTH aunque se pida un valor mayor', () => {
+    useEditorStore.getState().sculptFringeLengths([9999])
+    expect(useEditorStore.getState().fringe.lengths[0]).toBe(100)
+  })
+
+  it('no hace nada si ningún largo pedido difiere del actual', () => {
+    useEditorStore.getState().sculptFringeLengths([3, 0, 0])
+    expect(useEditorStore.getState().history).toHaveLength(0)
+  })
+
+  it('el cambio estructural en sí no queda en el historial de deshacer (como setFringeLength)', () => {
+    useEditorStore.getState().sculptFringeLengths([3, 2, 3]) // column 0 unchanged, 1 and 2 only grow — nothing to trim
+    expect(useEditorStore.getState().history).toHaveLength(0)
+  })
+})
+
 describe('editorStore — forma del cuerpo (growRowEdge / shrinkRowEdge)', () => {
   beforeEach(() => {
     resetStore()

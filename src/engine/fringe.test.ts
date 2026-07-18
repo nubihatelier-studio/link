@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createEmptyFringe,
   createFringeLengths,
+  createFringeLengthShape,
   createFringeLengthsForShape,
   fringeDepthOf,
   isFringeCapable,
@@ -197,5 +198,66 @@ describe('createFringeLengths', () => {
 
   it('handles a single column without dividing by zero', () => {
     expect(createFringeLengths('v', 1, 5)).toEqual([5])
+  })
+})
+
+describe('createFringeLengthShape', () => {
+  it('v: longest at the center, tapering linearly to min at both edges', () => {
+    const lengths = createFringeLengthShape('v', 5, 2, 10)
+    expect(lengths[2]).toBe(10) // center column
+    expect(lengths[0]).toBe(2) // left edge
+    expect(lengths[4]).toBe(2) // right edge
+    expect(lengths[0]).toBeLessThan(lengths[1])
+    expect(lengths[1]).toBeLessThan(lengths[2])
+  })
+
+  it('vInverted: shortest at the center, tapering linearly to max at both edges', () => {
+    const lengths = createFringeLengthShape('vInverted', 5, 2, 10)
+    expect(lengths[2]).toBe(2) // center column
+    expect(lengths[0]).toBe(10) // left edge
+    expect(lengths[4]).toBe(10) // right edge
+    expect(lengths[0]).toBeGreaterThan(lengths[1])
+    expect(lengths[1]).toBeGreaterThan(lengths[2])
+  })
+
+  it('diagonalLR: ramps from min at column 1 up to max at the last column', () => {
+    const lengths = createFringeLengthShape('diagonalLR', 5, 2, 10)
+    expect(lengths[0]).toBe(2)
+    expect(lengths[4]).toBe(10)
+    expect(lengths[0]).toBeLessThan(lengths[1])
+    expect(lengths[1]).toBeLessThan(lengths[2])
+    expect(lengths[2]).toBeLessThan(lengths[3])
+    expect(lengths[3]).toBeLessThan(lengths[4])
+  })
+
+  it('diagonalRL: ramps from max at column 1 down to min at the last column', () => {
+    const lengths = createFringeLengthShape('diagonalRL', 5, 2, 10)
+    expect(lengths[0]).toBe(10)
+    expect(lengths[4]).toBe(2)
+    expect(lengths[0]).toBeGreaterThan(lengths[1])
+    expect(lengths[3]).toBeGreaterThan(lengths[4])
+  })
+
+  it('curve: same endpoints as v (max at center, min at edges) but eased, not a straight line', () => {
+    const straight = createFringeLengthShape('v', 9, 2, 10)
+    const curved = createFringeLengthShape('curve', 9, 2, 10)
+    expect(curved[4]).toBe(straight[4]) // center matches
+    expect(curved[0]).toBe(straight[0]) // left edge matches
+    expect(curved[8]).toBe(straight[8]) // right edge matches
+    // Near the edges, the cosine ease stays closer to the min than the linear taper does.
+    expect(curved[1]).toBeLessThan(straight[1])
+  })
+
+  it('swaps min/max if given in reverse order, and never returns a length below 0', () => {
+    expect(createFringeLengthShape('diagonalLR', 4, 10, 2)).toEqual(createFringeLengthShape('diagonalLR', 4, 2, 10))
+    expect(createFringeLengthShape('v', 4, -5, 3).every((n) => n >= 0)).toBe(true)
+  })
+
+  it('handles a single column without dividing by zero', () => {
+    expect(createFringeLengthShape('v', 1, 2, 10)).toEqual([10])
+  })
+
+  it('handles a non-positive column count', () => {
+    expect(createFringeLengthShape('v', 0, 2, 10)).toEqual([])
   })
 })
