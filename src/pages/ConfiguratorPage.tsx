@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FringeData, MeasurementUnit, Technique } from '@/engine/types'
 import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
-import { createFringeLengths, isFringeCapable, type FringeShape } from '@/engine/fringe'
+import { createFringeLengths, isFringeCapable, totalFringeBeadCount, type FringeShape } from '@/engine/fringe'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -111,7 +111,13 @@ export function ConfiguratorPage() {
     () => physicalSizeMm(technique, cols, rows, bead.widthMm, bead.heightMm, fringeActive ? fringeMaxLength : 0),
     [technique, cols, rows, bead, fringeActive, fringeMaxLength],
   )
-  const total = beadCount(technique, cols, rows)
+  const fringePreviewLengths = useMemo(
+    () => (fringeActive ? createFringeLengths(fringeShape, cols, fringeMaxLength) : null),
+    [fringeActive, fringeShape, cols, fringeMaxLength],
+  )
+  const total =
+    beadCount(technique, cols, rows) +
+    (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
 
   function applyTemplate(template: TemplatePreset) {
     setSelectedTemplate(template.id)
@@ -145,11 +151,9 @@ export function ConfiguratorPage() {
   }
 
   function handleCreate() {
-    let fringe: FringeData | undefined
-    if (fringeActive) {
-      const lengths = createFringeLengths(fringeShape, cols, fringeMaxLength)
-      fringe = { lengths, turnBeads: lengths.map((len) => len > 0) }
-    }
+    const fringe: FringeData | undefined = fringePreviewLengths
+      ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
+      : undefined
     const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe)
     navigate(`/editor/${id}`)
   }

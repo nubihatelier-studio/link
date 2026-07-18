@@ -44,6 +44,16 @@ const PATTERN: PatternDoc = {
   updatedAt: 1,
 }
 
+const PATTERN_WITH_FRINGE: PatternDoc = {
+  id: 'p_2',
+  name: 'Aro con flecos',
+  config: { technique: 'brick', cols: 8, rows: 6, beadTypeId: 'miyuki-delica-11' },
+  cells: {},
+  fringe: { lengths: [1, 2, 4, 5, 5, 4, 2, 1], turnBeads: [true, true, true, true, true, true, true, true] },
+  createdAt: 1,
+  updatedAt: 1,
+}
+
 let fakeAdapter: StorageAdapter
 
 vi.mock('@/storage', () => ({
@@ -122,5 +132,32 @@ describe('EditorPage — atajos de teclado', () => {
 
     await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}')
     expect(useEditorStore.getState().cells['0,0']).toBe('#c9a227')
+  })
+})
+
+describe('EditorPage — conteo de mostacillas en el subtítulo', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([PATTERN_WITH_FRINGE])
+    usePatternsStore.setState({
+      patterns: { [PATTERN_WITH_FRINGE.id]: PATTERN_WITH_FRINGE },
+      order: [PATTERN_WITH_FRINGE.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+  })
+
+  it('suma cuerpo + flecos, no solo cols × rows', async () => {
+    const { EditorPage } = await import('./EditorPage')
+    render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN_WITH_FRINGE.id}`]}>
+        <Routes>
+          <Route path="/editor/:id" element={<EditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    // Cuerpo: 8×6 = 48. Flecos: 1+2+4+5+5+4+2+1 = 24. Total: 72.
+    expect(await screen.findByText(/72 mostacillas/)).toBeInTheDocument()
+    expect(screen.queryByText(/48 mostacillas/)).not.toBeInTheDocument()
   })
 })

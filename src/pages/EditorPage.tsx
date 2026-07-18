@@ -5,7 +5,7 @@ import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
-import { isFringeCapable } from '@/engine/fringe'
+import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
 import { exportPatternToPdf } from '@/lib/pdfExport'
 import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
@@ -151,7 +151,7 @@ export function EditorPage() {
   }
 
   const bead = getBeadType(beadTypeId)
-  const total = beadCount(technique, cols, rows)
+  const total = beadCount(technique, cols, rows) + totalFringeBeadCount(fringe)
 
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
