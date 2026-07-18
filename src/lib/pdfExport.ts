@@ -84,7 +84,7 @@ function drawChart(
   cellW: number,
   cellH: number,
 ): void {
-  const { technique, cells, cols, rows, fringe } = opts
+  const { technique, cells, cols, rows, fringe, rowShape } = opts
   const origin = cellPosition(technique, 0, 0, rows)
 
   const step = cols > 60 ? 10 : cols > 30 ? 5 : 1
@@ -109,9 +109,10 @@ function drawChart(
   doc.setLineWidth(0.05)
   for (let row = 0; row < totalRows; row++) {
     for (let col = 0; col < cols; col++) {
-      // Skip a "cell" past that column's own fringe length — it doesn't exist (columns can have
-      // different fringe lengths, so not every row in the fringe zone applies to every column).
-      if (!isPaintableCell(row, col, cols, rows, fringe)) continue
+      // Skip a "cell" past that column's own fringe length, or outside a shaped row's own span —
+      // it doesn't exist (columns can have different fringe lengths, and a shaped body's rows can
+      // be narrower than `cols`, so not every (row, col) in this rectangle is a real bead).
+      if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) continue
 
       const hex = cells[cellKey(row, col)]
       const pos = cellPosition(technique, row, col, rows)

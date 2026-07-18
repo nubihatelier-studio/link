@@ -185,7 +185,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportPatternImage({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
+      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }
@@ -195,7 +195,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, beadType: bead, showLetters })
+      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }

@@ -1,6 +1,6 @@
-import type { BeadTypeDef, ColorMap, FringeData, Technique } from '@/engine/types'
+import type { BeadTypeDef, ColorMap, FringeData, RowShape, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits, physicalSizeMm } from '@/engine/geometry'
-import { maxFringeLength } from '@/engine/fringe'
+import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { paletteFromCells, letterForIndex } from './palette'
 import { contrastTextColor } from './color'
@@ -14,6 +14,8 @@ export interface ExportImageOptions {
   cells: ColorMap
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
   fringe?: FringeData
+  /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
+  rowShape?: RowShape[]
   beadType: BeadTypeDef
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true. */
   showLetters?: boolean
@@ -61,7 +63,7 @@ export function renderPatternCanvas(
   backgroundHex: string,
   targetLongSidePx: number,
 ): HTMLCanvasElement {
-  const { technique, cols, rows, cells, fringe } = opts
+  const { technique, cols, rows, cells, fringe, rowShape } = opts
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const cellPx = computeExportCellPx(bounds.width, bounds.height, targetLongSidePx)
   const margin = cellPx * 0.6
@@ -89,6 +91,11 @@ export function renderPatternCanvas(
   }
 
   function drawCell(context: CanvasRenderingContext2D, row: number, col: number) {
+    // Defensive: a shaped (rowShape) body's painted cells should already stay inside its own
+    // silhouette (the editor's paint tools gate on this), but checking here too — the same single
+    // gate handles both the body loop and the fringe loop below — keeps the export correct even if
+    // shape and cell data ever drift apart, same reasoning as weaveOrder/wordChart in engine/.
+    if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) return
     const hex = cells[cellKey(row, col)]
     if (!hex) return
     const pos = cellPosition(technique, row, col, rows)

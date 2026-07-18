@@ -68,6 +68,27 @@ describe('renderPatternCanvas', () => {
       renderPatternCanvas({ name: 'x', technique: 'peyote', cols: 4, rows: 4, cells: {}, beadType: bead }, '#fff', 400),
     ).not.toThrow()
   })
+
+  it('does not throw with a shaped (rowShape) body, with or without a fringe under its narrow last row', () => {
+    // Triangle: row 0 has 1 col (centered), row 1 (last) is full width.
+    const rowShape = [
+      { offset: 1, length: 1 },
+      { offset: 0, length: 3 },
+    ]
+    const cells = fillCells(3, 2)
+    expect(() =>
+      renderPatternCanvas({ name: 'x', technique: 'brick', cols: 3, rows: 2, cells, rowShape, beadType: bead }, '#fff', 400),
+    ).not.toThrow()
+
+    const fringe: FringeData = { lengths: [2, 2, 2], turnBeads: [true, true, true] }
+    expect(() =>
+      renderPatternCanvas(
+        { name: 'x', technique: 'brick', cols: 3, rows: 2, cells, rowShape, fringe, beadType: bead },
+        '#fff',
+        400,
+      ),
+    ).not.toThrow()
+  })
 })
 
 describe('composeInstagramCard', () => {
