@@ -84,6 +84,16 @@ interface EditorState {
   /** Whether the canvas interprets drags as fringe-sculpting instead of painting — toggled from FringePanel. */
   fringeSculptMode: boolean
   setFringeSculptMode: (on: boolean) => void
+  /**
+   * When on, any length change to column `col` (manual −/+, or a point in
+   * the drag-sculpt gesture) also mirrors onto `cols - 1 - col` — a bracelet
+   * you're editing symmetrically doesn't need every side touched by hand.
+   * Deliberately does NOT affect the quick-shape presets (V/curve are
+   * already symmetric by construction; the diagonals are symmetric-breaking
+   * on purpose).
+   */
+  fringeSymmetric: boolean
+  setFringeSymmetric: (on: boolean) => void
 
   /**
    * Always normalized to `rowShape.length === rows` (see
@@ -229,37 +239,17 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   fringe: createEmptyFringe(20),
   rowShape: createRectangleRowShape(20, 20),
+  // Delegates to sculptFringeLengths (also mirroring onto the symmetric
+  // counterpart column when fringeSymmetric is on) so a manual −/+ edit gets
+  // the exact same single-commit trimming behavior as the quick shapes and
+  // the drag gesture, instead of duplicating that logic a third time.
   setFringeLength: (col, rawLength) => {
-    const { fringe, rows: bodyRows, cells } = get()
-    const oldLength = fringe.lengths[col] ?? 0
-    const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(rawLength)))
-    if (length === oldLength) return
-
-    const nextLengths = [...fringe.lengths]
-    nextLengths[col] = length
-    const nextTurnBeads = [...fringe.turnBeads]
-    if (length === 0) nextTurnBeads[col] = false
-    const nextFringe: FringeData = { lengths: nextLengths, turnBeads: nextTurnBeads }
-    set({ fringe: nextFringe })
-
-    // Shrinking drops any painted color beyond the new, shorter length —
-    // those cells no longer exist. This goes through `commit` (undoable),
-    // unlike the length change itself.
-    if (length < oldLength) {
-      const next = { ...cells }
-      let changed = false
-      for (let d = length; d < oldLength; d++) {
-        const key = cellKey(bodyRows + d, col)
-        if (key in next) {
-          delete next[key]
-          changed = true
-        }
-      }
-      if (changed) get().commit(next)
-    }
-
-    const id = get().patternId
-    if (id) usePatternsStore.getState().setFringe(id, nextFringe)
+    const { cols, fringeSymmetric } = get()
+    const mirrorCol = cols - 1 - col
+    const lengths: (number | undefined)[] = []
+    lengths[col] = rawLength
+    if (fringeSymmetric && mirrorCol !== col) lengths[mirrorCol] = rawLength
+    get().sculptFringeLengths(lengths)
   },
   setFringeTurnBead: (col, isTurnBead) => {
     const { fringe } = get()
@@ -311,21 +301,28 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   fringeSculptBase: null,
   fringeSculptStart: () => set({ fringeSculptBase: get().cells }),
   fringeSculptSetColumn: (col, rawLength) => {
-    const { fringe, rows: bodyRows, cells } = get()
-    const oldLength = fringe.lengths[col] ?? 0
+    const { fringe, rows: bodyRows, cells, cols, fringeSymmetric } = get()
     const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(rawLength)))
-    if (length === oldLength) return
+    const targets = fringeSymmetric ? [col, cols - 1 - col] : [col]
 
     const nextLengths = [...fringe.lengths]
-    nextLengths[col] = length
     const nextTurnBeads = [...fringe.turnBeads]
-    if (length === 0) nextTurnBeads[col] = false
-
     let nextCells = cells
-    if (length < oldLength) {
-      nextCells = { ...cells }
-      for (let d = length; d < oldLength; d++) delete nextCells[cellKey(bodyRows + d, col)]
+    let anyChanged = false
+
+    for (const c of targets) {
+      const oldLength = fringe.lengths[c] ?? 0
+      if (length === oldLength) continue
+      anyChanged = true
+      nextLengths[c] = length
+      if (length === 0) nextTurnBeads[c] = false
+      if (length < oldLength) {
+        if (nextCells === cells) nextCells = { ...cells }
+        for (let d = length; d < oldLength; d++) delete nextCells[cellKey(bodyRows + d, c)]
+      }
     }
+    if (!anyChanged) return
+
     // Bare set — no commit, no persistence. Both happen once in fringeSculptEnd,
     // so a drag across many columns produces one undo step and one IndexedDB write.
     set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
@@ -340,6 +337,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
   fringeSculptMode: false,
   setFringeSculptMode: (on) => set({ fringeSculptMode: on }),
+  fringeSymmetric: false,
+  setFringeSymmetric: (on) => set({ fringeSymmetric: on }),
 
   growRowEdge: (row, edge) => {
     const { rowShape, cols } = get()

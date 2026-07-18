@@ -28,6 +28,8 @@ function resetStore(
     clipboard: null,
     history: [],
     future: [],
+    fringeSymmetric: false,
+    fringeSculptMode: false,
   })
 }
 
@@ -325,6 +327,44 @@ describe('editorStore — sesión de esculpido por arrastre (fringeSculptStart/S
     expect(useEditorStore.getState().fringeSculptMode).toBe(true)
     useEditorStore.getState().setFringeSculptMode(false)
     expect(useEditorStore.getState().fringeSculptMode).toBe(false)
+  })
+
+  it('con fringeSymmetric activo, refleja el largo en la columna espejo (cols - 1 - col)', () => {
+    useEditorStore.getState().setFringeSymmetric(true)
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(0, 5) // mirror is column 2 (cols=3)
+    expect(useEditorStore.getState().fringe.lengths).toEqual([5, 0, 5])
+  })
+
+  it('con fringeSymmetric activo, la columna central (impar cols) no se duplica', () => {
+    useEditorStore.getState().setFringeSymmetric(true)
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(1, 6) // column 1 is its own mirror in a 3-col grid
+    expect(useEditorStore.getState().fringe.lengths).toEqual([3, 6, 0])
+  })
+
+  it('con fringeSymmetric apagado (default), solo cambia la columna tocada', () => {
+    useEditorStore.getState().fringeSculptStart()
+    useEditorStore.getState().fringeSculptSetColumn(0, 5)
+    expect(useEditorStore.getState().fringe.lengths).toEqual([5, 0, 0])
+  })
+})
+
+describe('editorStore — setFringeLength con fringeSymmetric', () => {
+  beforeEach(() => {
+    resetStore({ fringe: { lengths: [3, 0, 0], turnBeads: [false, false, false] } })
+    useEditorStore.setState({ cols: 3 })
+  })
+
+  it('refleja un cambio manual (−/+) en la columna espejo cuando está activo', () => {
+    useEditorStore.getState().setFringeSymmetric(true)
+    useEditorStore.getState().setFringeLength(0, 4)
+    expect(useEditorStore.getState().fringe.lengths).toEqual([4, 0, 4])
+  })
+
+  it('no toca la columna espejo cuando está apagado', () => {
+    useEditorStore.getState().setFringeLength(0, 4)
+    expect(useEditorStore.getState().fringe.lengths).toEqual([4, 0, 0])
   })
 })
 

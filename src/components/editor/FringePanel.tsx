@@ -23,6 +23,8 @@ export function FringePanel() {
     setShowFringeDivider,
     fringeSculptMode,
     setFringeSculptMode,
+    fringeSymmetric,
+    setFringeSymmetric,
   } = useEditorStore()
   const [shapeMin, setShapeMin] = useState(1)
   const [shapeMax, setShapeMax] = useState(() => Math.max(4, maxFringeLength(fringe)))
@@ -90,14 +92,25 @@ export function FringePanel() {
       </div>
 
       <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
-        <button
-          onClick={() => setFringeSculptMode(!fringeSculptMode)}
-          aria-pressed={fringeSculptMode}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors
-            ${fringeSculptMode ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
-        >
-          {t.editor.fringe.sculptMode}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setFringeSculptMode(!fringeSculptMode)}
+            aria-pressed={fringeSculptMode}
+            className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors
+              ${fringeSculptMode ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+          >
+            {t.editor.fringe.sculptMode}
+          </button>
+          <button
+            onClick={() => setFringeSymmetric(!fringeSymmetric)}
+            aria-pressed={fringeSymmetric}
+            title={t.editor.fringe.symmetricHint}
+            className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors
+              ${fringeSymmetric ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+          >
+            {t.editor.fringe.symmetric}
+          </button>
+        </div>
         {fringeSculptMode && <p className="text-[11px] text-text-muted">{t.editor.fringe.sculptHint}</p>}
       </div>
 
