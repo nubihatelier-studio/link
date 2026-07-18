@@ -1,3 +1,6 @@
+import { useRef } from 'react'
+import { TAP_SLOP_PX } from './tapGesture'
+
 interface HandsBusyViewProps {
   unitLabel: string
   unitIndex: number
@@ -24,10 +27,43 @@ export function HandsBusyView({
   tapAnywhere,
   canAdvance,
 }: HandsBusyViewProps) {
+  const active = tapAnywhere && canAdvance
+  const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
+  const pointerCancelled = useRef(false)
+
+  // Pointer events instead of click: this view has nothing to scroll, so unlike WeaveCanvas there's
+  // no native-scroll behavior to preserve — but we still gate on TAP_SLOP_PX (not fire straight off
+  // pointerdown) so a finger that starts dragging here (e.g. an accidental pinch, or a swipe that
+  // strays onto this area) doesn't register as an advance too.
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!active) return
+    if (pointerStart.current) {
+      pointerCancelled.current = true
+      return
+    }
+    pointerStart.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId }
+    pointerCancelled.current = false
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const start = pointerStart.current
+    pointerStart.current = null
+    if (!active || !start || start.pointerId !== e.pointerId || pointerCancelled.current) return
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
+    if (moved > TAP_SLOP_PX) return
+    onAdvance()
+  }
+
+  function handlePointerCancel() {
+    pointerStart.current = null
+  }
+
   return (
     <div
-      className={`flex h-full flex-col items-center justify-center gap-6 px-6 text-center md:gap-10 ${tapAnywhere && canAdvance ? 'cursor-pointer' : ''}`}
-      onClick={tapAnywhere && canAdvance ? onAdvance : undefined}
+      className={`flex h-full flex-col items-center justify-center gap-6 px-6 text-center md:gap-10 ${active ? 'cursor-pointer' : ''}`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       role={tapAnywhere ? 'button' : undefined}
       aria-label={tapAnywhere ? unitLabel : undefined}
     >

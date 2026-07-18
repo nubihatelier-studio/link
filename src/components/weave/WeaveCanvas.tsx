@@ -4,6 +4,7 @@ import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { directionAtStep } from '@/engine/weaveOrder'
+import { TAP_SLOP_PX } from './tapGesture'
 
 interface WeaveCanvasProps {
   technique: Technique
@@ -21,6 +22,8 @@ const MARGIN = 28
 
 export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, currentIndex, onTapNext }: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
+  const pointerCancelled = useRef(false)
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const width = bounds.width * CELL_PX + MARGIN
   const height = bounds.height * CELL_PX + MARGIN
@@ -134,21 +137,56 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
     }
   }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height])
 
-  function handleClick(e: React.MouseEvent) {
-    const canvas = canvasRef.current!
+  function isNearNextCell(clientX: number, clientY: number): boolean {
+    const canvas = canvasRef.current
+    if (!canvas || !nextCell) return false
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    if (!nextCell) return
+    const x = clientX - rect.left
+    const y = clientY - rect.top
     const pos = cellPosition(technique, nextCell.row, nextCell.col, rows)
     const cx = MARGIN + pos.x * CELL_PX + CELL_PX / 2
     const cy = MARGIN + pos.y * CELL_PX + CELL_PX / 2
-    if (Math.hypot(x - cx, y - cy) < CELL_PX * 1.5) onTapNext()
+    return Math.hypot(x - cx, y - cy) < CELL_PX * 1.5
+  }
+
+  // Pointer events (not click) so a real tap advances the moment the finger lifts, not after the
+  // browser's click-event indirection — but the container also stays `overflow-auto` (panning a
+  // large pattern), so we can't just fire on pointerdown or preventDefault it: we track the down
+  // position and only treat pointerup as a tap if the finger barely moved (TAP_SLOP_PX), which is
+  // the same distinction a scroll/pinch gesture would fail, without blocking native scrolling to
+  // get it. Listening on the wrapping div (not just the canvas) means the padding around a small
+  // pattern counts as tappable too, not just the exact canvas pixels.
+  function handlePointerDown(e: React.PointerEvent) {
+    // A second finger going down mid-gesture means a pinch, not a tap — cancel the whole gesture.
+    if (pointerStart.current) {
+      pointerCancelled.current = true
+      return
+    }
+    pointerStart.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId }
+    pointerCancelled.current = false
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const start = pointerStart.current
+    pointerStart.current = null
+    if (!start || start.pointerId !== e.pointerId || pointerCancelled.current) return
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
+    if (moved > TAP_SLOP_PX) return
+    if (isNearNextCell(e.clientX, e.clientY)) onTapNext()
+  }
+
+  function handlePointerCancel() {
+    pointerStart.current = null
   }
 
   return (
-    <div className="no-scrollbar h-full w-full overflow-auto p-4">
-      <canvas ref={canvasRef} onClick={handleClick} className="cursor-pointer" />
+    <div
+      className="no-scrollbar h-full w-full overflow-auto p-4"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    >
+      <canvas ref={canvasRef} className="cursor-pointer" />
     </div>
   )
 }
