@@ -1,6 +1,19 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, BoxSelect, FlipHorizontal2, FlipVertical2, Merge, Plus, Replace, Shuffle } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowDownLeft,
+  ArrowDownRight,
+  ArrowRight,
+  BoxSelect,
+  FlipHorizontal2,
+  FlipVertical2,
+  Merge,
+  Plus,
+  Replace,
+  Shuffle,
+} from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
+import type { GradientDirection } from '@/engine/gradient'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { paletteFromCells } from '@/lib/palette'
 import { catalogMatchForHex, contrastTextColor } from '@/lib/color'
@@ -26,12 +39,16 @@ export function ColorPanel() {
     swapColors,
     selectColor,
     reflectSelection,
+    applyGradient,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceDraft, setReplaceDraft] = useState('#000000')
   const [swapTarget, setSwapTarget] = useState<string | null>(null)
+  const [gradientStart, setGradientStart] = useState<string | null>(null)
+  const [gradientEnd, setGradientEnd] = useState<string | null>(null)
+  const [gradientDirection, setGradientDirection] = useState<GradientDirection>('vertical')
 
   function closeAllPanels() {
     setMergeTarget(null)
@@ -345,7 +362,104 @@ export function ColorPanel() {
           {palette.length === 0 && <p className="text-xs text-text-muted">{t.editor.paletteEmpty}</p>}
         </ul>
       </section>
+
+      {palette.length >= 2 && (
+        <GradientSection
+          palette={palette}
+          colorLetters={colorLetters}
+          start={gradientStart ?? palette[0].hex}
+          end={gradientEnd ?? palette[1].hex}
+          direction={gradientDirection}
+          onSetStart={setGradientStart}
+          onSetEnd={setGradientEnd}
+          onSetDirection={setGradientDirection}
+          onApply={() => applyGradient(gradientStart ?? palette[0].hex, gradientEnd ?? palette[1].hex, gradientDirection)}
+        />
+      )}
     </div>
+  )
+}
+
+function GradientSection({
+  palette,
+  colorLetters,
+  start,
+  end,
+  direction,
+  onSetStart,
+  onSetEnd,
+  onSetDirection,
+  onApply,
+}: {
+  palette: { hex: string; count: number }[]
+  colorLetters: Record<string, string>
+  start: string
+  end: string
+  direction: GradientDirection
+  onSetStart: (hex: string) => void
+  onSetEnd: (hex: string) => void
+  onSetDirection: (direction: GradientDirection) => void
+  onApply: () => void
+}) {
+  const directions: { value: GradientDirection; icon: typeof ArrowDown; label: string }[] = [
+    { value: 'vertical', icon: ArrowDown, label: t.gradient.directionVertical },
+    { value: 'diagonalDR', icon: ArrowDownRight, label: t.gradient.directionDiagonalDR },
+    { value: 'diagonalDL', icon: ArrowDownLeft, label: t.gradient.directionDiagonalDL },
+  ]
+
+  function swatchRow(selected: string, onSelect: (hex: string) => void) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {palette.map((p) => (
+          <button
+            key={p.hex}
+            title={p.hex}
+            onClick={() => onSelect(p.hex)}
+            aria-pressed={selected === p.hex}
+            className={`flex h-7 w-7 items-center justify-center rounded-md border-2 text-[10px] font-bold
+              ${selected === p.hex ? 'border-accent-500' : 'border-border'}`}
+            style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
+          >
+            {colorLetters[p.hex] ?? ''}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.gradient.title}</h3>
+      <p className="mb-3 text-xs text-text-muted">{t.gradient.hint}</p>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.gradient.start}</p>
+      {swatchRow(start, onSetStart)}
+
+      <p className="mb-1.5 mt-3 text-[11px] font-semibold text-text-muted">{t.gradient.end}</p>
+      {swatchRow(end, onSetEnd)}
+
+      <p className="mb-1.5 mt-3 text-[11px] font-semibold text-text-muted">{t.gradient.direction}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {directions.map(({ value, icon: Icon, label }) => (
+          <button
+            key={value}
+            onClick={() => onSetDirection(value)}
+            title={label}
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium transition-colors
+              ${direction === value ? 'border-accent-500 bg-accent-500 text-accent-ink' : 'border-border bg-surface-2 text-text-muted hover:bg-surface-3 hover:text-text'}`}
+          >
+            <Icon size={15} />
+          </button>
+        ))}
+      </div>
+
+      <button
+        onClick={onApply}
+        className="mt-3 w-full rounded-full bg-accent-500 py-2 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-400"
+      >
+        {t.gradient.apply}
+      </button>
+    </section>
   )
 }
 

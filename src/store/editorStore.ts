@@ -3,9 +3,10 @@ import type { ColorMap, FringeData, PatternDoc, RowShape, Technique } from '@/en
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
-import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, normalizeFringe } from '@/engine/fringe'
+import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { createRectangleRowShape, normalizeRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
+import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 
@@ -186,6 +187,14 @@ interface EditorState {
   swapColors: (hexA: string, hexB: string) => void
   /** Flood-fills the contiguous same-color region starting at (row, col) with `hex` (or erases it). */
   floodFill: (row: number, col: number, hex: string | null) => void
+  /**
+   * Fills the current selection (or every paintable cell — body and fringe
+   * alike — if nothing is selected) with a gradient between `startHex` and
+   * `endHex`, quantized to the pattern's existing palette plus those two
+   * endpoints, with soft dithering at the color-band boundaries. One undo
+   * step, like `mergeColors`/`floodFill`.
+   */
+  applyGradient: (startHex: string, endHex: string, direction: GradientDirection) => void
 
   /** Stroke = one drag gesture (pencil/eraser) collapsed into a single undo step. */
   strokeBase: ColorMap | null
@@ -544,6 +553,36 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const { cells, cols, rows, fringe, rowShape } = get()
     if (hex) get().registerColor(hex)
     get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe, rowShape))
+  },
+
+  applyGradient: (startHex, endHex, direction) => {
+    const { cells, cols, rows, fringe, rowShape, technique, selection, colorSelectionMask } = get()
+    const targets: { row: number; col: number }[] = []
+    if (selection) {
+      for (let r = selection.r0; r <= selection.r1; r++) {
+        for (let c = selection.c0; c <= selection.c1; c++) {
+          const key = cellKey(r, c)
+          if (colorSelectionMask && !colorSelectionMask.has(key)) continue
+          if (!isPaintableCell(r, c, cols, rows, fringe, rowShape)) continue
+          targets.push({ row: r, col: c })
+        }
+      }
+    } else {
+      const maxFringe = maxFringeLength(fringe)
+      for (let r = 0; r < rows + maxFringe; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (!isPaintableCell(r, c, cols, rows, fringe, rowShape)) continue
+          targets.push({ row: r, col: c })
+        }
+      }
+    }
+    if (targets.length === 0) return
+
+    const palette = paletteFromCells(cells).map((p) => p.hex)
+    const gradientColors = computeGradientCells(targets, technique, rows, startHex, endHex, direction, palette)
+    get().registerColor(startHex)
+    get().registerColor(endHex)
+    get().commit({ ...cells, ...gradientColors })
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),

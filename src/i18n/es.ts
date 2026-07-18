@@ -236,6 +236,18 @@ export const t = {
     selectColor: 'Seleccionar mostacillas de este color',
     preview: 'Vista previa',
   },
+  gradient: {
+    title: 'Degradado',
+    hint: 'Se aplica a la selección actual, o a todo el patrón (cuerpo y fleco) si no hay nada seleccionado.',
+    start: 'Color inicio',
+    end: 'Color fin',
+    direction: 'Dirección',
+    directionVertical: 'Vertical',
+    directionDiagonalDR: 'Diagonal ↘',
+    directionDiagonalDL: 'Diagonal ↙',
+    apply: 'Aplicar degradado',
+    needsTwoColors: 'Necesitas al menos 2 colores en la paleta para armar un degradado.',
+  },
   common: {
     save: 'Guardar',
     cancel: 'Cancelar',
