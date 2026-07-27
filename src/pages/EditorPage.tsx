@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
@@ -37,6 +37,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const getPattern = usePatternsStore((s) => s.getPattern)
   const {
     loadPattern,
@@ -54,6 +55,7 @@ export function EditorPage() {
     zoom,
     setZoom,
     setTool,
+    setFringeSymmetric,
     undo,
     redo,
   } = useEditorStore()
@@ -72,8 +74,15 @@ export function EditorPage() {
   useEffect(() => {
     if (!id) return
     const doc = getPattern(id)
-    if (doc) loadPattern(doc)
-  }, [id, getPattern, loadPattern])
+    if (!doc) return
+    loadPattern(doc)
+    // "Aro con flecos" arrives here right after creation with this flag set
+    // (see ConfiguratorPage#handleCreate) — its rhombus body + V fringe are
+    // symmetric by construction, so starting with the toggle on keeps a
+    // manual tweak from silently drifting lopsided.
+    const state = location.state as { fringeSymmetricDefault?: boolean } | null
+    if (state?.fringeSymmetricDefault) setFringeSymmetric(true)
+  }, [id, getPattern, loadPattern, location.state, setFringeSymmetric])
 
   useEffect(() => {
     if (!colorDrawerOpen) return

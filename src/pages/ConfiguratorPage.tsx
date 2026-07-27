@@ -186,7 +186,10 @@ export function ConfiguratorPage() {
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
       : undefined
     const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined)
-    navigate(`/editor/${id}`)
+    // "Aro con flecos" starts from a symmetric shape (rhombus body + V
+    // fringe) — defaulting the length-symmetry toggle on too means a manual
+    // tweak keeps that symmetry instead of silently drifting lopsided.
+    navigate(`/editor/${id}`, selectedTemplate === 'aroFlecos' ? { state: { fringeSymmetricDefault: true } } : undefined)
   }
 
   return (

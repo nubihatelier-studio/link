@@ -199,6 +199,28 @@ describe('createFringeLengths', () => {
   it('handles a single column without dividing by zero', () => {
     expect(createFringeLengths('v', 1, 5)).toEqual([5])
   })
+
+  describe('v: mirror symmetry and a clean centered peak (Corrección 2)', () => {
+    it.each([8, 11, 12])('N=%i: length(col) === length(N+1-col) (1-based mirror)', (n) => {
+      const lengths = createFringeLengths('v', n, n)
+      for (let i = 0; i < n; i++) expect(lengths[i]).toBe(lengths[n - 1 - i])
+    })
+
+    it('N=8 (even): the two center columns share the exact requested max — no more falling one short', () => {
+      const lengths = createFringeLengths('v', 8, 8)
+      expect(lengths).toEqual([1, 3, 6, 8, 8, 6, 3, 1])
+    })
+
+    it('N=11 (odd): the single center column hits the exact requested max', () => {
+      const lengths = createFringeLengths('v', 11, 8)
+      expect(lengths).toEqual([1, 2, 4, 5, 7, 8, 7, 5, 4, 2, 1])
+    })
+
+    it('N=12 (even): the two center columns share the exact requested max', () => {
+      const lengths = createFringeLengths('v', 12, 8)
+      expect(lengths).toEqual([1, 2, 4, 5, 7, 8, 8, 7, 5, 4, 2, 1])
+    })
+  })
 })
 
 describe('createFringeLengthShape', () => {
@@ -259,5 +281,28 @@ describe('createFringeLengthShape', () => {
 
   it('handles a non-positive column count', () => {
     expect(createFringeLengthShape('v', 0, 2, 10)).toEqual([])
+  })
+
+  describe('v / vInverted / curve: mirror symmetry and a clean centered peak (Corrección 2)', () => {
+    it.each(['v', 'vInverted', 'curve'] as const)('%s: N=8, 11, 12 all mirror length(col) === length(N+1-col)', (shape) => {
+      for (const n of [8, 11, 12]) {
+        const lengths = createFringeLengthShape(shape, n, 1, 10)
+        for (let i = 0; i < n; i++) expect(lengths[i]).toBe(lengths[n - 1 - i])
+      }
+    })
+
+    it('v: N=8 (even) reaches the exact max at both center columns', () => {
+      expect(createFringeLengthShape('v', 8, 1, 10)).toEqual([1, 4, 7, 10, 10, 7, 4, 1])
+    })
+
+    it('v: N=12 (even) reaches the exact max at both center columns', () => {
+      const lengths = createFringeLengthShape('v', 12, 1, 10)
+      expect(lengths[5]).toBe(10)
+      expect(lengths[6]).toBe(10)
+    })
+
+    it('vInverted: N=8 (even) reaches the exact min at both center columns', () => {
+      expect(createFringeLengthShape('vInverted', 8, 1, 10)).toEqual([10, 7, 4, 1, 1, 4, 7, 10])
+    })
   })
 })

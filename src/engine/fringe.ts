@@ -1,5 +1,30 @@
 import type { FringeData, RowShape, Technique } from './types'
 
+/**
+ * How "centered" column `i` of `cols` is, as a value in [0, 1]: 1 exactly at
+ * the center (or, for an even `cols`, shared exactly by the two middle
+ * columns), 0 at the two edge columns, linear in between. Used by every
+ * mirrored fringe shape ('v', 'vInverted', 'curve') so a symmetric silhouette
+ * and an exact centered peak are guaranteed by construction rather than by
+ * floating-point luck.
+ *
+ * Deliberately computed from the integer `Math.min(i, cols - 1 - i)` (the
+ * column's distance to its *nearest* edge) rather than `Math.abs(i - (cols -
+ * 1) / 2)` (its distance from a possibly-fractional center): the latter goes
+ * through a division that can round a hair differently for a column and its
+ * mirror, which is exactly why an even `cols` used to fall one bead short of
+ * the requested max at the peak, and occasionally left the two edge columns
+ * mismatched — `Math.min` gives column `i` and its mirror `cols - 1 - i` the
+ * *same* integer, every time, so both the mirror and the exact peak are
+ * unavoidable rather than incidental.
+ */
+function centeredness(i: number, cols: number): number {
+  if (cols <= 1) return 1 // the sole column has nothing to be more central than
+  const halfSpan = Math.floor((cols - 1) / 2) || 1
+  const distFromNearestEdge = Math.min(i, cols - 1 - i)
+  return distFromNearestEdge / halfSpan
+}
+
 /** Initial shape offered at creation time — purely a starting point, every length stays editable afterward. */
 export type FringeShape = 'straight' | 'v' | 'cascade'
 
@@ -103,15 +128,11 @@ export function createFringeLengths(shape: FringeShape, cols: number, maxLength:
       return Array.from({ length: cols }, () => clampedMax)
 
     case 'v': {
-      // Longest at the center column, tapering linearly down to 1 bead at
-      // the two edge columns — the classic "V" fringe silhouette.
-      const center = (cols - 1) / 2
-      const maxDist = center || 1
-      return Array.from({ length: cols }, (_, i) => {
-        const distFromCenter = Math.abs(i - center)
-        const t = distFromCenter / maxDist
-        return Math.max(1, Math.round(clampedMax - (clampedMax - 1) * t))
-      })
+      // Longest at the center column (or shared by the two center columns
+      // when `cols` is even), tapering linearly down to 1 bead at the two
+      // edge columns — the classic "V" fringe silhouette, mirror-symmetric
+      // by construction (see `centeredness`).
+      return Array.from({ length: cols }, (_, i) => Math.max(1, Math.round(1 + (clampedMax - 1) * centeredness(i, cols))))
     }
 
     case 'cascade': {
@@ -162,20 +183,15 @@ export function createFringeLengthShape(shape: FringeSculptShape, cols: number, 
   if (cols <= 0) return []
   if (cols === 1) return [hi]
 
-  const center = (cols - 1) / 2
-  const maxDist = center || 1
-
   return Array.from({ length: cols }, (_, i) => {
     switch (shape) {
       case 'v': {
         // Longest at the center column, tapering linearly to the shortest at the edges.
-        const t = Math.abs(i - center) / maxDist
-        return Math.round(hi - (hi - lo) * t)
+        return Math.round(lo + (hi - lo) * centeredness(i, cols))
       }
       case 'vInverted': {
         // Shortest at the center column, tapering linearly to the longest at the edges.
-        const t = Math.abs(i - center) / maxDist
-        return Math.round(lo + (hi - lo) * t)
+        return Math.round(hi - (hi - lo) * centeredness(i, cols))
       }
       case 'diagonalLR': {
         // Shortest at column 1, ramping linearly up to the longest at the last column.
@@ -191,7 +207,7 @@ export function createFringeLengthShape(shape: FringeSculptShape, cols: number, 
         // Same endpoints as 'v' (longest at center, shortest at edges), but
         // eased with a cosine curve instead of a straight linear taper — a
         // rounded arc silhouette instead of a sharp point.
-        const t = Math.abs(i - center) / maxDist
+        const t = 1 - centeredness(i, cols)
         const eased = 0.5 + 0.5 * Math.cos(Math.PI * t)
         return Math.round(lo + (hi - lo) * eased)
       }
