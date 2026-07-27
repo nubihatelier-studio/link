@@ -56,20 +56,21 @@ export function rowPitch(technique: Technique): number {
  *
  * When `bodyRows` is given and `row` falls in the fringe zone (`row >=
  * bodyRows`, see `engine/fringe.ts`), the position instead anchors at the
- * last body row's position for that column and continues straight down at
- * the *same* row pitch the body itself uses — a fringe strand is a seamless
- * continuation of the weave, not a separate free-hanging element, so a
- * diagonal of color crossing the body/fringe boundary must not kink. It
- * still carries no row-parity offset (peyote's column stagger, brick's
- * row shift) since a hanging strand doesn't interlock sideways — only the
- * anchor column's own x is carried forward. For loom this is a no-op vs.
- * the plain formula (loom's pitch is already 1 with no offset).
+ * last body row's position for that column (via `fringeAnchorX`, the single
+ * source of truth for that X) and continues straight down at the *same* row
+ * pitch the body itself uses — a fringe strand is a seamless continuation of
+ * the weave, not a separate free-hanging element, so a diagonal of color
+ * crossing the body/fringe boundary must not kink. It still carries no
+ * row-parity offset (peyote's column stagger, brick's row shift) since a
+ * hanging strand doesn't interlock sideways — only the anchor column's own x
+ * is carried forward. For loom this is a no-op vs. the plain formula (loom's
+ * pitch is already 1 with no offset).
  */
 export function cellPosition(technique: Technique, row: number, col: number, bodyRows?: number): CellPosition {
   if (bodyRows !== undefined && row >= bodyRows) {
-    const anchor = cellPosition(technique, bodyRows - 1, col)
+    const anchorY = cellPosition(technique, bodyRows - 1, col).y
     const pitch = rowPitch(technique)
-    return { x: anchor.x, y: anchor.y + (row - (bodyRows - 1)) * pitch }
+    return { x: fringeAnchorX(technique, col, bodyRows), y: anchorY + (row - (bodyRows - 1)) * pitch }
   }
   switch (technique) {
     case 'loom':
@@ -85,6 +86,24 @@ export function cellPosition(technique: Technique, row: number, col: number, bod
       return { x: col + xOffset, y: row * pitch }
     }
   }
+}
+
+/** The X position (bead units) of the bead at (row, col) — same as `cellPosition(...).x`, named for callers that only need the horizontal position. */
+export function beadCenterX(technique: Technique, row: number, col: number): number {
+  return cellPosition(technique, row, col).x
+}
+
+/**
+ * The single source of truth for where a fringe strand in column `col`
+ * hangs from: the X position (bead units) of the body's own last row
+ * (`bodyRows - 1`) in that column, offset and all. Every fringe renderer
+ * (editor canvas, weave mode, PNG, Instagram card, PDF) and the fringe
+ * hit-test route through `cellPosition`/this function — never recompute a
+ * fringe column's X any other way, or two code paths can end up disagreeing
+ * about where a given column's fringe hangs from.
+ */
+export function fringeAnchorX(technique: Technique, col: number, bodyRows: number): number {
+  return beadCenterX(technique, bodyRows - 1, col)
 }
 
 /**
@@ -196,8 +215,12 @@ export function cellAtPositionWithFringe(
 
   const depth = Math.max(0, Math.floor((yUnits - anchorY) / pitch) - 1)
   const row = bodyRows + depth
-  const lastBodyRowXOffset = cellPosition(technique, bodyRows - 1, 0).x
-  const col = Math.floor(xUnits - lastBodyRowXOffset)
+  // fringeAnchorX(technique, 0, bodyRows) gives just the row's own additive
+  // offset (brick/loom have no per-column term), so subtracting it out of
+  // xUnits recovers the real column — the exact inverse of how cellPosition
+  // computes a fringe cell's x. Same anchor function as the renderer, so a
+  // click always resolves to the column its fringe was actually drawn at.
+  const col = Math.floor(xUnits - fringeAnchorX(technique, 0, bodyRows))
   return { row, col }
 }
 

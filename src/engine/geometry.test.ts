@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  beadCenterX,
   beadCount,
   cellAtPosition,
   cellAtPositionWithFringe,
   cellPosition,
+  fringeAnchorX,
   gridBoundsUnits,
   gridFromPhysicalSizeMm,
   physicalSizeMm,
@@ -190,5 +192,64 @@ describe('gridBoundsUnits / physicalSizeMm with a fringe', () => {
     expect(physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H)).toEqual(
       physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H, 0),
     )
+  })
+})
+
+describe('fringeAnchorX — single source of truth for where a column\'s fringe hangs from', () => {
+  it('brick 8x6 (QA regression case, "Aro de muestra"): matches beadCenterX at the last row for all 8 columns', () => {
+    const bodyRows = 6
+    const lastRow = bodyRows - 1 // row 5 — odd, so brick's row offset applies
+    for (let col = 0; col < 8; col++) {
+      expect(fringeAnchorX('brick', col, bodyRows)).toBe(beadCenterX('brick', lastRow, col))
+    }
+  })
+
+  it('brick: every column follows the exact same additive offset — no column can drift on its own', () => {
+    const bodyRows = 6
+    const anchors = Array.from({ length: 8 }, (_, col) => fringeAnchorX('brick', col, bodyRows))
+    // col + offset: consecutive columns must differ by exactly 1, and the very
+    // first column's fractional part IS the shared offset every other column
+    // must also carry — this is what the "one strip anchored at x=56, the
+    // rest at x=88" regression would have violated.
+    const offset = anchors[0] - 0
+    for (let col = 0; col < 8; col++) {
+      expect(anchors[col]).toBeCloseTo(col + offset, 10)
+    }
+  })
+
+  it('brick: an odd last row (row index 5) carries the classic 0.5 stagger', () => {
+    expect(fringeAnchorX('brick', 0, 6)).toBeCloseTo(0.5, 10)
+    expect(fringeAnchorX('brick', 3, 6)).toBeCloseTo(3.5, 10)
+  })
+
+  it('brick: an even last row carries no stagger', () => {
+    expect(fringeAnchorX('brick', 0, 5)).toBeCloseTo(0, 10) // last row index 4, even
+  })
+
+  it('loom: no offset regardless of bodyRows parity', () => {
+    expect(fringeAnchorX('loom', 3, 6)).toBe(3)
+    expect(fringeAnchorX('loom', 3, 5)).toBe(3)
+  })
+
+  it('cellPosition\'s fringe branch uses fringeAnchorX for every depth — the anchor never drifts as a strand hangs lower', () => {
+    const bodyRows = 6
+    for (let col = 0; col < 8; col++) {
+      const anchor = fringeAnchorX('brick', col, bodyRows)
+      for (let depth = 0; depth < 5; depth++) {
+        expect(cellPosition('brick', bodyRows + depth, col, bodyRows).x).toBe(anchor)
+      }
+    }
+  })
+
+  it('cellAtPositionWithFringe inverts a fringe click back to the exact column cellPosition drew it at', () => {
+    const bodyRows = 6
+    for (let col = 0; col < 8; col++) {
+      for (let depth = 0; depth < 3; depth++) {
+        const row = bodyRows + depth
+        const pos = cellPosition('brick', row, col, bodyRows)
+        const hit = cellAtPositionWithFringe('brick', bodyRows, pos.x + 0.4, pos.y + 0.4)
+        expect(hit).toEqual({ row, col })
+      }
+    }
   })
 })
