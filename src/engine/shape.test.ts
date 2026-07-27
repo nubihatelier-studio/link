@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isOddIndex } from './geometry'
 import {
   createRectangleRowShape,
   createShapedRowShape,
@@ -6,6 +7,14 @@ import {
   maxRowWidth,
   normalizeRowShape,
 } from './shape'
+
+/** Physical left edge of a brick row, in bead units — the row's own index offset plus brick's per-row 0.5 stagger (see `geometry.ts#cellPosition`). */
+function physicalLeft(row: number, offset: number): number {
+  return offset + (isOddIndex(row) ? 0.5 : 0)
+}
+function physicalRight(row: number, offset: number, length: number, cols: number): number {
+  return cols - (offset + length + (isOddIndex(row) ? 0.5 : 0))
+}
 
 describe('isShapeCapable', () => {
   it('only brick can have a shaped body', () => {
@@ -110,17 +119,89 @@ describe('createShapedRowShape', () => {
     expect(shape[3].length).toBeLessThan(shape[2].length)
   })
 
-  it('every row stays centered: offset + length/2 is within half a bead of the grid\'s midpoint', () => {
+  it('every row stays centered on the pattern\'s physical axis (accounting for brick\'s own 0.5 stagger), not just its raw index', () => {
     for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
       const shape = createShapedRowShape(preset, 10, 6)
-      for (const row of shape) {
-        // cols=10 is even, so exact centering isn't possible for every width — allow half a bead of slack.
-        expect(Math.abs(row.offset + row.length / 2 - 5)).toBeLessThanOrEqual(0.5)
-      }
+      shape.forEach((row, r) => {
+        const left = physicalLeft(r, row.offset)
+        const right = physicalRight(r, row.offset, row.length, 10)
+        // A half-bead rounding slack on the offset shows up as at most a full
+        // bead of left/right difference (see Corrección 1 tests below) — the
+        // unavoidable case when the row's parity and (cols-width)'s parity
+        // mismatch, not a sign the row is off-center.
+        expect(Math.abs(left - right)).toBeLessThanOrEqual(1)
+      })
     }
   })
 
   it('a single-row body does not divide by zero', () => {
     expect(createShapedRowShape('triangle', 5, 1)).toEqual([{ offset: 0, length: 5 }])
+  })
+})
+
+describe('createShapedRowShape — symmetric generation (Corrección 1)', () => {
+  const dims = [
+    [8, 7],
+    [8, 8],
+    [9, 9],
+    [9, 10],
+    [10, 6],
+    [10, 12],
+    [11, 11],
+    [11, 12],
+    [12, 10],
+    [12, 11],
+    [13, 9],
+  ] as const
+
+  it('rhombus width mirrors vertically: width(i) === width(n-1-i)', () => {
+    for (const [cols, rows] of dims) {
+      const shape = createShapedRowShape('rhombus', cols, rows)
+      for (let i = 0; i < rows; i++) expect(shape[i].length).toBe(shape[rows - 1 - i].length)
+    }
+  })
+
+  it('every row is centered on the same physical axis: left margin equals right margin, with at most half a bead of unavoidable slack per row', () => {
+    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+      for (const [cols, rows] of dims) {
+        const shape = createShapedRowShape(preset, cols, rows)
+        for (let r = 0; r < rows; r++) {
+          const { offset, length } = shape[r]
+          const left = physicalLeft(r, offset)
+          const right = physicalRight(r, offset, length, cols)
+          // A half-bead rounding slack on `offset` shows up as at most a
+          // full bead of left/right margin difference (dev = 2 * slack) —
+          // never more, since idealOffset is rounded to the nearest integer.
+          expect(Math.abs(left - right)).toBeLessThanOrEqual(1 + 1e-9)
+        }
+      }
+    }
+  })
+
+  it('the extra half-bead (when unavoidable) is never assigned to the same side every time across a whole piece', () => {
+    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+      for (const [cols, rows] of dims) {
+        const shape = createShapedRowShape(preset, cols, rows)
+        const skewedRows = shape
+          .map((s, r) => physicalLeft(r, s.offset) - physicalRight(r, s.offset, s.length, cols))
+          .filter((dev) => Math.abs(dev) > 0.5)
+        if (skewedRows.length < 2) continue // not enough tie rows in this size to judge balance
+        const favoringLeft = skewedRows.filter((d) => d > 0).length
+        const favoringRight = skewedRows.filter((d) => d < 0).length
+        expect(favoringLeft).toBeGreaterThan(0)
+        expect(favoringRight).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('regression: rhombus 12x10 (the QA-reported jagged case) now yields a clean, monotonic-then-mirrored offset sequence', () => {
+    const shape = createShapedRowShape('rhombus', 12, 10)
+    expect(shape.map((s) => s.length)).toEqual([1, 3, 6, 8, 11, 11, 8, 6, 3, 1])
+    expect(shape.map((s) => s.offset)).toEqual([5, 4, 3, 2, 0, 0, 2, 3, 4, 5])
+  })
+
+  it('a floating-point edge case that previously broke the vertical width mirror (cols=10, rows=13) is now exact', () => {
+    const shape = createShapedRowShape('rhombus', 10, 13)
+    for (let i = 0; i < 13; i++) expect(shape[i].length).toBe(shape[12 - i].length)
   })
 })
