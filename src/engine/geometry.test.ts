@@ -11,6 +11,8 @@ import {
   physicalSizeMm,
   rowPitch,
 } from './geometry'
+import { createShapedRowShape } from './shape'
+import { isPaintableCell } from './fringe'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
 const DELICA_W = 1.6
@@ -251,5 +253,34 @@ describe('fringeAnchorX — single source of truth for where a column\'s fringe 
         expect(hit).toEqual({ row, col })
       }
     }
+  })
+
+  it('shaped body (rhombus): the fringe anchor is still the column\'s own coordinate in the last row — shape only gates existence, never the coordinate formula', () => {
+    // 12x10 rhombus tapers its last row down to a single column (the point) —
+    // this is exactly the "Aro con flecos" template's body.
+    const cols = 12
+    const bodyRows = 10
+    const rowShape = createShapedRowShape('rhombus', cols, bodyRows)
+    const lastRow = rowShape[bodyRows - 1]
+    expect(lastRow).toEqual({ offset: 5, length: 1 }) // the rhombus's narrow point: only column 5
+
+    // The anchor formula doesn't need to know about rowShape at all — a
+    // column's coordinate is the same whether or not that row is shaped.
+    expect(fringeAnchorX('brick', 5, bodyRows)).toBe(beadCenterX('brick', bodyRows - 1, 5))
+
+    // isPaintableCell (the actual existence gate) confirms only column 5 can
+    // carry a fringe here — every other column has no bead in the last row
+    // to hang from, shaped or not.
+    const fringe = { lengths: Array.from({ length: cols }, () => 3), turnBeads: Array.from({ length: cols }, () => false) }
+    for (let col = 0; col < cols; col++) {
+      const hasFringe = isPaintableCell(bodyRows, col, cols, bodyRows, fringe, rowShape)
+      expect(hasFringe).toBe(col === lastRow.offset)
+    }
+
+    // For the one column that does have fringe, its anchor and the actual
+    // fringe cell's rendered x agree exactly — no seam at the rhombus's point.
+    const anchor = fringeAnchorX('brick', lastRow.offset, bodyRows)
+    const firstFringeCell = cellPosition('brick', bodyRows, lastRow.offset, bodyRows)
+    expect(firstFringeCell.x).toBe(anchor)
   })
 })
