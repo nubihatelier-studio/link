@@ -230,11 +230,16 @@ export function CanvasGrid() {
     const maxFringe = maxFringeLength(fringe)
     if (maxFringe > 0) {
       if (showFringeDivider) {
+        // Brand gold rather than the neutral grid-line gray: it needs to
+        // read clearly as "here's where the fringe starts" against both
+        // themes without competing with the beads themselves — 0.75 alpha
+        // keeps it a hair short of full saturation (gold at 100% opacity
+        // on a dark canvas background reads as oversaturated/glowing).
         const dividerY = MARGIN + bodyBounds.height * cellPx
-        ctx.strokeStyle = borderColor
-        ctx.globalAlpha = 0.5
-        ctx.lineWidth = 1
-        ctx.setLineDash([2, 3])
+        ctx.strokeStyle = accent
+        ctx.globalAlpha = 0.75
+        ctx.lineWidth = 1.75
+        ctx.setLineDash([4, 3])
         ctx.beginPath()
         ctx.moveTo(MARGIN, dividerY)
         ctx.lineTo(canvasWidth, dividerY)
