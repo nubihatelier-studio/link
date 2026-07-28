@@ -178,30 +178,76 @@ describe('createShapedRowShape — symmetric generation (Corrección 1)', () => 
     }
   })
 
-  it('the extra half-bead (when unavoidable) is never assigned to the same side every time across a whole piece', () => {
-    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
-      for (const [cols, rows] of dims) {
-        const shape = createShapedRowShape(preset, cols, rows)
-        const skewedRows = shape
-          .map((s, r) => physicalLeft(r, s.offset) - physicalRight(r, s.offset, s.length, cols))
-          .filter((dev) => Math.abs(dev) > 0.5)
-        if (skewedRows.length < 2) continue // not enough tie rows in this size to judge balance
-        const favoringLeft = skewedRows.filter((d) => d > 0).length
-        const favoringRight = skewedRows.filter((d) => d < 0).length
-        expect(favoringLeft).toBeGreaterThan(0)
-        expect(favoringRight).toBeGreaterThan(0)
+  it('a floating-point edge case that previously broke the vertical width mirror (cols=10, rows=13) is now exact', () => {
+    const shape = createShapedRowShape('rhombus', 10, 13)
+    for (let i = 0; i < 13; i++) expect(shape[i].length).toBe(shape[12 - i].length)
+  })
+})
+
+/** Physical center of a row, in bead units — the row's own offset plus brick's 0.5 stagger plus half its own width. */
+function physicalCenter(row: number, offset: number, length: number): number {
+  return offset + (isOddIndex(row) ? 0.5 : 0) + length / 2
+}
+
+describe('createShapedRowShape — physical-axis spine (regression, no serpentine)', () => {
+  // Every dimension the QA report named: 12x10 and 10x12 have an EVEN row
+  // count (every mirror pair has mismatched brick parity — exact center
+  // equality is mathematically impossible there, see resolveOffsets' own
+  // doc comment); 11x9, 9x9, 13x7 have an ODD row count (every mirror pair
+  // shares parity, so exact equality is not just possible but guaranteed).
+  const dims = [
+    [12, 10],
+    [11, 9],
+    [9, 9],
+    [10, 12],
+    [13, 7],
+  ] as const
+  const oddRowDims = dims.filter(([, rows]) => rows % 2 === 1)
+
+  it('odd row counts: a rhombus mirror pair always lands on the exact same physical center', () => {
+    for (const [cols, rows] of oddRowDims) {
+      const shape = createShapedRowShape('rhombus', cols, rows)
+      for (let r = 0; r < rows; r++) {
+        const mirror = rows - 1 - r
+        expect(physicalCenter(r, shape[r].offset, shape[r].length)).toBeCloseTo(
+          physicalCenter(mirror, shape[mirror].offset, shape[mirror].length),
+          9,
+        )
       }
     }
   })
 
-  it('regression: rhombus 12x10 (the QA-reported jagged case) now yields a clean, monotonic-then-mirrored offset sequence', () => {
-    const shape = createShapedRowShape('rhombus', 12, 10)
-    expect(shape.map((s) => s.length)).toEqual([1, 3, 6, 8, 11, 11, 8, 6, 3, 1])
-    expect(shape.map((s) => s.offset)).toEqual([5, 4, 3, 2, 0, 0, 2, 3, 4, 5])
+  it('no row ever deviates from the pattern axis (cols/2) by more than half a bead', () => {
+    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+      for (const [cols, rows] of dims) {
+        const shape = createShapedRowShape(preset, cols, rows)
+        shape.forEach((row, r) => {
+          const dev = Math.abs(physicalCenter(r, row.offset, row.length) - cols / 2)
+          expect(dev).toBeLessThanOrEqual(0.5 + 1e-9)
+        })
+      }
+    }
   })
 
-  it('a floating-point edge case that previously broke the vertical width mirror (cols=10, rows=13) is now exact', () => {
-    const shape = createShapedRowShape('rhombus', 10, 13)
-    for (let i = 0; i < 13; i++) expect(shape[i].length).toBe(shape[12 - i].length)
+  it('the physical center never swings more than half a bead across the whole piece (the QA-reported serpentine)', () => {
+    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+      for (const [cols, rows] of dims) {
+        const shape = createShapedRowShape(preset, cols, rows)
+        const centers = shape.map((row, r) => physicalCenter(r, row.offset, row.length))
+        const range = Math.max(...centers) - Math.min(...centers)
+        expect(range).toBeLessThanOrEqual(0.5 + 1e-9)
+      }
+    }
+  })
+
+  it('regression: rhombus 12x10 no longer zigzags a full bead (11,12,12,13,11,12,12,13,11,12 → range ≤ half a bead)', () => {
+    const shape = createShapedRowShape('rhombus', 12, 10)
+    expect(shape.map((s) => s.length)).toEqual([1, 3, 6, 8, 11, 11, 8, 6, 3, 1])
+    // The old (buggy) sequential tie-break gave offsets [5,4,3,2,0,0,2,3,4,5],
+    // whose centers zigzagged between 11 and 13 (half-bead units). The fix's
+    // stateless Math.round instead always breaks a tie the same direction.
+    expect(shape.map((s) => s.offset)).toEqual([6, 4, 3, 2, 1, 0, 2, 3, 5, 5])
+    const centersX2 = shape.map((row, r) => 2 * physicalCenter(r, row.offset, row.length))
+    expect(Math.max(...centersX2) - Math.min(...centersX2)).toBeLessThanOrEqual(1)
   })
 })

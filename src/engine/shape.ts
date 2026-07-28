@@ -70,54 +70,50 @@ function shapeWidthAt(preset: BodyShapePreset, cols: number, rows: number, r: nu
  * coordinates rather than raw indices: brick's own per-row 0.5 stagger (odd
  * rows sit half a bead to the right, see `geometry.ts#cellPosition`) is
  * folded into the target, so `Math.round` lands on the nearer integer
- * automatically. Returns a fractional "exact tie" (`.5`) when the row's
- * parity and `(cols - width)`'s parity mismatch — centering is then
- * mathematically impossible to hit exactly, and the caller must resolve the
- * half-bead itself (see `resolveTiedOffsets`) rather than always rounding
- * the same direction.
+ * automatically. Can land exactly on a `.5` when the row's parity and
+ * `(cols - width)`'s parity mismatch — centering is then mathematically
+ * impossible to hit exactly, and `resolveOffsets` rounds it like any other
+ * value (see there for why that's the *correct* choice here, not a
+ * shortcut).
  */
 function idealOffsetFor(cols: number, width: number, row: number): number {
   const rowXOffset = isOddIndex(row) ? 0.5 : 0
   return (cols - width) / 2 - rowXOffset
 }
 
-function isExactTie(idealOffset: number): boolean {
-  return Math.abs(idealOffset - Math.floor(idealOffset) - 0.5) < 1e-9
-}
-
 /**
  * Resolves every row's centering `idealOffset` (see above) down to an
- * integer, scanning top to bottom and alternating which side absorbs the
- * half-bead whenever a row is an unavoidable tie — never always the same
- * side (the previous bug: a plain `Math.floor((cols - width) / 2)` ignored
- * the stagger entirely and always broke ties the same way, producing a
- * jagged, off-axis silhouette).
+ * integer via a single, stateless `Math.round` — deliberately *not* scanning
+ * rows in order and alternating which side a `.5` tie rounds to.
  *
- * This only promises two things per row: its own width is centered on the
- * pattern's physical axis (within the unavoidable half-bead tie), and which
- * side absorbs that tie alternates across the piece. It does *not* force
- * `offset(i) === offset(rows-1-i)` for `rhombus` — for an even row count,
- * a mirror pair always has exactly one tied row and one exactly-centered
- * row (their parities differ), so the tied side has no free choice left:
- * copying the exact side's value there would work for that one pair, but
- * doing it for every pair can still end up funneling every tie in the whole
- * piece onto the same side (which side is "exact" vs "tied" in a pair is
- * fixed by parity, not a free choice) — precisely the "always the same
- * side" imbalance this function exists to avoid. A plain top-to-bottom
- * alternation sidesteps that: the *width* still mirrors exactly (see
- * `shapeWidthAt`), and any residual half-bead lean this leaves between a
- * row and its mirror is the same unavoidable slack every other tied row
- * gets, not a bias.
+ * That alternation was last round's fix, and it was wrong: QA measured the
+ * physical center of each row of a `rhombus 12x10` (in half-bead units, tie
+ * broken by row scan order) and got `11,12,12,13,11,12,12,13,11,12` — the
+ * whole silhouette's spine zigzags a full bead because *which* row's tie
+ * rounds up vs. down depends on how many ties came before it, not on
+ * anything about that row itself. `Math.round` is a pure function of
+ * `idealOffset` alone, so a `.5` tie always resolves the same direction
+ * (JS rounds `.5` up) everywhere in the piece — the spine still isn't
+ * perfectly straight (that's provably impossible, see below), but now it
+ * only ever leans the *one* consistent way, so it stays within half a bead
+ * of the axis instead of swinging a whole bead back and forth.
+ *
+ * Why a mirror pair (`r`, `rows-1-r`) of equal width can't always land on
+ * the *same* physical center: their difference is
+ * `offset(r) - offset(mirror) + (xOffset(r) - xOffset(mirror))`. For an
+ * even `rows`, every mirror pair has opposite parity, so
+ * `xOffset(r) - xOffset(mirror)` is always exactly `±0.5` — but the offsets
+ * are integers, so their difference is always a whole number. A whole
+ * number can never cancel out a `±0.5`, so the two centers can never be
+ * exactly equal; this is brick's own fixed stagger showing through, the
+ * same reason a real physical brick-stitch mirror pair of opposite parity
+ * can't align either. For an *odd* `rows`, every mirror pair shares parity
+ * instead, so `idealOffsetFor` gives them the identical value and
+ * `Math.round` — being a pure function — resolves them identically too,
+ * landing them on the exact same center automatically.
  */
 function resolveOffsets(widths: number[], cols: number): number[] {
-  let favorCeil = false
-  return widths.map((width, r) => {
-    const ideal = idealOffsetFor(cols, width, r)
-    if (!isExactTie(ideal)) return Math.round(ideal)
-    const offset = favorCeil ? Math.ceil(ideal) : Math.floor(ideal)
-    favorCeil = !favorCeil
-    return offset
-  })
+  return widths.map((width, r) => Math.round(idealOffsetFor(cols, width, r)))
 }
 
 /**
