@@ -143,6 +143,7 @@ export function CanvasGrid() {
     const borderColor = styles.getPropertyValue('--nb-grid-line').trim() || '#3a3a3d'
     const emptyColor = styles.getPropertyValue('--nb-surface-3').trim() || '#2c2c2e'
     const textColor = styles.getPropertyValue('--nb-text-muted').trim() || '#a3a0a8'
+    const panelColor = styles.getPropertyValue('--nb-surface').trim() || '#1c1c1e'
     const accent = '#c9a227'
 
     ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -229,25 +230,6 @@ export function CanvasGrid() {
     // reads as a bead like any other; its own toggle lives in FringePanel.
     const maxFringe = maxFringeLength(fringe)
     if (maxFringe > 0) {
-      if (showFringeDivider) {
-        // Brand gold rather than the neutral grid-line gray: it needs to
-        // read clearly as "here's where the fringe starts" against both
-        // themes without competing with the beads themselves — 0.75 alpha
-        // keeps it a hair short of full saturation (gold at 100% opacity
-        // on a dark canvas background reads as oversaturated/glowing).
-        const dividerY = MARGIN + bodyBounds.height * cellPx
-        ctx.strokeStyle = accent
-        ctx.globalAlpha = 0.75
-        ctx.lineWidth = 1.75
-        ctx.setLineDash([4, 3])
-        ctx.beginPath()
-        ctx.moveTo(MARGIN, dividerY)
-        ctx.lineTo(canvasWidth, dividerY)
-        ctx.stroke()
-        ctx.setLineDash([])
-        ctx.globalAlpha = 1
-      }
-
       for (let col = 0; col < cols; col++) {
         const length = fringe.lengths[col] ?? 0
         for (let depth = 0; depth < length; depth++) {
@@ -275,6 +257,40 @@ export function CanvasGrid() {
             }
           }
         }
+      }
+
+      // Drawn last (after every body and fringe cell above), so it crosses
+      // in front of the beads instead of hiding behind them — previously
+      // this ran before the fringe loop, so it only ever showed through the
+      // gaps between beads and at the canvas edges.
+      if (showFringeDivider) {
+        // Brand gold rather than the neutral grid-line gray: it needs to
+        // read clearly as "here's where the fringe starts" against both
+        // themes without competing with the beads themselves — 0.75 alpha
+        // keeps it a hair short of full saturation (gold at 100% opacity
+        // on a dark canvas background reads as oversaturated/glowing).
+        const dividerY = MARGIN + bodyBounds.height * cellPx
+        ctx.setLineDash([4, 3])
+        // A gold-on-gold bead would otherwise make the dash disappear
+        // entirely (same color drawn over itself) — a thin halo in the
+        // panel's own background color first gives the dash an edge that
+        // reads against any bead color underneath, gold included.
+        ctx.strokeStyle = panelColor
+        ctx.globalAlpha = 0.9
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.moveTo(MARGIN, dividerY)
+        ctx.lineTo(canvasWidth, dividerY)
+        ctx.stroke()
+        ctx.strokeStyle = accent
+        ctx.globalAlpha = 0.75
+        ctx.lineWidth = 1.75
+        ctx.beginPath()
+        ctx.moveTo(MARGIN, dividerY)
+        ctx.lineTo(canvasWidth, dividerY)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.globalAlpha = 1
       }
     }
 
