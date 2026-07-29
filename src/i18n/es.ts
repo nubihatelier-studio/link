@@ -60,8 +60,6 @@ export const t = {
       pulseraDesc: 'Tira angosta y larga para la muñeca',
       aroFlecos: 'Aro con flecos',
       aroFlecosDesc: 'Cuerpo chico + flecos colgando',
-      marcapaginas: 'Marcapáginas',
-      marcapaginasDesc: 'Tira angosta tejida en telar',
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },
@@ -84,12 +82,6 @@ export const t = {
       triangle: 'Triángulo',
       triangleInverted: 'Triángulo invertido',
       rhombus: 'Rombo',
-      // "el rombo"/"el triángulo" — los tres presets con forma son
-      // masculinos, así que el artículo queda fijo en la plantilla en vez
-      // de pedírselo a quien llama.
-      fitHint: (cols: number, presetLabelLower: string, rows: number[]) =>
-        `Con ${cols} columnas, el ${presetLabelLower} queda parejo en ${rows.join(' o ')} filas.`,
-      fitHintAdjust: 'Ajustar',
     },
   },
   photo: {

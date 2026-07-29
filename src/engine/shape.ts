@@ -37,227 +37,132 @@ export function maxRowWidth(rowShape: RowShape[]): number {
 export type BodyShapePreset = 'rectangle' | 'triangle' | 'triangleInverted' | 'rhombus'
 
 /**
- * The column/row combination that lets a shaped preset's silhouette taper
- * by exactly 1 bead per edge on *every* row — no row ever sits still on one
- * side while the other grows, the "diagonales parejas" a hand-charted
- * brick-stitch diamond or triangle always has. `rows` lists every row count
- * that qualifies (rhombus genuinely has two valid answers; the others have
- * one), and `cols` is the nearest odd value to the one passed in (rounding
- * up on a tie, e.g. 12 -> 13) — `cols` must always come out odd, see below.
+ * ROOT CAUSE FIX — read this before touching anything below.
  *
- * Derivation: growing every edge by exactly 1 bead per transition needs a
- * total growth budget of `cols - 1` split evenly across however many
- * row-to-row transitions the taper has (`widthsAlongTaper`'s `dMax`, 1 bead
- * per edge = 2 beads of total width per transition). That division is only
- * exact — no row ever left with a lone 1-bead (single-edge) growth forced
- * onto it by the leftover remainder — when `cols - 1` is itself even, i.e.
- * `cols` is odd. (An even `cols` isn't invalid — `createShapedRowShape`
- * still produces a valid, hard-cap-respecting silhouette for it, per
- * "Generar bordes, no anchos" — it just can't do it with a perfectly even
- * diagonal, since there's a real half-bead of budget left over somewhere.)
+ * Real brick stitch increases or decreases a row by exactly ONE bead per
+ * edge-change, and brick stitch *itself* already staggers every other row
+ * by half a bead (`geometry.ts#cellPosition`'s `xOffset`). A previous
+ * version of this generator grew a taper's width by 2 beads per row (1 bead
+ * each side, every transition) — stacked on top of brick's own 0.5 stagger,
+ * that made each edge alternate advancing 0.5 and 1.5 beads per row instead
+ * of a constant 0.5, i.e. a visible sawtooth. The fix has two parts:
  *
- * - rhombus: the taper only runs from a tip to the *peak*, half the total
- *   climb, needing `(cols - 1) / 2` transitions on each side (an integer
- *   exactly because `cols` is odd). `rows === cols` spends all of them
- *   reaching a single centered peak row; `rows === cols + 1` spends the same
- *   count but leaves the peak as a two-row plateau instead — both are
- *   equally "perfect", just a single point vs. a flat top.
- * - triangle/triangleInverted taper across the *entire* height (there's only
- *   one tip, not two), so all `rows - 1` transitions carry the full climb:
- *   `rows - 1 = (cols - 1) / 2`, i.e. `rows === (cols + 1) / 2`.
- * - rectangle has no taper at all — any `rows` already fits, so this
- *   function isn't meaningful for it (callers should just skip the check).
+ * 1. `widthAt` — the target width at each row is a plain clamped ramp that
+ *    changes by *at most 1 bead total* between consecutive rows (never 2).
+ *    There is no "growth budget" to distribute any more (no Bresenham, no
+ *    left/right split of a 2-bead step) — the slope is fixed at 1, so any
+ *    `cols`/`rows` combination tapers perfectly. (This also means there's no
+ *    such thing as "dimensions that don't fit" any more — every combination
+ *    produces a clean diagonal, just possibly capped below `cols` if there
+ *    aren't enough rows to reach it.)
+ *
+ * 2. `walkOffsets` — which single edge absorbs that 1-bead change is not a
+ *    free choice: it's locked to the row's own parity, precisely so the
+ *    edge's *physical* position (raw offset + brick's own 0.5 stagger) always
+ *    advances by exactly half a bead, matching the other, unchanged edge.
+ *    Growing into an odd row must come from the left (raw offset -1);
+ *    growing into an even row must come from the right (length +1 only).
+ *    Shrinking is the mirror: odd row -> from the right, even row -> from
+ *    the left. Get the side wrong for a row's parity and that row's edge
+ *    jumps 1.5 beads while the other side holds still — exactly the bug.
+ *
+ * A pleasant consequence of rule 2: because every non-plateau transition
+ * moves both edges by exactly half a bead in lockstep, the silhouette's
+ * physical center never drifts once row 0 is centered — every other row
+ * inherits the same center for free. `walkOffsets` below still tries both of
+ * row 0's centering candidates (a much smaller search than the old
+ * generator's `bestTaperTrajectory`, which searched per row-tier, not once
+ * per shape) only because a plateau can bounce the center by another half
+ * bead in a direction fixed by parity, not choice. See shape.test.ts for the
+ * proof-by-exhaustive-check across the required dimension matrix.
  */
-export function idealDimensionsFor(preset: BodyShapePreset, cols: number): { cols: number; rows: number[] } {
-  const oddCols = cols % 2 === 0 ? cols + 1 : cols
+function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number): number {
   switch (preset) {
     case 'rectangle':
-      return { cols: oddCols, rows: [] }
-    case 'rhombus':
-      return { cols: oddCols, rows: [oddCols, oddCols + 1] }
-    case 'triangle':
-    case 'triangleInverted':
-      return { cols: oddCols, rows: [(oddCols + 1) / 2] }
-  }
-}
-
-/** Whether `cols`/`rows` already taper by exactly 1 bead per edge per row for `preset` — see `idealDimensionsFor`. Rectangle always fits; it has no taper to break. */
-export function fitsPerfectly(preset: BodyShapePreset, cols: number, rows: number): boolean {
-  if (preset === 'rectangle') return true
-  const ideal = idealDimensionsFor(preset, cols)
-  return ideal.cols === cols && ideal.rows.includes(rows)
-}
-
-/**
- * The offset (in cell-index space) that centers a row of the given `width`
- * on the pattern's physical vertical axis, computed in *physical*
- * coordinates rather than raw indices: brick's own per-row 0.5 stagger (odd
- * rows sit half a bead to the right, see `geometry.ts#cellPosition`) is
- * folded into the target, so `Math.round` lands on the nearer integer
- * automatically. Can land exactly on a `.5` when the row's parity and
- * `(cols - width)`'s parity mismatch — centering is then mathematically
- * impossible to hit exactly.
- */
-function idealOffsetFor(cols: number, width: number, row: number): number {
-  const rowXOffset = isOddIndex(row) ? 0.5 : 0
-  return (cols - width) / 2 - rowXOffset
-}
-
-/**
- * Splits a total width-growth budget evenly across `steps` row-to-row
- * transitions using an error-accumulator (Bresenham-style) distribution,
- * rather than front-loading all the big steps — the same technique used to
- * rasterize a straight line on a pixel grid, applied here to keep a taper's
- * diagonal as even as possible instead of lumping growth into a few rows.
- */
-function distributeGrowth(total: number, steps: number): number[] {
-  if (steps <= 0) return []
-  const base = Math.floor(total / steps)
-  const remainder = total % steps
-  let error = 0
-  const growths: number[] = []
-  for (let i = 0; i < steps; i++) {
-    error += remainder
-    if (error >= steps) {
-      growths.push(base + 1)
-      error -= steps
-    } else {
-      growths.push(base)
+      return cols
+    case 'triangle': // narrow top, full-width bottom — widest row (rows-1) reaches cols; narrowest (row 0) is cols-(rows-1), floored at 1 (a flat top edge, not a point, once rows-1 >= cols).
+      return Math.min(cols, Math.max(1, cols - (rows - 1 - r)))
+    case 'triangleInverted': // full-width top, narrow bottom — mirror of triangle.
+      return Math.min(cols, Math.max(1, cols - r))
+    case 'rhombus': {
+      // Grows 1 bead/row from a 1-bead tip up to (at most) cols, then mirrors
+      // back down — `d` is the distance to the nearer tip/end.
+      const d = Math.min(r, rows - 1 - r)
+      return Math.min(cols, 1 + d)
     }
   }
-  return growths
 }
 
-/**
- * Turns each transition's total growth (0, 1, or 2 beads) into a left/right
- * split: a growth of 2 always splits evenly (1 bead per edge, real brick
- * stitch never widens a single edge by more than 1 bead in one row); a
- * growth of 1 has to land on one edge, so *which* edge alternates strictly
- * across the sequence of odd-growth transitions — never the same side twice
- * in a row, and never both edges of the same transition (that would be the
- * "double-step" bug: one edge jumping 2 beads while the other holds still).
- */
-function splitGrowth(growths: number[], startFavorLeft: boolean): { left: number; right: number }[] {
-  let favorLeft = startFavorLeft
-  return growths.map((g) => {
-    if (g === 2) return { left: 1, right: 1 }
-    if (g === 0) return { left: 0, right: 0 }
-    const split = favorLeft ? { left: 1, right: 0 } : { left: 0, right: 1 }
-    favorLeft = !favorLeft
-    return split
-  })
-}
-
-/**
- * The width at each step `d` (0..`dMax`) of a taper from a single bead (`d
- * = 0`) growing outward, plus `leftCum[d]` — how many beads the left edge
- * has grown by step `d`, the piece `createTaperedRowShape` needs to walk
- * the offset (see there for why offset must be *derived from* this
- * cumulative growth rather than re-centered independently every row).
- * Growth is capped at `2 * dMax` (1 bead per edge per transition, the hard
- * per-row cap real brick stitch has) — for a taper with too few rows to
- * reach `cols` at that rate, the peak simply falls short of full width
- * rather than breaking the cap. When that happens, `cols` itself is left
- * untouched (never shrunk to match the achieved peak) — `bestTaperTrajectory`
- * still centers every row on `cols / 2`, so the unreached columns split
- * evenly as a symmetric margin on both sides rather than piling up on one
- * side. Shrinking `cols` instead would silently change a dimension the
- * user actually typed; a centered, deliberately-empty margin reads as "this
- * shape doesn't reach the edges here" rather than a bug, and the row stays
- * editable to widen it manually regardless.
- */
-function widthsAlongTaper(cols: number, dMax: number, startFavorLeft: boolean): { widths: number[]; leftCum: number[] } {
-  const totalGrowth = Math.min(cols - 1, 2 * dMax)
-  const splits = splitGrowth(distributeGrowth(totalGrowth, dMax), startFavorLeft)
-  const leftCum = [0]
-  const rightCum = [0]
-  for (const s of splits) {
-    leftCum.push(leftCum[leftCum.length - 1] + s.left)
-    rightCum.push(rightCum[rightCum.length - 1] + s.right)
+/** Walks the offset trajectory forward from a *given* row-0 anchor — see `walkOffsets` for why the anchor itself needs two candidates, not one. */
+function walkFrom(widths: number[], anchor: number): number[] {
+  const offsets = [anchor]
+  for (let r = 1; r < widths.length; r++) {
+    const delta = widths[r] - widths[r - 1]
+    if (delta === 1 && isOddIndex(r)) offsets.push(offsets[r - 1] - 1) // grow left
+    else if (delta === -1 && !isOddIndex(r)) offsets.push(offsets[r - 1] + 1) // shrink left
+    else offsets.push(offsets[r - 1]) // grew/shrank right, or no change at all
   }
-  const widths = leftCum.map((lc, d) => 1 + lc + rightCum[d])
-  return { widths, leftCum }
+  return offsets
 }
 
 /**
- * Picks the starting tip offset and the growth-alternation's starting side
- * that together keep every affected row's physical center as close as
- * possible to `cols/2`, out of the 4 combinations that matter (2 tip
- * candidates — a tie always rounds `.5` one of two ways — times 2
- * alternation phases). This is a search rather than a formula because a
- * single row-independent centering rule (rounding each row's own ideal
- * offset in isolation, as a previous version of this file did) can't also
- * guarantee the "at most 1 bead per edge per row" cap — the two constraints
- * only reconcile for specific tip/phase choices, so we
- * just try the handful that exist and keep the best one that stays in
- * bounds throughout. `rowsAt(d)` returns every row index sharing tier `d`
- * (a rhombus's two mirrored rows can have different brick parity, so both
- * must be checked, not just one).
+ * Walks a taper's raw offset row by row from a centered anchor at row 0,
+ * given its already-computed width sequence — see `widthAt`'s doc comment
+ * above for why the growth/shrink side is locked to each row's parity rather
+ * than chosen freely.
+ *
+ * Row 0's own ideal center, `(cols - widths[0]) / 2`, lands exactly on an
+ * integer only when `cols - widths[0]` is even; otherwise there are two
+ * equally-centered integer candidates (floor and ceil, each half a bead off
+ * to either side). A *non-plateau* transition (width changes by ±1) always
+ * keeps every row's physical center identical to row 0's — but a *plateau*
+ * transition (width unchanged, e.g. a rhombus's flat 2-row peak, or extra
+ * rows clamped flat at the top/bottom for a very mismatched `cols`/`rows`)
+ * shifts the center by another half bead, in a direction fixed by parity,
+ * not by choice. Depending on which of the two row-0 anchors is picked, that
+ * shift can land back on-center (best case) or double the deviation to a
+ * full bead (worst case) — and one anchor can also simply run out of bounds
+ * before the other does. So: try both, discard whichever goes out of bounds,
+ * and of what's left keep whichever keeps every row's center closest to
+ * `cols / 2`.
  */
-function bestTaperTrajectory(
-  cols: number,
-  dMax: number,
-  tipRow: number,
-  rowsAt: (d: number) => number[],
-): { widths: number[]; leftCum: number[]; tipOffset: number } {
-  let best: { widths: number[]; leftCum: number[]; tipOffset: number; maxDev: number } | null = null
-  for (const startFavorLeft of [true, false]) {
-    const { widths, leftCum } = widthsAlongTaper(cols, dMax, startFavorLeft)
-    const tipIdeal = idealOffsetFor(cols, widths[0], tipRow)
-    for (const tipOffset of new Set([Math.floor(tipIdeal), Math.ceil(tipIdeal)])) {
-      let inBounds = true
-      let maxDev = 0
-      for (let d = 0; d <= dMax && inBounds; d++) {
-        const offset = tipOffset - leftCum[d]
-        if (offset < 0 || offset + widths[d] > cols) {
-          inBounds = false
-          break
-        }
-        for (const row of rowsAt(d)) {
-          const physicalCenter = offset + (isOddIndex(row) ? 0.5 : 0) + widths[d] / 2
-          maxDev = Math.max(maxDev, Math.abs(physicalCenter - cols / 2))
-        }
-      }
-      if (!inBounds) continue
-      if (best === null || maxDev < best.maxDev - 1e-9) best = { widths, leftCum, tipOffset, maxDev }
-    }
+function walkOffsets(cols: number, widths: number[]): number[] {
+  const ideal = (cols - widths[0]) / 2
+  let best: { offsets: number[]; maxDev: number; rawAsymmetry: number } | null = null
+  for (const anchor of new Set([Math.floor(ideal), Math.ceil(ideal)])) {
+    const offsets = walkFrom(widths, anchor)
+    if (!offsets.every((o, r) => o >= 0 && o + widths[r] <= cols)) continue
+    const maxDev = Math.max(
+      ...offsets.map((o, r) => Math.abs(o + (isOddIndex(r) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
+    )
+    // A tie here (both anchors land exactly half a bead off, just to
+    // opposite sides — the brick stagger term makes that possible) is broken
+    // by raw offset/length symmetry in plain column-index space, ignoring
+    // the stagger entirely: physically equivalent, but the one a weaver
+    // charting it by column number would call "centered".
+    const rawAsymmetry = offsets.reduce((sum, o, r) => sum + Math.abs(2 * o + widths[r] - cols), 0)
+    const better =
+      best === null || maxDev < best.maxDev - 1e-9 || (Math.abs(maxDev - best.maxDev) < 1e-9 && rawAsymmetry < best.rawAsymmetry)
+    if (better) best = { offsets, maxDev, rawAsymmetry }
   }
-  // Falls back to the untapered single-bead tip if every candidate somehow
-  // went out of bounds (shouldn't happen for cols >= 1, dMax >= 0).
-  return best ?? { widths: [1], leftCum: [0], tipOffset: 0 }
+  // Shouldn't happen for a valid width sequence — fall back rather than crash.
+  return best?.offsets ?? walkFrom(widths, Math.round(ideal))
 }
 
-/**
- * Assembles a full-height row shape from a taper's width/offset-at-each-`d`
- * trajectory, via `dOfRow` (row index -> tier `d`) and `rowsAtD` (tier `d`
- * -> every row sharing it, for the trajectory search above).
- */
-function createTaperedRowShape(
-  cols: number,
-  rows: number,
-  dMax: number,
-  tipRow: number,
-  dOfRow: (r: number) => number,
-  rowsAtD: (d: number) => number[],
-): RowShape[] {
-  const { widths, leftCum, tipOffset } = bestTaperTrajectory(cols, dMax, tipRow, rowsAtD)
-  return Array.from({ length: rows }, (_, r) => {
-    const d = dOfRow(r)
-    return { offset: tipOffset - leftCum[d], length: widths[d] }
-  })
+function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
+  const widths = Array.from({ length: rows }, (_, r) => widthAt(preset, cols, rows, r))
+  const offsets = walkOffsets(cols, widths)
+  return widths.map((length, r) => ({ offset: offsets[r], length }))
 }
 
 /**
  * Generates a centered row shape for a named silhouette preset — the
  * starting point offered at creation time (and re-appliable later); every
  * row stays individually editable afterward via the "forma del cuerpo"
- * editor mode. Tapers from a single bead at the silhouette's point(s) up to
- * (at most) full width, growing each edge by at most 1 bead per row — same
- * as a real brick-stitch increase/decrease — so the diagonal never takes a
- * 2-bead step on one side while the other side holds still.
+ * editor mode. See the comment above `widthAt` for the taper rule itself.
  *
  * A single row (or single column) has no taper to speak of, so it's handled
- * directly rather than through the edge-growth machinery below, which
+ * directly rather than through the edge-growth machinery above, which
  * assumes at least one row-to-row transition exists.
  */
 export function createShapedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
@@ -271,30 +176,6 @@ export function createShapedRowShape(preset: BodyShapePreset, cols: number, rows
     const width = preset === 'triangleInverted' ? 1 : cols
     return Array.from({ length: rows }, () => ({ offset: Math.max(0, Math.floor((cols - width) / 2)), length: width }))
   }
-  switch (preset) {
-    case 'rectangle':
-      return createRectangleRowShape(cols, rows)
-    case 'triangle': // narrow top, full-width bottom
-      return createTaperedRowShape(cols, rows, rows - 1, 0, (r) => r, (d) => [d])
-    case 'triangleInverted': // full-width top, narrow bottom
-      return createTaperedRowShape(
-        cols,
-        rows,
-        rows - 1,
-        rows - 1,
-        (r) => rows - 1 - r,
-        (d) => [rows - 1 - d],
-      )
-    case 'rhombus': {
-      const dMax = Math.floor((rows - 1) / 2)
-      return createTaperedRowShape(
-        cols,
-        rows,
-        dMax,
-        0,
-        (r) => Math.min(r, rows - 1 - r),
-        (d) => (d === rows - 1 - d ? [d] : [d, rows - 1 - d]),
-      )
-    }
-  }
+  if (preset === 'rectangle') return createRectangleRowShape(cols, rows)
+  return createTaperedRowShape(preset, cols, rows)
 }

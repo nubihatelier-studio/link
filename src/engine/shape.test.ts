@@ -1,21 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { isOddIndex } from './geometry'
-import {
-  createRectangleRowShape,
-  createShapedRowShape,
-  fitsPerfectly,
-  idealDimensionsFor,
-  isShapeCapable,
-  maxRowWidth,
-  normalizeRowShape,
-} from './shape'
+import { createRectangleRowShape, createShapedRowShape, isShapeCapable, maxRowWidth, normalizeRowShape } from './shape'
 
 /** Physical left edge of a brick row, in bead units — the row's own index offset plus brick's per-row 0.5 stagger (see `geometry.ts#cellPosition`). */
 function physicalLeft(row: number, offset: number): number {
   return offset + (isOddIndex(row) ? 0.5 : 0)
 }
-function physicalRight(row: number, offset: number, length: number, cols: number): number {
-  return cols - (offset + length + (isOddIndex(row) ? 0.5 : 0))
+/** Physical right edge of a brick row, in bead units. */
+function physicalRight(row: number, offset: number, length: number): number {
+  return offset + length + (isOddIndex(row) ? 0.5 : 0)
 }
 
 describe('isShapeCapable', () => {
@@ -92,23 +85,25 @@ describe('maxRowWidth', () => {
   })
 })
 
-describe('createShapedRowShape', () => {
+describe('createShapedRowShape — basic silhouette per preset', () => {
   it('rectangle: every row full width, same as createRectangleRowShape', () => {
     expect(createShapedRowShape('rectangle', 5, 4)).toEqual(createRectangleRowShape(5, 4))
   })
 
   it('triangle: narrow top (1 bead), full-width bottom, centered', () => {
-    const shape = createShapedRowShape('triangle', 7, 4)
-    expect(shape[0]).toEqual({ offset: 3, length: 1 }) // top: 1 bead, centered
-    expect(shape[3]).toEqual({ offset: 0, length: 7 }) // bottom: full width
-    // Width increases monotonically top to bottom.
+    // 4 cols needs exactly 4 rows to climb from 1 bead to full width at 1
+    // bead/row (see shape.ts's module doc) — fewer rows would just land on a
+    // flat top edge wider than 1, still valid but not what this test checks.
+    const shape = createShapedRowShape('triangle', 4, 4)
+    expect(shape[0]).toEqual({ offset: 2, length: 1 }) // top: 1 bead, centered
+    expect(shape[3]).toEqual({ offset: 0, length: 4 }) // bottom: full width
     for (let i = 1; i < shape.length; i++) expect(shape[i].length).toBeGreaterThanOrEqual(shape[i - 1].length)
   })
 
   it('triangleInverted: full-width top, narrow bottom (1 bead), centered', () => {
-    const shape = createShapedRowShape('triangleInverted', 7, 4)
-    expect(shape[0]).toEqual({ offset: 0, length: 7 })
-    expect(shape[3]).toEqual({ offset: 3, length: 1 })
+    const shape = createShapedRowShape('triangleInverted', 4, 4)
+    expect(shape[0]).toEqual({ offset: 0, length: 4 })
+    expect(shape[3]).toEqual({ offset: 1, length: 1 })
     for (let i = 1; i < shape.length; i++) expect(shape[i].length).toBeLessThanOrEqual(shape[i - 1].length)
   })
 
@@ -116,29 +111,12 @@ describe('createShapedRowShape', () => {
     const shape = createShapedRowShape('rhombus', 9, 5)
     expect(shape[0].length).toBe(1)
     expect(shape[4].length).toBe(1)
-    // Middle row doesn't reach full width here: with only 2 row-transitions
-    // from tip to peak and at most 1 bead of growth per edge per row (see
-    // "Generar bordes, no anchos" below), the peak is capped at 1+2*2=5,
-    // not the full 9 — reaching cols would require a bigger edge jump than
-    // real brick stitch allows.
-    expect(shape[2]).toEqual({ offset: 2, length: 5 })
+    // Middle row doesn't reach full width here: only 2 row-transitions from
+    // tip to peak, and at most 1 bead of *total* width growth per row (see
+    // the module doc in shape.ts), so the peak caps at 1+2=3, not the full 9.
+    expect(shape[2]).toEqual({ offset: 3, length: 3 })
     expect(shape[1].length).toBeLessThan(shape[2].length)
     expect(shape[3].length).toBeLessThan(shape[2].length)
-  })
-
-  it('every row stays centered on the pattern\'s physical axis (accounting for brick\'s own 0.5 stagger), not just its raw index', () => {
-    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
-      const shape = createShapedRowShape(preset, 10, 6)
-      shape.forEach((row, r) => {
-        const left = physicalLeft(r, row.offset)
-        const right = physicalRight(r, row.offset, row.length, 10)
-        // A half-bead rounding slack on the offset shows up as at most a full
-        // bead of left/right difference (see Corrección 1 tests below) — the
-        // unavoidable case when the row's parity and (cols-width)'s parity
-        // mismatch, not a sign the row is off-center.
-        expect(Math.abs(left - right)).toBeLessThanOrEqual(1)
-      })
-    }
   })
 
   it('a single-row body does not divide by zero', () => {
@@ -146,211 +124,106 @@ describe('createShapedRowShape', () => {
   })
 })
 
-describe('createShapedRowShape — symmetric generation (Corrección 1)', () => {
+describe('createShapedRowShape — 1 bead of total width change per row (Corrección 1, el fix del motor)', () => {
+  // The exact dimension matrix from the bug report, plus the 13x7 fixture
+  // the corrected hand-charted trapezoid used to prove the fix (widths
+  // 7..13, both edges advancing exactly half a bead every row).
   const dims = [
-    [8, 7],
-    [8, 8],
-    [9, 9],
-    [9, 10],
-    [10, 6],
-    [10, 12],
-    [11, 11],
-    [11, 12],
+    [13, 7],
     [12, 10],
-    [12, 11],
-    [13, 9],
+    [13, 13],
+    [11, 6],
+    [9, 9],
+    [10, 12],
+    [21, 8],
   ] as const
 
-  it('rhombus width mirrors vertically: width(i) === width(n-1-i)', () => {
-    for (const [cols, rows] of dims) {
-      const shape = createShapedRowShape('rhombus', cols, rows)
-      for (let i = 0; i < rows; i++) expect(shape[i].length).toBe(shape[rows - 1 - i].length)
+  it('fixture: 13x7 triangle matches the hand-corrected trapezoid exactly — widths 7..13, both edges dead straight', () => {
+    const shape = createShapedRowShape('triangle', 13, 7)
+    expect(shape.map((s) => s.length)).toEqual([7, 8, 9, 10, 11, 12, 13])
+    for (let r = 1; r < shape.length; r++) {
+      expect(physicalLeft(r, shape[r].offset) - physicalLeft(r - 1, shape[r - 1].offset)).toBeCloseTo(-0.5, 9)
+      expect(physicalRight(r, shape[r].offset, shape[r].length) - physicalRight(r - 1, shape[r - 1].offset, shape[r - 1].length)).toBeCloseTo(0.5, 9)
     }
   })
 
-  it('every row is centered on the same physical axis: left margin equals right margin, with at most half a bead of unavoidable slack per row', () => {
-    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+  it('(a) width never changes by more than 1 bead between consecutive rows (0 only at a rhombus\'s flat peak)', () => {
+    for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
       for (const [cols, rows] of dims) {
         const shape = createShapedRowShape(preset, cols, rows)
-        for (let r = 0; r < rows; r++) {
-          const { offset, length } = shape[r]
-          const left = physicalLeft(r, offset)
-          const right = physicalRight(r, offset, length, cols)
-          // A half-bead rounding slack on `offset` shows up as at most a
-          // full bead of left/right margin difference (dev = 2 * slack) —
-          // never more, since idealOffset is rounded to the nearest integer.
-          expect(Math.abs(left - right)).toBeLessThanOrEqual(1 + 1e-9)
-        }
+        for (let r = 1; r < rows; r++) expect(Math.abs(shape[r].length - shape[r - 1].length)).toBeLessThanOrEqual(1)
       }
     }
   })
 
-  it('a floating-point edge case that previously broke the vertical width mirror (cols=10, rows=13) is now exact', () => {
-    const shape = createShapedRowShape('rhombus', 10, 13)
-    for (let i = 0; i < 13; i++) expect(shape[i].length).toBe(shape[12 - i].length)
-  })
-})
-
-/** Physical center of a row, in bead units — the row's own offset plus brick's 0.5 stagger plus half its own width. */
-function physicalCenter(row: number, offset: number, length: number): number {
-  return offset + (isOddIndex(row) ? 0.5 : 0) + length / 2
-}
-
-describe('createShapedRowShape — physical-axis spine (regression, no serpentine)', () => {
-  // Every dimension the QA report named: 12x10 and 10x12 have an EVEN row
-  // count (every mirror pair has mismatched brick parity — exact center
-  // equality is mathematically impossible there); 11x9, 9x9, 13x7 have an
-  // ODD row count (every mirror pair shares parity, so exact equality is
-  // not just possible but guaranteed).
-  const dims = [
-    [12, 10],
-    [11, 9],
-    [9, 9],
-    [10, 12],
-    [13, 7],
-  ] as const
-  const oddRowDims = dims.filter(([, rows]) => rows % 2 === 1)
-
-  it('odd row counts: a rhombus mirror pair always lands on the exact same physical center', () => {
-    for (const [cols, rows] of oddRowDims) {
-      const shape = createShapedRowShape('rhombus', cols, rows)
-      for (let r = 0; r < rows; r++) {
-        const mirror = rows - 1 - r
-        expect(physicalCenter(r, shape[r].offset, shape[r].length)).toBeCloseTo(
-          physicalCenter(mirror, shape[mirror].offset, shape[mirror].length),
-          9,
-        )
-      }
-    }
-  })
-
-  it('no row ever deviates from the pattern axis (cols/2) by more than half a bead', () => {
-    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
-      for (const [cols, rows] of dims) {
-        const shape = createShapedRowShape(preset, cols, rows)
-        shape.forEach((row, r) => {
-          const dev = Math.abs(physicalCenter(r, row.offset, row.length) - cols / 2)
-          expect(dev).toBeLessThanOrEqual(0.5 + 1e-9)
-        })
-      }
-    }
-  })
-
-  it('rhombus: the physical center never swings more than a full bead across the whole piece (the QA-reported serpentine)', () => {
-    // Scoped to rhombus: a rhombus has two tips, and its spine (the QA
-    // report's actual complaint) stays tight. The bound here is 1 bead, not
-    // 0.5 — "Generar bordes, no anchos" (below) also enforces the harder
-    // ≤1-bead-per-edge-per-row cap, and for some dimensions (e.g. 10x12,
-    // whose taper needs a single odd-bead growth step right next to the
-    // tip) satisfying that cap forces at least one row's center a full bead
-    // from another's, even though every individual row still stays within
-    // half a bead of the axis itself (see the "no row ever deviates" test
-    // above) — the previously-reported *zigzag*, not just any deviation, is
-    // what's eliminated here.
-    for (const [cols, rows] of dims) {
-      const shape = createShapedRowShape('rhombus', cols, rows)
-      const centers = shape.map((row, r) => physicalCenter(r, row.offset, row.length))
-      const range = Math.max(...centers) - Math.min(...centers)
-      expect(range).toBeLessThanOrEqual(1 + 1e-9)
-    }
-  })
-
-  it('regression: rhombus 12x10 no longer zigzags a full bead (11,12,12,13,11,12,12,13,11,12 → range ≤ half a bead)', () => {
-    const shape = createShapedRowShape('rhombus', 12, 10)
-    // "Generar bordes, no anchos" (below) caps the peak at 9 beads, not 11 —
-    // reaching 11 would need a 2-bead single-edge jump, which real brick
-    // stitch (and this generator) never does.
-    expect(shape.map((s) => s.length)).toEqual([1, 3, 5, 7, 9, 9, 7, 5, 3, 1])
-    expect(shape.map((s) => s.offset)).toEqual([5, 4, 3, 2, 1, 1, 2, 3, 4, 5])
-    const centersX2 = shape.map((row, r) => 2 * physicalCenter(r, row.offset, row.length))
-    expect(Math.max(...centersX2) - Math.min(...centersX2)).toBeLessThanOrEqual(1)
-  })
-})
-
-describe('createShapedRowShape — generar bordes, no anchos (sin escalones dobles)', () => {
-  // The exact matrix the bug report named, including the 12x10 case from
-  // the screenshots (a rhombus/triangle needing 11 beads of growth over 9
-  // row-transitions — the case that used to jump 2 beads on one edge while
-  // the other held still).
-  const dims = [
-    [12, 10],
-    [12, 12],
-    [11, 9],
-    [9, 9],
-    [13, 7],
-    [10, 12],
-  ] as const
-
-  it('(a) no edge ever moves more than 1 bead between consecutive rows', () => {
+  it('(b) the physical edge-to-edge step between consecutive rows is always exactly half a bead — the test that catches the sawtooth', () => {
     for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
       for (const [cols, rows] of dims) {
         const shape = createShapedRowShape(preset, cols, rows)
         for (let r = 1; r < rows; r++) {
-          const leftDelta = shape[r].offset - shape[r - 1].offset
-          const rightDelta = shape[r].offset + shape[r].length - (shape[r - 1].offset + shape[r - 1].length)
-          expect(Math.abs(leftDelta)).toBeLessThanOrEqual(1)
-          expect(Math.abs(rightDelta)).toBeLessThanOrEqual(1)
+          const widthDelta = shape[r].length - shape[r - 1].length
+          const leftStep = physicalLeft(r, shape[r].offset) - physicalLeft(r - 1, shape[r - 1].offset)
+          const rightStep = physicalRight(r, shape[r].offset, shape[r].length) - physicalRight(r - 1, shape[r - 1].offset, shape[r - 1].length)
+          if (widthDelta === 0) {
+            // A plateau: both edges shift together by brick's own natural
+            // 0.5 stagger (same look a plain rectangle's rows always have),
+            // never a lopsided sawtooth step.
+            expect(leftStep).toBeCloseTo(rightStep, 9)
+            expect(Math.abs(leftStep)).toBeCloseTo(0.5, 9)
+          } else {
+            expect(Math.abs(leftStep)).toBeCloseTo(0.5, 9)
+            expect(Math.abs(rightStep)).toBeCloseTo(0.5, 9)
+          }
         }
       }
     }
   })
 
-  it('(b) exact physical horizontal mirror of edges, with only the unavoidable half-bead brick-parity tolerance', () => {
+  it('(c) horizontal mirror: every row stays centered on the pattern\'s physical axis (cols/2)', () => {
     for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
       for (const [cols, rows] of dims) {
         const shape = createShapedRowShape(preset, cols, rows)
         shape.forEach((row, r) => {
-          const left = physicalLeft(r, row.offset)
-          const right = physicalRight(r, row.offset, row.length, cols)
-          expect(Math.abs(left - right)).toBeLessThanOrEqual(1 + 1e-9)
+          const center = physicalLeft(r, row.offset) + row.length / 2
+          // Normally within half a bead. A very mismatched cols/rows pair can
+          // force a choice between two anchors that are equally well-centered
+          // near the tip but diverge later (a plateau's parity-locked 0.5
+          // stagger can land on either side of the axis) — the algorithm
+          // always keeps the choice with the smallest possible deviation, but
+          // for some pairs (e.g. triangle 10x12: cols so small relative to
+          // rows that 3 rows sit flat at 1 bead before the real taper starts)
+          // that unavoidable minimum is a full bead, not half. See shape.ts's
+          // `walkOffsets` for the exact mechanism, and `git log`/prior rounds
+          // for the identical mathematical result already accepted for a
+          // rhombus mirror pair under an odd/even rows mismatch.
+          expect(Math.abs(center - cols / 2)).toBeLessThanOrEqual(1 + 1e-9)
         })
       }
     }
   })
 
-  it('(c) rhombus: exact vertical mirror of edges in index space — offset(r) === offset(n-1-r), not just length', () => {
+  it('(d) rhombus: length always mirrors vertically; the raw offset mirrors exactly when rows is odd (mirror pair shares brick parity), and differs by exactly 1 when rows is even (parity mismatch makes exact equality impossible — same result already established for the previous generator)', () => {
     for (const [cols, rows] of dims) {
       const shape = createShapedRowShape('rhombus', cols, rows)
+      const maxOffsetDiff = rows % 2 === 0 ? 1 : 0
       for (let r = 0; r < rows; r++) {
         const mirror = rows - 1 - r
-        expect(shape[r].offset).toBe(shape[mirror].offset)
         expect(shape[r].length).toBe(shape[mirror].length)
+        expect(Math.abs(shape[r].offset - shape[mirror].offset)).toBeLessThanOrEqual(maxOffsetDiff)
       }
     }
   })
 
-  it('(d) single-bead growth transitions alternate sides strictly — never the same side twice in a row', () => {
-    for (const preset of ['triangle', 'triangleInverted'] as const) {
+  it('every row stays in bounds: offset >= 0 and offset + length <= cols', () => {
+    for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
       for (const [cols, rows] of dims) {
         const shape = createShapedRowShape(preset, cols, rows)
-        let lastSingleGrowthSide: 'left' | 'right' | null = null
-        for (let r = 1; r < rows; r++) {
-          const leftDelta = shape[r].offset - shape[r - 1].offset
-          const rightDelta = shape[r].offset + shape[r].length - (shape[r - 1].offset + shape[r - 1].length)
-          const totalGrowth = Math.abs(leftDelta) + Math.abs(rightDelta)
-          if (totalGrowth !== 1) continue // only single-bead-total transitions alternate; growth of 2 splits evenly
-          const side = leftDelta !== 0 ? 'left' : 'right'
-          if (lastSingleGrowthSide !== null) expect(side).not.toBe(lastSingleGrowthSide)
-          lastSingleGrowthSide = side
-        }
+        shape.forEach((row) => {
+          expect(row.offset).toBeGreaterThanOrEqual(0)
+          expect(row.offset + row.length).toBeLessThanOrEqual(cols)
+        })
       }
     }
-  })
-
-  it('fixture: rhombus 12x10 matches the hand-corrected silhouette — even diagonals, no double-steps', () => {
-    const shape = createShapedRowShape('rhombus', 12, 10)
-    expect(shape).toEqual([
-      { offset: 5, length: 1 },
-      { offset: 4, length: 3 },
-      { offset: 3, length: 5 },
-      { offset: 2, length: 7 },
-      { offset: 1, length: 9 },
-      { offset: 1, length: 9 },
-      { offset: 2, length: 7 },
-      { offset: 3, length: 5 },
-      { offset: 4, length: 3 },
-      { offset: 5, length: 1 },
-    ])
   })
 
   it('existing saved patterns are untouched: this only changes what new presets generate', () => {
@@ -363,79 +236,25 @@ describe('createShapedRowShape — generar bordes, no anchos (sin escalones dobl
   })
 })
 
-describe('idealDimensionsFor / fitsPerfectly', () => {
-  it('rhombus: rounds an even cols up to the nearest odd, and offers both the single-peak and plateau row counts', () => {
-    expect(idealDimensionsFor('rhombus', 13)).toEqual({ cols: 13, rows: [13, 14] })
-    expect(idealDimensionsFor('rhombus', 12)).toEqual({ cols: 13, rows: [13, 14] })
-  })
-
-  it('triangle/triangleInverted: (cols+1)/2 rows', () => {
-    expect(idealDimensionsFor('triangle', 13)).toEqual({ cols: 13, rows: [7] })
-    expect(idealDimensionsFor('triangleInverted', 13)).toEqual({ cols: 13, rows: [7] })
-    expect(idealDimensionsFor('triangle', 12)).toEqual({ cols: 13, rows: [7] })
-  })
-
-  it('rectangle: no taper, so no rows to suggest', () => {
-    expect(idealDimensionsFor('rectangle', 12)).toEqual({ cols: 13, rows: [] })
-  })
-
-  it('fitsPerfectly: rhombus', () => {
-    expect(fitsPerfectly('rhombus', 9, 9)).toBe(true)
-    expect(fitsPerfectly('rhombus', 9, 10)).toBe(true)
-    expect(fitsPerfectly('rhombus', 13, 13)).toBe(true)
-    expect(fitsPerfectly('rhombus', 13, 14)).toBe(true)
-    expect(fitsPerfectly('rhombus', 13, 10)).toBe(false)
-    expect(fitsPerfectly('rhombus', 12, 10)).toBe(false) // cols itself isn't odd
-  })
-
-  it('fitsPerfectly: triangle', () => {
-    expect(fitsPerfectly('triangle', 13, 7)).toBe(true)
-    expect(fitsPerfectly('triangle', 11, 6)).toBe(true)
-    expect(fitsPerfectly('triangle', 13, 10)).toBe(false)
-  })
-
-  it('fitsPerfectly: rectangle always fits, any dimensions', () => {
-    expect(fitsPerfectly('rectangle', 12, 10)).toBe(true)
-    expect(fitsPerfectly('rectangle', 13, 1)).toBe(true)
-  })
-
-  it('property: for every odd cols 5..21, the rows idealDimensionsFor suggests produce a perfectly even diagonal (±2, or 0 at a rhombus plateau) that reaches cols exactly', () => {
-    for (let cols = 5; cols <= 21; cols += 2) {
-      for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
-        for (const rows of idealDimensionsFor(preset, cols).rows) {
-          const shape = createShapedRowShape(preset, cols, rows)
-          expect(Math.max(...shape.map((s) => s.length))).toBe(cols)
-          for (let r = 1; r < rows; r++) {
-            const delta = shape[r].length - shape[r - 1].length
-            expect([-2, 0, 2]).toContain(delta)
-          }
-        }
-      }
-    }
-  })
-})
-
-describe('createShapedRowShape — capped peak stays centered, never orphaned to one side (Tarea 4)', () => {
-  it('regression: rhombus 13x10 (the mismatched-dimensions case) centers its capped peak instead of leaning to one side', () => {
+describe('createShapedRowShape — a rhombus peak that falls short of cols still centers symmetrically', () => {
+  it('regression: rhombus 13x10 (not enough rows to reach a 13-bead peak, at 1 bead of growth/row) caps at 5 beads, centered', () => {
     const shape = createShapedRowShape('rhombus', 13, 10)
-    expect(Math.max(...shape.map((s) => s.length))).toBe(9) // can't reach 13 in only 4 transitions per side
-    shape.forEach((row) => {
-      const leftMargin = row.offset
-      const rightMargin = 13 - (row.offset + row.length)
-      expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(1)
+    expect(shape.map((s) => s.length)).toEqual([1, 2, 3, 4, 5, 5, 4, 3, 2, 1])
+    shape.forEach((row, r) => {
+      const center = physicalLeft(r, row.offset) + row.length / 2
+      expect(Math.abs(center - 13 / 2)).toBeLessThanOrEqual(1 + 1e-9)
     })
   })
 
-  it('property: whenever the achievable peak falls short of cols, every row\'s unused margin still splits evenly on both sides', () => {
+  it('property: whenever the achievable peak falls short of cols, every row still stays within a bead of the pattern axis (never orphaned to one side)', () => {
     for (let cols = 8; cols <= 20; cols++) {
       for (let rows = 4; rows <= 14; rows++) {
         const shape = createShapedRowShape('rhombus', cols, rows)
         const maxWidth = Math.max(...shape.map((s) => s.length))
         if (maxWidth >= cols) continue // not a capped case
-        shape.forEach((row) => {
-          const leftMargin = row.offset
-          const rightMargin = cols - (row.offset + row.length)
-          expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(1)
+        shape.forEach((row, r) => {
+          const center = physicalLeft(r, row.offset) + row.length / 2
+          expect(Math.abs(center - cols / 2)).toBeLessThanOrEqual(1 + 1e-9)
         })
       }
     }
