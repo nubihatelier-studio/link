@@ -178,6 +178,9 @@ export const t = {
       growLeft: 'Agrandar por la izquierda',
       shrinkRight: 'Achicar por la derecha',
       growRight: 'Agrandar por la derecha',
+      addRowTop: '+ Agregar fila arriba',
+      removeRowTop: 'Quitar fila',
+      weaveResetNotice: 'Se reinició el progreso de tejido guardado — el orden de tejido cambió.',
     },
   },
   weave: {

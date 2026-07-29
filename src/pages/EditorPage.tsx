@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
+import { useWeaveStore } from '@/store/weaveStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
 import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
@@ -19,6 +20,7 @@ import { ShapePanel } from '@/components/editor/ShapePanel'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
+import { UndoToast } from '@/components/shared/UndoToast'
 
 const TOOL_SHORTCUTS: { key: string; tool: Tool; labelKey: keyof typeof t.editor.tools }[] = [
   { key: 'P', tool: 'pencil', labelKey: 'pencil' },
@@ -58,6 +60,9 @@ export function EditorPage() {
     setFringeSymmetric,
     undo,
     redo,
+    patternId,
+    weaveResetPending,
+    clearWeaveResetPending,
   } = useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
@@ -179,6 +184,13 @@ export function EditorPage() {
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
     if (doc) exportPatternBackup(doc)
+  }
+
+  function undoWeaveReset() {
+    if (weaveResetPending === null) return
+    undo()
+    if (patternId) useWeaveStore.getState().setIndex(patternId, weaveResetPending)
+    clearWeaveResetPending()
   }
 
   async function handleExport() {
@@ -489,6 +501,10 @@ export function EditorPage() {
             />
           </div>
         </div>
+      )}
+
+      {weaveResetPending !== null && (
+        <UndoToast message={t.editor.shape.weaveResetNotice} onUndo={undoWeaveReset} onExpire={clearWeaveResetPending} />
       )}
     </div>
   )

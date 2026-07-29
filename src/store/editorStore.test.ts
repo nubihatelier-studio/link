@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
-import { createRectangleRowShape } from '@/engine/shape'
-import type { FringeData, RowShape } from '@/engine/types'
+import { createRectangleRowShape, createShapedRowShape } from '@/engine/shape'
+import type { FringeData, PatternDoc, RowShape } from '@/engine/types'
+import { usePatternsStore } from '@/store/patternsStore'
+import { useWeaveStore } from '@/store/weaveStore'
 import { useEditorStore } from './editorStore'
 
 function resetStore(
@@ -28,6 +30,7 @@ function resetStore(
     clipboard: null,
     history: [],
     future: [],
+    weaveResetPending: null,
     fringeSymmetric: false,
     fringeSculptMode: false,
   })
@@ -493,5 +496,124 @@ describe('editorStore — nota', () => {
     expect(useEditorStore.getState().note).toBe('')
     useEditorStore.getState().setNote('Para el cumpleaños de mamá')
     expect(useEditorStore.getState().note).toBe('Para el cumpleaños de mamá')
+  })
+})
+
+describe('editorStore — agregar/quitar fila arriba (Corrección 3)', () => {
+  beforeEach(() => {
+    // A 4-col triangle: row0 {offset:2,length:1} .. row3 {offset:0,length:4}.
+    const rowShape = createShapedRowShape('triangle', 4, 4)
+    resetStore({
+      rowShape,
+      cells: { '0,2': '#111111', '3,0': '#222222' }, // one bead in the old top row, one in the bottom row
+    })
+    useEditorStore.setState({ cols: 4, rows: 4 })
+  })
+
+  it('addRowAtTop agrega una fila más angosta arriba, siguiendo la pendiente, y corre las celdas existentes una fila hacia abajo', () => {
+    useEditorStore.getState().addRowAtTop()
+    const { rows, rowShape, cells } = useEditorStore.getState()
+    expect(rows).toBe(5)
+    // New row 0 is 1 bead narrower than the old row 0 ({offset:2,length:1}), floored at 1 bead.
+    expect(rowShape[0]).toEqual({ offset: 2, length: 1 })
+    expect(rowShape[1]).toEqual({ offset: 2, length: 1 }) // the old row 0, untouched
+    expect(rowShape[4]).toEqual({ offset: 0, length: 4 }) // the old row 3, untouched
+    // Cells shift down by exactly one row.
+    expect(cells['1,2']).toBe('#111111')
+    expect(cells['4,0']).toBe('#222222')
+    expect(cells['0,2']).toBeUndefined()
+  })
+
+  it('removeRowAtTop quita la fila superior y corre el resto una fila hacia arriba, perdiendo lo pintado ahí', () => {
+    useEditorStore.getState().removeRowAtTop()
+    const { rows, rowShape, cells } = useEditorStore.getState()
+    expect(rows).toBe(3)
+    expect(rowShape[0]).toEqual({ offset: 1, length: 2 }) // the old row 1
+    expect(cells['0,2']).toBeUndefined() // painted bead in the removed row is gone
+    expect(cells['2,0']).toBe('#222222') // the old row 3's bead, shifted up
+  })
+
+  it('removeRowAtTop nunca deja el patrón sin filas', () => {
+    useEditorStore.setState({ rows: 1, rowShape: [{ offset: 0, length: 4 }] })
+    useEditorStore.getState().removeRowAtTop()
+    expect(useEditorStore.getState().rows).toBe(1)
+  })
+
+  it('agregar y luego quitar una fila es una operación redonda (vuelve exactamente al estado anterior)', () => {
+    const before = useEditorStore.getState()
+    const beforeRowShape = before.rowShape
+    const beforeCells = before.cells
+    useEditorStore.getState().addRowAtTop()
+    useEditorStore.getState().removeRowAtTop()
+    const after = useEditorStore.getState()
+    expect(after.rows).toBe(4)
+    expect(after.rowShape).toEqual(beforeRowShape)
+    expect(after.cells).toEqual(beforeCells)
+  })
+
+  it('cada llamada agrega exactamente una entrada al historial de deshacer (un solo paso, no varios)', () => {
+    expect(useEditorStore.getState().history).toHaveLength(0)
+    useEditorStore.getState().addRowAtTop()
+    expect(useEditorStore.getState().history).toHaveLength(1)
+    useEditorStore.getState().removeRowAtTop()
+    expect(useEditorStore.getState().history).toHaveLength(2)
+  })
+
+  it('undo() deshace agregar una fila en un solo paso — rows, rowShape y cells vuelven juntos', () => {
+    useEditorStore.getState().addRowAtTop()
+    expect(useEditorStore.getState().rows).toBe(5)
+    useEditorStore.getState().undo()
+    const { rows, rowShape, cells } = useEditorStore.getState()
+    expect(rows).toBe(4)
+    expect(rowShape[0]).toEqual({ offset: 2, length: 1 })
+    expect(cells['0,2']).toBe('#111111')
+  })
+
+  it('redo() vuelve a aplicar el cambio de fila deshecho', () => {
+    useEditorStore.getState().addRowAtTop()
+    useEditorStore.getState().undo()
+    useEditorStore.getState().redo()
+    expect(useEditorStore.getState().rows).toBe(5)
+  })
+})
+
+describe('editorStore — reinicio explícito del progreso de tejido al cambiar filas (Corrección 3)', () => {
+  const patternId = 'p_test_shape_row'
+
+  beforeEach(() => {
+    const rowShape = createShapedRowShape('triangle', 4, 4)
+    resetStore({ rowShape, patternId })
+    useEditorStore.setState({ cols: 4, rows: 4 })
+    const doc: PatternDoc = {
+      id: patternId,
+      name: 'Test',
+      config: { technique: 'brick', cols: 4, rows: 4, beadTypeId: 'miyuki-delica-11' },
+      cells: {},
+      rowShape,
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    usePatternsStore.setState({ patterns: { [patternId]: doc }, order: [patternId] })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  it('no toca el progreso de tejido si no había ninguno guardado', () => {
+    useEditorStore.getState().addRowAtTop()
+    expect(useEditorStore.getState().weaveResetPending).toBeNull()
+  })
+
+  it('reinicia explícitamente el progreso guardado y expone el índice anterior para poder deshacerlo', () => {
+    useWeaveStore.getState().setIndex(patternId, 7)
+    useEditorStore.getState().addRowAtTop()
+    expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1) // reset, never left silently wrong
+    expect(useEditorStore.getState().weaveResetPending).toBe(7) // the old value, for the undo toast
+  })
+
+  it('clearWeaveResetPending limpia el aviso sin tocar el progreso de tejido', () => {
+    useWeaveStore.getState().setIndex(patternId, 7)
+    useEditorStore.getState().addRowAtTop()
+    useEditorStore.getState().clearWeaveResetPending()
+    expect(useEditorStore.getState().weaveResetPending).toBeNull()
+    expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1)
   })
 })

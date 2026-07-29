@@ -9,6 +9,7 @@ import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
+import { useWeaveStore } from './weaveStore'
 
 export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill'
 /** Index into the `slots` array — the quick-access palette grows as colors are added, so slots are no longer a fixed A–D set. */
@@ -34,6 +35,21 @@ interface Clipboard {
   width: number
   height: number
   cells: ColorMap // keys relative to (0,0) of the copied block
+}
+
+/**
+ * One undo/redo step. Almost always only `cells` actually changes (every
+ * paint/fill/gradient/etc. commit carries the *same* rows/rowShape/fringe
+ * forward from whatever was current) — but `addRowAtTop`/`removeRowAtTop`
+ * change all four together, and folding them into this same snapshot type
+ * (rather than a second, parallel undo stack) is what makes "agregar fila
+ * arriba" a single, ordinary undo step alongside every color edit.
+ */
+interface EditorSnapshot {
+  cells: ColorMap
+  rows: number
+  rowShape: RowShape[]
+  fringe: FringeData
 }
 
 interface EditorState {
@@ -109,13 +125,34 @@ interface EditorState {
   growRowEdge: (row: number, edge: 'left' | 'right') => void
   /** Shrinks row `row` by 1 bead at `edge` — no-op at the 1-bead-wide floor (a row never disappears). */
   shrinkRowEdge: (row: number, edge: 'left' | 'right') => void
+  /**
+   * Extends the body by one row at the very top, following the silhouette's
+   * existing slope (1 bead narrower than the row that used to be first,
+   * alternating side per `engine/shape.ts`'s parity rule) — every existing
+   * row (and its painted cells, body and fringe alike) shifts down by one
+   * index. A single `undo` entry, like any other commit.
+   */
+  addRowAtTop: () => void
+  /** Removes the topmost row — a no-op if only 1 row remains (a pattern always keeps at least 1 row). Single undo entry, same as `addRowAtTop`. */
+  removeRowAtTop: () => void
+  /** Shared plumbing for `addRowAtTop`/`removeRowAtTop`: one undo entry, one persisted write, and an explicit (never silent, never corrupted) weave-progress reset since a row-count change renumbers the whole weave order. */
+  commitShapeChange: (next: { rows: number; rowShape: RowShape[]; cells: ColorMap }) => void
+  /**
+   * Set by `commitShapeChange` to the weave progress index that was just
+   * reset (so the UI can offer "Deshacer" on that specific reset), or `null`
+   * once consumed/expired. Not itself part of the undo stack — undoing the
+   * row change also needs `useWeaveStore`'s own index restored, which is a
+   * second store, so the UI wires both together (see `ShapePanel.tsx`).
+   */
+  weaveResetPending: number | null
+  clearWeaveResetPending: () => void
 
   /** Free-text note, shown on the PDF's ficha page — see `engine/types.ts#PatternDoc.note`. */
   note: string
   setNote: (note: string) => void
 
-  history: ColorMap[]
-  future: ColorMap[]
+  history: EditorSnapshot[]
+  future: EditorSnapshot[]
 
   tool: Tool
   slots: string[]
@@ -337,9 +374,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
   },
   fringeSculptEnd: () => {
-    const { fringeSculptBase, cells, history, fringe, patternId } = get()
+    const { fringeSculptBase, cells, history, rows, rowShape, fringe, patternId } = get()
     if (fringeSculptBase && fringeSculptBase !== cells) {
-      set({ history: [...history, fringeSculptBase].slice(-100), future: [] })
+      set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe }].slice(-100), future: [] })
     }
     set({ fringeSculptBase: null })
     if (patternId) usePatternsStore.getState().setFringe(patternId, fringe)
@@ -385,6 +422,41 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (id) usePatternsStore.getState().setRowShape(id, nextRowShape)
   },
 
+  addRowAtTop: () => {
+    const { cells, rows, rowShape } = get()
+    const oldFirst = rowShape[0]
+    const length = Math.max(1, oldFirst.length - 1)
+    // The new row is index 0; the old first row becomes index 1 (always
+    // odd). Per shape.ts's parity rule, growing *into* an odd row comes from
+    // the left — solved in reverse here, since the old row's own
+    // offset/length must stay exactly as they were.
+    const offset = length === oldFirst.length ? oldFirst.offset : oldFirst.offset + 1
+    const nextRowShape = [{ offset, length }, ...rowShape]
+    // Every existing cell (body and fringe alike — they share the same
+    // `cells` map) shifts down by one row to make room for the new top row.
+    const nextCells: ColorMap = {}
+    for (const [key, hex] of Object.entries(cells)) {
+      const { row, col } = parseCellKey(key)
+      nextCells[cellKey(row + 1, col)] = hex
+    }
+    get().commitShapeChange({ rows: rows + 1, rowShape: nextRowShape, cells: nextCells })
+  },
+
+  removeRowAtTop: () => {
+    const { rows, rowShape, cells } = get()
+    if (rows <= 1) return // a pattern always keeps at least 1 row
+    const nextRowShape = rowShape.slice(1)
+    // Shifts every remaining row up by one; anything painted in the row
+    // being removed no longer exists.
+    const nextCells: ColorMap = {}
+    for (const [key, hex] of Object.entries(cells)) {
+      const { row, col } = parseCellKey(key)
+      if (row === 0) continue
+      nextCells[cellKey(row - 1, col)] = hex
+    }
+    get().commitShapeChange({ rows: rows - 1, rowShape: nextRowShape, cells: nextCells })
+  },
+
   note: '',
   setNote: (note) => {
     set({ note })
@@ -394,6 +466,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   history: [],
   future: [],
+  weaveResetPending: null,
+  clearWeaveResetPending: () => set({ weaveResetPending: null }),
 
   tool: 'pencil',
   slots: ['#1c1c1e', '#c9a227', '#8da2b0', '#ffffff'],
@@ -463,6 +537,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       note: doc.note ?? '',
       history: [],
       future: [],
+      weaveResetPending: null,
       selection: null,
       clipboard: null,
       pasteArmed: false,
@@ -498,10 +573,33 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   commit: (next) => {
-    const { cells, history } = get()
-    set({ cells: next, history: [...history, cells].slice(-100), future: [] })
+    const { cells, rows, rowShape, fringe, history } = get()
+    set({ cells: next, history: [...history, { cells, rows, rowShape, fringe }].slice(-100), future: [] })
     const id = get().patternId
     if (id) scheduleAutosave(id, next)
+  },
+
+  commitShapeChange: (next) => {
+    const { cells, rows, rowShape, fringe, history, patternId } = get()
+    set({
+      cells: next.cells,
+      rows: next.rows,
+      rowShape: next.rowShape,
+      history: [...history, { cells, rows, rowShape, fringe }].slice(-100),
+      future: [],
+    })
+    if (!patternId) return
+    usePatternsStore.getState().setShapeStructure(patternId, { rows: next.rows, rowShape: next.rowShape, cells: next.cells, fringe })
+    // A row-count change renumbers the whole weave order — the old
+    // `currentIndex` no longer points at a meaningful bead. Never leave it
+    // silently wrong: reset it explicitly, and surface the old value so the
+    // UI can offer a quick "Deshacer" (see ShapePanel.tsx).
+    const weave = useWeaveStore.getState()
+    const oldIndex = weave.getIndex(patternId)
+    if (oldIndex > -1) {
+      weave.reset(patternId)
+      set({ weaveResetPending: oldIndex })
+    }
   },
 
   paintCell: (row, col, hex) => {
@@ -611,12 +709,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   strokeEnd: () => {
-    const { strokeBase, cells, history } = get()
+    const { strokeBase, cells, rows, rowShape, fringe, history } = get()
     if (!strokeBase || strokeBase === cells) {
       set({ strokeBase: null })
       return
     }
-    set({ history: [...history, strokeBase].slice(-100), future: [], strokeBase: null })
+    set({ history: [...history, { cells: strokeBase, rows, rowShape, fringe }].slice(-100), future: [], strokeBase: null })
     const id = get().patternId
     if (id) scheduleAutosave(id, cells)
   },
@@ -699,20 +797,34 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   undo: () => {
-    const { history, cells, future } = get()
+    const { history, cells, rows, rowShape, fringe, future } = get()
     if (history.length === 0) return
     const prev = history[history.length - 1]
-    set({ cells: prev, history: history.slice(0, -1), future: [cells, ...future].slice(0, 100) })
+    set({
+      cells: prev.cells,
+      rows: prev.rows,
+      rowShape: prev.rowShape,
+      fringe: prev.fringe,
+      history: history.slice(0, -1),
+      future: [{ cells, rows, rowShape, fringe }, ...future].slice(0, 100),
+    })
     const id = get().patternId
-    if (id) scheduleAutosave(id, prev)
+    if (id) usePatternsStore.getState().setShapeStructure(id, prev)
   },
 
   redo: () => {
-    const { future, cells, history } = get()
+    const { future, cells, rows, rowShape, fringe, history } = get()
     if (future.length === 0) return
     const next = future[0]
-    set({ cells: next, future: future.slice(1), history: [...history, cells].slice(-100) })
+    set({
+      cells: next.cells,
+      rows: next.rows,
+      rowShape: next.rowShape,
+      fringe: next.fringe,
+      future: future.slice(1),
+      history: [...history, { cells, rows, rowShape, fringe }].slice(-100),
+    })
     const id = get().patternId
-    if (id) scheduleAutosave(id, next)
+    if (id) usePatternsStore.getState().setShapeStructure(id, next)
   },
 }))

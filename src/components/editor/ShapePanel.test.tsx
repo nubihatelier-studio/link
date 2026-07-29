@@ -59,4 +59,24 @@ describe('ShapePanel', () => {
     expect(screen.getByRole('button', { name: 'Agrandar por la izquierda' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Agrandar por la derecha' })).toBeDisabled()
   })
+
+  it('"+ Agregar fila arriba" extiende el cuerpo por arriba a través del store', async () => {
+    const user = userEvent.setup()
+    render(<ShapePanel />)
+    await user.click(screen.getByRole('button', { name: '+ Agregar fila arriba' }))
+    expect(useEditorStore.getState().rows).toBe(3)
+  })
+
+  it('"Quitar fila" quita la fila superior a través del store', async () => {
+    const user = userEvent.setup()
+    render(<ShapePanel />)
+    await user.click(screen.getByRole('button', { name: 'Quitar fila' }))
+    expect(useEditorStore.getState().rows).toBe(1)
+  })
+
+  it('"Quitar fila" queda deshabilitado cuando solo queda 1 fila', () => {
+    useEditorStore.setState({ rowShape: [{ offset: 2, length: 1 }], rows: 1 })
+    render(<ShapePanel />)
+    expect(screen.getByRole('button', { name: 'Quitar fila' })).toBeDisabled()
+  })
 })

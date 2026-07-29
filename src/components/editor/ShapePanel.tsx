@@ -3,12 +3,27 @@ import { useEditorStore } from '@/store/editorStore'
 import { t } from '@/i18n/es'
 
 export function ShapePanel() {
-  const { rows, cols, rowShape, growRowEdge, shrinkRowEdge } = useEditorStore()
+  const { rows, cols, rowShape, growRowEdge, shrinkRowEdge, addRowAtTop, removeRowAtTop } = useEditorStore()
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.shape.title}</h3>
       <p className="text-xs text-text-muted">{t.editor.shape.hint}</p>
+      <div className="flex gap-2">
+        <button
+          onClick={addRowAtTop}
+          className="flex-1 rounded-lg border border-border px-2 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-2"
+        >
+          {t.editor.shape.addRowTop}
+        </button>
+        <button
+          onClick={removeRowAtTop}
+          disabled={rows <= 1}
+          className="flex-1 rounded-lg border border-border px-2 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-2 disabled:opacity-40"
+        >
+          {t.editor.shape.removeRowTop}
+        </button>
+      </div>
       <ul className="flex flex-col gap-1.5">
         {Array.from({ length: rows }, (_, row) => {
           const shape = rowShape[row] ?? { offset: 0, length: cols }
