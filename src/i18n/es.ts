@@ -84,6 +84,12 @@ export const t = {
       triangle: 'Triángulo',
       triangleInverted: 'Triángulo invertido',
       rhombus: 'Rombo',
+      // "el rombo"/"el triángulo" — los tres presets con forma son
+      // masculinos, así que el artículo queda fijo en la plantilla en vez
+      // de pedírselo a quien llama.
+      fitHint: (cols: number, presetLabelLower: string, rows: number[]) =>
+        `Con ${cols} columnas, el ${presetLabelLower} queda parejo en ${rows.join(' o ')} filas.`,
+      fitHintAdjust: 'Ajustar',
     },
   },
   photo: {

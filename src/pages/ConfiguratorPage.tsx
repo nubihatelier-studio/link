@@ -10,7 +10,7 @@ import {
   totalFringeBeadCount,
   type FringeShape,
 } from '@/engine/fringe'
-import { createShapedRowShape, isShapeCapable, type BodyShapePreset } from '@/engine/shape'
+import { createShapedRowShape, fitsPerfectly, idealDimensionsFor, isShapeCapable, type BodyShapePreset } from '@/engine/shape'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -50,6 +50,11 @@ const BODY_SHAPE_ICON: Record<BodyShapePreset, string> = {
   rhombus: '◆',
 }
 
+/** Of a preset's ideal row-count options (rhombus has two), the one nearest to what the user already had — so applying "ideal" dimensions moves as little as possible from their intent. */
+function closestIdealRows(options: number[], currentRows: number): number {
+  return options.reduce((closest, r) => (Math.abs(r - currentRows) < Math.abs(closest - currentRows) ? r : closest))
+}
+
 /**
  * Starting points offered in "Crear patrón" — each just pre-fills the
  * fields below (technique, size, fringe) with typical values for that kind
@@ -76,8 +81,12 @@ const TEMPLATES: TemplatePreset[] = [
     label: t.configurator.templates.aroFlecos,
     description: t.configurator.templates.aroFlecosDesc,
     technique: 'brick',
-    cols: 12,
-    rows: 10,
+    // 13x13: idealDimensionsFor('rhombus', 12) — the rhombus body tapers by
+    // exactly 1 bead per edge on every row this way (see "Generar bordes,
+    // no anchos" in shape.ts), instead of the jagged silhouette a 12x10
+    // body used to produce.
+    cols: idealDimensionsFor('rhombus', 12).cols,
+    rows: idealDimensionsFor('rhombus', 12).rows[0],
     fringeEnabled: true,
     fringeMaxLength: 10,
     fringeShape: 'v',
@@ -148,6 +157,16 @@ export function ConfiguratorPage() {
   const total =
     beadCount(technique, cols, rows, rowShapePreview ?? undefined) +
     (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
+  // Never shown for rectangle (fitsPerfectly is always true there — no
+  // taper to break) or once the current cols/rows already fit.
+  const shapeFits = !shapeActive || fitsPerfectly(bodyShape, cols, rows)
+
+  /** Moves cols/rows to the nearest combination that tapers evenly for `preset`, picking whichever of the (possibly two) ideal row counts sits closest to what's already set. */
+  function applyIdealDimensions(preset: BodyShapePreset) {
+    const ideal = idealDimensionsFor(preset, cols)
+    setCols(ideal.cols)
+    if (ideal.rows.length > 0) setRows(closestIdealRows(ideal.rows, rows))
+  }
 
   function applyTemplate(template: TemplatePreset) {
     setSelectedTemplate(template.id)
@@ -317,6 +336,7 @@ export function ConfiguratorPage() {
                 onClick={() => {
                   setBodyShape(preset)
                   setSelectedTemplate(null)
+                  if (preset !== 'rectangle') applyIdealDimensions(preset)
                 }}
                 className="flex flex-col items-center gap-1 py-4 text-center"
               >
@@ -325,6 +345,24 @@ export function ConfiguratorPage() {
               </SelectableCard>
             ))}
           </div>
+          {!shapeFits && (
+            <p className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-accent-300 bg-accent-50 px-3 py-2 text-xs text-text">
+              <span>
+                ⓘ{' '}
+                {t.configurator.bodyShape.fitHint(
+                  idealDimensionsFor(bodyShape, cols).cols,
+                  t.configurator.bodyShape[bodyShape].toLowerCase(),
+                  idealDimensionsFor(bodyShape, cols).rows,
+                )}
+              </span>
+              <button
+                onClick={() => applyIdealDimensions(bodyShape)}
+                className="font-semibold text-accent-600 underline underline-offset-2 hover:text-accent-700"
+              >
+                {t.configurator.bodyShape.fitHintAdjust}
+              </button>
+            </p>
+          )}
         </section>
       )}
 
