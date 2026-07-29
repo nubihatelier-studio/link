@@ -12,6 +12,8 @@ const QUICK_SHAPES: { shape: FringeSculptShape; label: string }[] = [
   { shape: 'curve', label: t.editor.fringe.shapeCurve },
 ]
 
+const BLOCK_ADJUST_STEPS = [5, 10]
+
 export function FringePanel() {
   const {
     cols,
@@ -28,9 +30,20 @@ export function FringePanel() {
   } = useEditorStore()
   const [shapeMin, setShapeMin] = useState(1)
   const [shapeMax, setShapeMax] = useState(() => Math.max(4, maxFringeLength(fringe)))
+  const [applyAllLength, setApplyAllLength] = useState(() => Math.max(1, maxFringeLength(fringe)))
 
   function applyQuickShape(shape: FringeSculptShape) {
     sculptFringeLengths(createFringeLengthShape(shape, cols, shapeMin, shapeMax))
+  }
+
+  /** Sets every column to the same length in one pass — trivially symmetric already, no extra mirroring needed. */
+  function applyToAll() {
+    sculptFringeLengths(Array.from({ length: cols }, () => applyAllLength))
+  }
+
+  /** Adds (or, for a negative `delta`, removes) `delta` beads from every column at once, keeping whatever silhouette was already sculpted. */
+  function adjustAllBy(delta: number) {
+    sculptFringeLengths(Array.from({ length: cols }, (_, col) => (fringe.lengths[col] ?? 0) + delta))
   }
 
   return (
@@ -114,6 +127,54 @@ export function FringePanel() {
         {fringeSculptMode && <p className="text-[11px] text-text-muted">{t.editor.fringe.sculptHint}</p>}
       </div>
 
+      <div className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+          {t.editor.fringe.applyToAllTitle}
+        </h4>
+        <p className="text-[11px] text-text-muted">{t.editor.fringe.applyToAllHint}</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            aria-label={t.editor.fringe.applyToAllInputLabel}
+            min={0}
+            max={MAX_FRINGE_LENGTH}
+            value={applyAllLength}
+            onChange={(e) => setApplyAllLength(Math.max(0, Math.min(MAX_FRINGE_LENGTH, Number(e.target.value) || 0)))}
+            className="w-16 rounded-md border border-border bg-surface-1 px-1.5 py-1 text-center text-xs"
+          />
+          <button
+            onClick={applyToAll}
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-surface-3"
+          >
+            {t.editor.fringe.applyToAllButton}
+          </button>
+        </div>
+        <h4 className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+          {t.editor.fringe.blockAdjustTitle}
+        </h4>
+        <p className="text-[11px] text-text-muted">{t.editor.fringe.blockAdjustHint}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {BLOCK_ADJUST_STEPS.map((step) => (
+            <button
+              key={`shorten-${step}`}
+              onClick={() => adjustAllBy(-step)}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-surface-3"
+            >
+              {t.editor.fringe.shortenBy(step)}
+            </button>
+          ))}
+          {BLOCK_ADJUST_STEPS.map((step) => (
+            <button
+              key={`lengthen-${step}`}
+              onClick={() => adjustAllBy(step)}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-surface-3"
+            >
+              {t.editor.fringe.lengthenBy(step)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <ul className="flex flex-col gap-1.5">
         {Array.from({ length: cols }, (_, col) => {
           const length = fringe.lengths[col] ?? 0
@@ -129,7 +190,15 @@ export function FringePanel() {
               >
                 <Minus size={13} />
               </button>
-              <span className="w-6 shrink-0 text-center text-sm font-semibold">{length}</span>
+              <input
+                type="number"
+                aria-label={t.editor.fringe.lengthInputLabel(col + 1)}
+                min={0}
+                max={MAX_FRINGE_LENGTH}
+                value={length}
+                onChange={(e) => setFringeLength(col, Math.max(0, Math.min(MAX_FRINGE_LENGTH, Number(e.target.value) || 0)))}
+                className="w-12 shrink-0 rounded-md border border-border bg-surface-1 px-1 py-1 text-center text-sm font-semibold"
+              />
               <button
                 aria-label={t.editor.fringe.increaseLength}
                 onClick={() => setFringeLength(col, length + 1)}
