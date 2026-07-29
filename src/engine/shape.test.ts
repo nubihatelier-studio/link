@@ -3,6 +3,8 @@ import { isOddIndex } from './geometry'
 import {
   createRectangleRowShape,
   createShapedRowShape,
+  fitsPerfectly,
+  idealDimensionsFor,
   isShapeCapable,
   maxRowWidth,
   normalizeRowShape,
@@ -358,5 +360,84 @@ describe('createShapedRowShape — generar bordes, no anchos (sin escalones dobl
     // alter a pattern that already has one.
     const saved = [{ offset: 3, length: 6 }] // an arbitrary hand-edited row, e.g. from a pre-existing pattern
     expect(normalizeRowShape(saved, 12, 1)).toEqual(saved)
+  })
+})
+
+describe('idealDimensionsFor / fitsPerfectly', () => {
+  it('rhombus: rounds an even cols up to the nearest odd, and offers both the single-peak and plateau row counts', () => {
+    expect(idealDimensionsFor('rhombus', 13)).toEqual({ cols: 13, rows: [13, 14] })
+    expect(idealDimensionsFor('rhombus', 12)).toEqual({ cols: 13, rows: [13, 14] })
+  })
+
+  it('triangle/triangleInverted: (cols+1)/2 rows', () => {
+    expect(idealDimensionsFor('triangle', 13)).toEqual({ cols: 13, rows: [7] })
+    expect(idealDimensionsFor('triangleInverted', 13)).toEqual({ cols: 13, rows: [7] })
+    expect(idealDimensionsFor('triangle', 12)).toEqual({ cols: 13, rows: [7] })
+  })
+
+  it('rectangle: no taper, so no rows to suggest', () => {
+    expect(idealDimensionsFor('rectangle', 12)).toEqual({ cols: 13, rows: [] })
+  })
+
+  it('fitsPerfectly: rhombus', () => {
+    expect(fitsPerfectly('rhombus', 9, 9)).toBe(true)
+    expect(fitsPerfectly('rhombus', 9, 10)).toBe(true)
+    expect(fitsPerfectly('rhombus', 13, 13)).toBe(true)
+    expect(fitsPerfectly('rhombus', 13, 14)).toBe(true)
+    expect(fitsPerfectly('rhombus', 13, 10)).toBe(false)
+    expect(fitsPerfectly('rhombus', 12, 10)).toBe(false) // cols itself isn't odd
+  })
+
+  it('fitsPerfectly: triangle', () => {
+    expect(fitsPerfectly('triangle', 13, 7)).toBe(true)
+    expect(fitsPerfectly('triangle', 11, 6)).toBe(true)
+    expect(fitsPerfectly('triangle', 13, 10)).toBe(false)
+  })
+
+  it('fitsPerfectly: rectangle always fits, any dimensions', () => {
+    expect(fitsPerfectly('rectangle', 12, 10)).toBe(true)
+    expect(fitsPerfectly('rectangle', 13, 1)).toBe(true)
+  })
+
+  it('property: for every odd cols 5..21, the rows idealDimensionsFor suggests produce a perfectly even diagonal (±2, or 0 at a rhombus plateau) that reaches cols exactly', () => {
+    for (let cols = 5; cols <= 21; cols += 2) {
+      for (const preset of ['rhombus', 'triangle', 'triangleInverted'] as const) {
+        for (const rows of idealDimensionsFor(preset, cols).rows) {
+          const shape = createShapedRowShape(preset, cols, rows)
+          expect(Math.max(...shape.map((s) => s.length))).toBe(cols)
+          for (let r = 1; r < rows; r++) {
+            const delta = shape[r].length - shape[r - 1].length
+            expect([-2, 0, 2]).toContain(delta)
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('createShapedRowShape — capped peak stays centered, never orphaned to one side (Tarea 4)', () => {
+  it('regression: rhombus 13x10 (the mismatched-dimensions case) centers its capped peak instead of leaning to one side', () => {
+    const shape = createShapedRowShape('rhombus', 13, 10)
+    expect(Math.max(...shape.map((s) => s.length))).toBe(9) // can't reach 13 in only 4 transitions per side
+    shape.forEach((row) => {
+      const leftMargin = row.offset
+      const rightMargin = 13 - (row.offset + row.length)
+      expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(1)
+    })
+  })
+
+  it('property: whenever the achievable peak falls short of cols, every row\'s unused margin still splits evenly on both sides', () => {
+    for (let cols = 8; cols <= 20; cols++) {
+      for (let rows = 4; rows <= 14; rows++) {
+        const shape = createShapedRowShape('rhombus', cols, rows)
+        const maxWidth = Math.max(...shape.map((s) => s.length))
+        if (maxWidth >= cols) continue // not a capped case
+        shape.forEach((row) => {
+          const leftMargin = row.offset
+          const rightMargin = cols - (row.offset + row.length)
+          expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(1)
+        })
+      }
+    }
   })
 })

@@ -37,6 +37,58 @@ export function maxRowWidth(rowShape: RowShape[]): number {
 export type BodyShapePreset = 'rectangle' | 'triangle' | 'triangleInverted' | 'rhombus'
 
 /**
+ * The column/row combination that lets a shaped preset's silhouette taper
+ * by exactly 1 bead per edge on *every* row — no row ever sits still on one
+ * side while the other grows, the "diagonales parejas" a hand-charted
+ * brick-stitch diamond or triangle always has. `rows` lists every row count
+ * that qualifies (rhombus genuinely has two valid answers; the others have
+ * one), and `cols` is the nearest odd value to the one passed in (rounding
+ * up on a tie, e.g. 12 -> 13) — `cols` must always come out odd, see below.
+ *
+ * Derivation: growing every edge by exactly 1 bead per transition needs a
+ * total growth budget of `cols - 1` split evenly across however many
+ * row-to-row transitions the taper has (`widthsAlongTaper`'s `dMax`, 1 bead
+ * per edge = 2 beads of total width per transition). That division is only
+ * exact — no row ever left with a lone 1-bead (single-edge) growth forced
+ * onto it by the leftover remainder — when `cols - 1` is itself even, i.e.
+ * `cols` is odd. (An even `cols` isn't invalid — `createShapedRowShape`
+ * still produces a valid, hard-cap-respecting silhouette for it, per
+ * "Generar bordes, no anchos" — it just can't do it with a perfectly even
+ * diagonal, since there's a real half-bead of budget left over somewhere.)
+ *
+ * - rhombus: the taper only runs from a tip to the *peak*, half the total
+ *   climb, needing `(cols - 1) / 2` transitions on each side (an integer
+ *   exactly because `cols` is odd). `rows === cols` spends all of them
+ *   reaching a single centered peak row; `rows === cols + 1` spends the same
+ *   count but leaves the peak as a two-row plateau instead — both are
+ *   equally "perfect", just a single point vs. a flat top.
+ * - triangle/triangleInverted taper across the *entire* height (there's only
+ *   one tip, not two), so all `rows - 1` transitions carry the full climb:
+ *   `rows - 1 = (cols - 1) / 2`, i.e. `rows === (cols + 1) / 2`.
+ * - rectangle has no taper at all — any `rows` already fits, so this
+ *   function isn't meaningful for it (callers should just skip the check).
+ */
+export function idealDimensionsFor(preset: BodyShapePreset, cols: number): { cols: number; rows: number[] } {
+  const oddCols = cols % 2 === 0 ? cols + 1 : cols
+  switch (preset) {
+    case 'rectangle':
+      return { cols: oddCols, rows: [] }
+    case 'rhombus':
+      return { cols: oddCols, rows: [oddCols, oddCols + 1] }
+    case 'triangle':
+    case 'triangleInverted':
+      return { cols: oddCols, rows: [(oddCols + 1) / 2] }
+  }
+}
+
+/** Whether `cols`/`rows` already taper by exactly 1 bead per edge per row for `preset` — see `idealDimensionsFor`. Rectangle always fits; it has no taper to break. */
+export function fitsPerfectly(preset: BodyShapePreset, cols: number, rows: number): boolean {
+  if (preset === 'rectangle') return true
+  const ideal = idealDimensionsFor(preset, cols)
+  return ideal.cols === cols && ideal.rows.includes(rows)
+}
+
+/**
  * The offset (in cell-index space) that centers a row of the given `width`
  * on the pattern's physical vertical axis, computed in *physical*
  * coordinates rather than raw indices: brick's own per-row 0.5 stagger (odd
@@ -105,7 +157,14 @@ function splitGrowth(growths: number[], startFavorLeft: boolean): { left: number
  * Growth is capped at `2 * dMax` (1 bead per edge per transition, the hard
  * per-row cap real brick stitch has) — for a taper with too few rows to
  * reach `cols` at that rate, the peak simply falls short of full width
- * rather than breaking the cap.
+ * rather than breaking the cap. When that happens, `cols` itself is left
+ * untouched (never shrunk to match the achieved peak) — `bestTaperTrajectory`
+ * still centers every row on `cols / 2`, so the unreached columns split
+ * evenly as a symmetric margin on both sides rather than piling up on one
+ * side. Shrinking `cols` instead would silently change a dimension the
+ * user actually typed; a centered, deliberately-empty margin reads as "this
+ * shape doesn't reach the edges here" rather than a bug, and the row stays
+ * editable to widen it manually regardless.
  */
 function widthsAlongTaper(cols: number, dMax: number, startFavorLeft: boolean): { widths: number[]; leftCum: number[] } {
   const totalGrowth = Math.min(cols - 1, 2 * dMax)
