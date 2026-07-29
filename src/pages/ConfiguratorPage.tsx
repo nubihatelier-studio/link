@@ -10,7 +10,7 @@ import {
   totalFringeBeadCount,
   type FringeShape,
 } from '@/engine/fringe'
-import { createShapedRowShape, isShapeCapable, type BodyShapePreset } from '@/engine/shape'
+import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -309,6 +309,12 @@ export function ConfiguratorPage() {
                 onClick={() => {
                   setBodyShape(preset)
                   setSelectedTemplate(null)
+                  // Silent nudge, no dialog: triangle/rhombus each have one
+                  // row whose position is physically pinned in a way that
+                  // needs an odd row count to stay perfectly centered (see
+                  // `preferredRowsFor`'s doc comment) — rectangle and
+                  // triangleInverted never need it, so this is a no-op there.
+                  setRows(preferredRowsFor(preset, rows))
                 }}
                 className="flex flex-col items-center gap-1 py-4 text-center"
               >

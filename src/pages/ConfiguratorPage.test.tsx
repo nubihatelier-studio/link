@@ -154,10 +154,11 @@ describe('ConfiguratorPage — forma del cuerpo', () => {
     expect(createPattern).toHaveBeenCalledTimes(1)
     const rowShapeArg = createPattern.mock.calls[0][3]
     expect(rowShapeArg).toBeDefined()
-    // Picking "Rombo" no longer snaps cols/rows to anything — the default
-    // 16x16 is used as-is (any dimension tapers evenly at 1 bead/row now,
-    // see shape.ts's "Corrección 1").
-    expect(rowShapeArg!.length).toBe(16)
+    // Picking "Rombo" no longer snaps cols to anything — but rows does get a
+    // silent nudge (16 -> 17) to stay odd: an even row count forces a 2-row
+    // plateau at the peak whose two rows can never share the same physical
+    // center (see shape.ts's `preferredRowsFor`).
+    expect(rowShapeArg!.length).toBe(17)
     // A rhombus's middle rows are the widest, its first/last rows taper to 1 bead.
     expect(rowShapeArg![0].length).toBe(1)
     expect(rowShapeArg![rowShapeArg!.length - 1].length).toBe(1)
@@ -174,5 +175,28 @@ describe('ConfiguratorPage — forma del cuerpo', () => {
 
     expect(createPattern).toHaveBeenCalledTimes(1)
     expect(createPattern.mock.calls[0][3]).toBeUndefined()
+  })
+
+  /** The second spinbutton on screen is always "Filas" (Columnas comes first in the JSX). */
+  function rowsInput() {
+    return screen.getAllByRole('spinbutton')[1]
+  }
+
+  it('elegir "Triángulo" también nudgea filas pares a impar (misma razón física que Rombo)', async () => {
+    const user = await renderOnBrick()
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.configurator.bodyShape.triangle}$`) }))
+    expect(rowsInput()).toHaveValue(17)
+  })
+
+  it('elegir "Triángulo invertido" no toca las filas — su fila de ancho completo nunca cae en un índice impar', async () => {
+    const user = await renderOnBrick()
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.bodyShape.triangleInverted) }))
+    expect(rowsInput()).toHaveValue(16)
+  })
+
+  it('elegir "Rectángulo" nunca toca las filas', async () => {
+    const user = await renderOnBrick()
+    await user.click(screen.getByRole('button', { name: new RegExp(`${t.configurator.bodyShape.rectangle}$`) }))
+    expect(rowsInput()).toHaveValue(16)
   })
 })

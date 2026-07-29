@@ -37,6 +37,53 @@ export function maxRowWidth(rowShape: RowShape[]): number {
 export type BodyShapePreset = 'rectangle' | 'triangle' | 'triangleInverted' | 'rhombus'
 
 /**
+ * The row count to actually request when *applying* `preset` fresh (at
+ * creation time or when picking a body-shape preset) — not a constraint on
+ * `createShapedRowShape` itself, which must always honor whatever `rows`
+ * it's given, since a saved pattern or one a weaver freely resized
+ * afterward may well have an "unideal" row count and still needs a valid,
+ * best-effort silhouette (see `widthAt`/`recenterRowShape` above).
+ *
+ * `triangle` and `rhombus` each have one row whose width is pinned to a
+ * specific value — triangle's widest row (always `cols`) sits at absolute
+ * index `rows - 1`; rhombus's peak sits in the middle. In both cases that
+ * row's raw offset is *forced* (not a centering choice: a full-width row can
+ * only have offset 0; a rhombus peak's own width pins it just as tightly).
+ * Its physical position on top of that is `offset + xOf(row)`, and `xOf` is
+ * entirely determined by whether that absolute row index is even or odd
+ * (`geometry.ts#cellPosition`) — which is fixed by `rows` alone, not
+ * choosable by any centering algorithm:
+ *
+ * - `triangle`: the pinned row is `rows - 1`. When `rows` is even, `rows-1`
+ *   is odd, so that row's physical span is forced half a bead right of
+ *   where a weaver would expect it (measured and confirmed: `cols=13,
+ *   rows=12` centers every row at 7.0 instead of 6.5, with the widest row
+ *   spanning physical 0.5–13.5 instead of 0–13). When `rows` is odd,
+ *   `rows-1` is even and the bias disappears — verified centering exactly
+ *   at 6.5 for `rows=13`.
+ * - `triangleInverted`: its pinned (full-width) row is always index 0 —
+ *   always even — so it never has this bias, regardless of `rows`.
+ * - `rhombus`: with an even `rows`, the peak is a 2-row plateau (both rows
+ *   the same width) whose two rows necessarily have *different* parities —
+ *   a mirror pair that can never land on the exact same physical center
+ *   (documented since Round D/E). An odd `rows` gives a single centered
+ *   peak row instead, with no plateau and no mismatched pair.
+ *
+ * Both are the same underlying issue — an even `rows` forces a parity clash
+ * somewhere a centering algorithm can't paper over — so both get the same
+ * fix: nudge an even `rows` up by 1 before generating. This only happens
+ * when a preset is *chosen* (silently, no dialog — see ConfiguratorPage.tsx);
+ * `rows` is never rewritten once a pattern exists, so a weaver adding or
+ * removing rows by hand afterward is always free to land on an even count
+ * again if they want to (still a fully valid, bounded silhouette — just with
+ * the small, physically-forced imperfection above).
+ */
+export function preferredRowsFor(preset: BodyShapePreset, rows: number): number {
+  if (preset === 'rectangle' || preset === 'triangleInverted') return rows
+  return isOddIndex(rows) ? rows : rows + 1
+}
+
+/**
  * ROOT CAUSE FIX — read this before touching anything below.
  *
  * Real brick stitch increases or decreases a row by exactly ONE bead per
@@ -93,12 +140,26 @@ function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number)
   }
 }
 
-/** Walks the offset trajectory forward from a *given* row-0 anchor — see `walkOffsets` for why the anchor itself needs two candidates, not one. */
-function walkFrom(widths: number[], anchor: number): number[] {
+/**
+ * Walks the offset trajectory forward from a *given* row-0 anchor — see
+ * `walkOffsets` for why the anchor itself needs two candidates, not one.
+ *
+ * `cols` is only needed for the `Math.abs(delta) > 1` fallback: a width jump
+ * bigger than 1 bead has no single parity-locked "correct" side (that rule
+ * only exists for the ±1-per-row taper `widthAt` produces) — it can only
+ * happen when `recenterRowShape` is handed a row shape that didn't come from
+ * a fresh preset (e.g. several independent manual edge edits stacked up
+ * without a recenter in between), so it just centers that one row on its
+ * own rather than guessing a side.
+ */
+function walkFrom(cols: number, widths: number[], anchor: number): number[] {
   const offsets = [anchor]
   for (let r = 1; r < widths.length; r++) {
     const delta = widths[r] - widths[r - 1]
-    if (delta === 1 && isOddIndex(r)) offsets.push(offsets[r - 1] - 1) // grow left
+    if (Math.abs(delta) > 1) {
+      const centered = Math.round((cols - widths[r]) / 2 - (isOddIndex(r) ? 0.5 : 0))
+      offsets.push(Math.max(0, Math.min(cols - widths[r], centered)))
+    } else if (delta === 1 && isOddIndex(r)) offsets.push(offsets[r - 1] - 1) // grow left
     else if (delta === -1 && !isOddIndex(r)) offsets.push(offsets[r - 1] + 1) // shrink left
     else offsets.push(offsets[r - 1]) // grew/shrank right, or no change at all
   }
@@ -130,7 +191,7 @@ function walkOffsets(cols: number, widths: number[]): number[] {
   const ideal = (cols - widths[0]) / 2
   let best: { offsets: number[]; maxDev: number; rawAsymmetry: number } | null = null
   for (const anchor of new Set([Math.floor(ideal), Math.ceil(ideal)])) {
-    const offsets = walkFrom(widths, anchor)
+    const offsets = walkFrom(cols, widths, anchor)
     if (!offsets.every((o, r) => o >= 0 && o + widths[r] <= cols)) continue
     const maxDev = Math.max(
       ...offsets.map((o, r) => Math.abs(o + (isOddIndex(r) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
@@ -146,13 +207,38 @@ function walkOffsets(cols: number, widths: number[]): number[] {
     if (better) best = { offsets, maxDev, rawAsymmetry }
   }
   // Shouldn't happen for a valid width sequence — fall back rather than crash.
-  return best?.offsets ?? walkFrom(widths, Math.round(ideal))
+  return best?.offsets ?? walkFrom(cols, widths, Math.round(ideal))
+}
+
+/**
+ * Recenters a row shape from scratch, given only its widths — the fix for
+ * "Agregar/Quitar fila" accumulating drift (Corrección 1). Every previous
+ * version of this file computed a fresh preset's offsets this way already,
+ * but `addRowAtTop`/`removeRowAtTop`/`growRowEdge`/`shrinkRowEdge` used to
+ * patch just the one row they touched and leave every other row's *offset*
+ * untouched — which silently breaks, because inserting or removing a row
+ * shifts every row below it to a new absolute index, flipping its brick
+ * parity (`geometry.ts#cellPosition`'s odd/even stagger). An offset that was
+ * correct for the old index is generally wrong for the new one, and the
+ * error compounds with every further edit (see shape.test.ts's regression
+ * fixture — 5 additions in a row used to skew the whole silhouette into a
+ * lopsided parallelogram). The fix is to never patch incrementally: always
+ * re-derive every row's offset from its width and its (possibly new)
+ * absolute index, treating centeredness as an invariant to restore, not a
+ * value to carry forward.
+ */
+export function recenterRowShape(rowShape: RowShape[], cols: number): RowShape[] {
+  const widths = rowShape.map((row) => row.length)
+  const offsets = walkOffsets(cols, widths)
+  return widths.map((length, r) => ({ offset: offsets[r], length }))
 }
 
 function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
   const widths = Array.from({ length: rows }, (_, r) => widthAt(preset, cols, rows, r))
-  const offsets = walkOffsets(cols, widths)
-  return widths.map((length, r) => ({ offset: offsets[r], length }))
+  return recenterRowShape(
+    widths.map((length) => ({ offset: 0, length })),
+    cols,
+  )
 }
 
 /**

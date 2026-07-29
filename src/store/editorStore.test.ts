@@ -439,15 +439,19 @@ describe('editorStore — forma del cuerpo (growRowEdge / shrinkRowEdge)', () =>
     expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 0, length: 4 })
   })
 
-  it('growRowEdge("right") solo agranda el largo en 1, el offset no cambia', () => {
+  it('growRowEdge("right") agranda el largo en 1 — el offset se recentra (Corrección 1), no queda fijo', () => {
     useEditorStore.getState().growRowEdge(0, 'right')
-    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 1, length: 4 })
+    // Width 3->4 on a 5-col row recenters to offset 0 (the single centered
+    // option once tied against offset 1 — see recenterRowShape), not the
+    // pre-edit offset carried forward untouched.
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 0, length: 4 })
   })
 
   it('growRowEdge no hace nada más allá del borde propio de la grilla (cols)', () => {
-    useEditorStore.getState().growRowEdge(0, 'right') // length 3 -> 4, offset 1 + 4 = 5 = cols, at the limit
-    useEditorStore.getState().growRowEdge(0, 'right') // would need offset 1 + 5 = 6 > cols=5 — rejected
-    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 1, length: 4 })
+    useEditorStore.getState().growRowEdge(0, 'right') // length 3 -> 4, recenters to offset 0
+    useEditorStore.getState().growRowEdge(0, 'right') // length 4 -> 5 = cols: reaches full width, offset 0
+    useEditorStore.getState().growRowEdge(0, 'right') // would need length 6 > cols=5 — rejected, unchanged
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 0, length: 5 })
   })
 
   it('growRowEdge no modifica el historial de deshacer (es estructural)', () => {
@@ -455,22 +459,30 @@ describe('editorStore — forma del cuerpo (growRowEdge / shrinkRowEdge)', () =>
     expect(useEditorStore.getState().history).toHaveLength(0)
   })
 
-  it('shrinkRowEdge("left") borra el color de la mostacilla que cae fuera de la fila, y sí es deshacible', () => {
+  it('shrinkRowEdge("left") siempre borra la mostacilla que el weaver achicó directamente, y sí es deshacible', () => {
     useEditorStore.getState().shrinkRowEdge(0, 'left')
     const { rowShape, cells, history } = useEditorStore.getState()
-    expect(rowShape[0]).toEqual({ offset: 2, length: 2 })
-    expect(cells['0,1']).toBeUndefined() // dropped — was the row's old left edge
-    expect(cells['0,2']).toBe('#222222') // untouched
-    expect(cells['0,3']).toBe('#111111') // untouched
-    expect(history).toHaveLength(1) // the color drop went through commit()
+    // Width 3->2 on a 5-col row recenters to offset 1 (tied with offset 2,
+    // same as growRowEdge above) — for a lone, unanchored row recentering
+    // can land the row back where a "shrink right" would have too, so the
+    // bead directly dropped by this edit (column 1, the row's old left edge)
+    // is always removed regardless of where recentering ends up, and a
+    // second, general sweep catches anything else orphaned by the move
+    // (here, column 3 — now outside the recentered [1, 3) span).
+    expect(rowShape[0]).toEqual({ offset: 1, length: 2 })
+    expect(cells['0,1']).toBeUndefined() // dropped — the bead the weaver directly shrank away
+    expect(cells['0,2']).toBe('#222222') // still inside the recentered span
+    expect(cells['0,3']).toBeUndefined() // orphaned by recentering, not just the direct edit
+    expect(history).toHaveLength(1) // both drops fold into a single undo step
   })
 
-  it('shrinkRowEdge("right") borra el color de la mostacilla del otro extremo', () => {
+  it('shrinkRowEdge("right") borra la mostacilla del otro extremo', () => {
     useEditorStore.getState().shrinkRowEdge(0, 'right')
     const { rowShape, cells } = useEditorStore.getState()
     expect(rowShape[0]).toEqual({ offset: 1, length: 2 })
     expect(cells['0,3']).toBeUndefined() // dropped — was the row's old right edge
     expect(cells['0,1']).toBe('#111111')
+    expect(cells['0,2']).toBe('#222222')
   })
 
   it('shrinkRowEdge nunca deja una fila en 0 (mínimo 1 mostacilla)', () => {
@@ -510,17 +522,26 @@ describe('editorStore — agregar/quitar fila arriba (Corrección 3)', () => {
     useEditorStore.setState({ cols: 4, rows: 4 })
   })
 
-  it('addRowAtTop agrega una fila más angosta arriba, siguiendo la pendiente, y corre las celdas existentes una fila hacia abajo', () => {
+  it('addRowAtTop agrega una fila más angosta arriba, siguiendo la pendiente, y recentra el resto (Corrección 1)', () => {
     useEditorStore.getState().addRowAtTop()
     const { rows, rowShape, cells } = useEditorStore.getState()
     expect(rows).toBe(5)
-    // New row 0 is 1 bead narrower than the old row 0 ({offset:2,length:1}), floored at 1 bead.
-    expect(rowShape[0]).toEqual({ offset: 2, length: 1 })
-    expect(rowShape[1]).toEqual({ offset: 2, length: 1 }) // the old row 0, untouched
-    expect(rowShape[4]).toEqual({ offset: 0, length: 4 }) // the old row 3, untouched
-    // Cells shift down by exactly one row.
-    expect(cells['1,2']).toBe('#111111')
-    expect(cells['4,0']).toBe('#222222')
+    // Every row is recentered from scratch, not just shifted down an index —
+    // inserting a row flips every existing row's absolute parity (odd/even),
+    // so the old row 0 ({offset:2,length:1}) is recentered to {offset:1} at
+    // its new index 1, not carried forward unchanged (see
+    // recenterRowShape's doc comment — this is the actual fix for the
+    // "romboide" bug, verified fully in shape.test.ts).
+    expect(rowShape[0]).toEqual({ offset: 1, length: 1 })
+    expect(rowShape[1]).toEqual({ offset: 1, length: 1 }) // the old row 0, recentered at its new index
+    expect(rowShape[4]).toEqual({ offset: 0, length: 4 }) // the old row 3 — unaffected this time
+    // Cells shift down by one row first...
+    expect(cells['4,0']).toBe('#222222') // the old row 3's bead, unaffected, just shifted
+    // ...but a cell whose row got recentered to a *different* column (like
+    // row 0 above, shifted from column 2 to column 1) is orphaned: there's
+    // no "this bead's paint follows its row" concept, only (row, col) keys.
+    // A real, if rare, trade-off of insisting on correct centering.
+    expect(cells['1,2']).toBeUndefined()
     expect(cells['0,2']).toBeUndefined()
   })
 
@@ -539,16 +560,20 @@ describe('editorStore — agregar/quitar fila arriba (Corrección 3)', () => {
     expect(useEditorStore.getState().rows).toBe(1)
   })
 
-  it('agregar y luego quitar una fila es una operación redonda (vuelve exactamente al estado anterior)', () => {
+  it('agregar y luego quitar una fila vuelve exactamente a la misma silueta (la geometría es la operación redonda, no necesariamente cada mostacilla pintada)', () => {
     const before = useEditorStore.getState()
     const beforeRowShape = before.rowShape
-    const beforeCells = before.cells
     useEditorStore.getState().addRowAtTop()
     useEditorStore.getState().removeRowAtTop()
     const after = useEditorStore.getState()
     expect(after.rows).toBe(4)
-    expect(after.rowShape).toEqual(beforeRowShape)
-    expect(after.cells).toEqual(beforeCells)
+    expect(after.rowShape).toEqual(beforeRowShape) // the shape itself always round-trips exactly
+    // Cells don't necessarily round-trip: adding a row can recenter (and
+    // therefore orphan) a cell partway through, before it's ever removed
+    // again — see the "recentra el resto" test above. Here, only the row 3
+    // bead (untouched by the add step) survives the whole round trip.
+    expect(after.cells['3,0']).toBe('#222222')
+    expect(after.cells['0,2']).toBeUndefined()
   })
 
   it('cada llamada agrega exactamente una entrada al historial de deshacer (un solo paso, no varios)', () => {

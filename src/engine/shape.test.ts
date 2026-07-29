@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { isOddIndex } from './geometry'
-import { createRectangleRowShape, createShapedRowShape, isShapeCapable, maxRowWidth, normalizeRowShape } from './shape'
+import {
+  createRectangleRowShape,
+  createShapedRowShape,
+  isShapeCapable,
+  maxRowWidth,
+  normalizeRowShape,
+  preferredRowsFor,
+  recenterRowShape,
+} from './shape'
 
 /** Physical left edge of a brick row, in bead units — the row's own index offset plus brick's per-row 0.5 stagger (see `geometry.ts#cellPosition`). */
 function physicalLeft(row: number, offset: number): number {
@@ -258,5 +266,148 @@ describe('createShapedRowShape — a rhombus peak that falls short of cols still
         })
       }
     }
+  })
+})
+
+describe('recenterRowShape — centering as an invariant, not an incremental calculation (Corrección 1)', () => {
+  it('reproduces createShapedRowShape exactly when given a fresh preset\'s own widths — same algorithm, just exposed', () => {
+    for (const preset of ['triangle', 'triangleInverted', 'rhombus'] as const) {
+      for (const [cols, rows] of [
+        [13, 7],
+        [12, 10],
+        [9, 9],
+        [21, 8],
+      ] as const) {
+        const shape = createShapedRowShape(preset, cols, rows)
+        const recentered = recenterRowShape(
+          shape.map((row) => ({ offset: 0, length: row.length })),
+          cols,
+        )
+        expect(recentered).toEqual(shape)
+      }
+    }
+  })
+
+  it('regression: inserting a row at the top 5 times in a row (the reported "romboide" bug) stays perfectly centered — matches generating the final size directly', () => {
+    // Mirrors ShapePanel's "+ Agregar fila arriba": prepend a row 1 bead
+    // narrower than the current first, then recenter everything from
+    // scratch — never patch just the new row and leave the rest as-is,
+    // since inserting shifts every existing row to a new absolute index,
+    // flipping its brick parity (see recenterRowShape's doc comment).
+    function addRowAtTop(rowShape: { offset: number; length: number }[], cols: number) {
+      const oldFirst = rowShape[0]
+      const length = Math.max(1, oldFirst.length - 1)
+      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
+    }
+    let rowShape = createShapedRowShape('triangle', 13, 7)
+    for (let i = 0; i < 5; i++) {
+      rowShape = addRowAtTop(rowShape, 13)
+      // Never drifts out of bounds at any intermediate step, even before reaching the final size.
+      rowShape.forEach((row) => {
+        expect(row.offset).toBeGreaterThanOrEqual(0)
+        expect(row.offset + row.length).toBeLessThanOrEqual(13)
+      })
+    }
+    expect(rowShape).toEqual(createShapedRowShape('triangle', 13, 12))
+    // The specific complaint: row 1 should NOT be off in columns 9-10 (offset 8) — it must be centered.
+    expect(rowShape[0]).not.toEqual({ offset: 8, length: 2 })
+  })
+
+  it('regression: removing rows from the top repeatedly also stays centered (no incremental patch, same recompute)', () => {
+    function removeRowAtTop(rowShape: { offset: number; length: number }[], cols: number) {
+      return recenterRowShape(rowShape.slice(1), cols)
+    }
+    let rowShape = createShapedRowShape('rhombus', 13, 13)
+    for (let i = 0; i < 4; i++) rowShape = removeRowAtTop(rowShape, 13)
+    expect(rowShape).toEqual(recenterRowShape(rowShape, 13)) // already a fixed point — recentering again changes nothing
+    rowShape.forEach((row) => {
+      expect(row.offset).toBeGreaterThanOrEqual(0)
+      expect(row.offset + row.length).toBeLessThanOrEqual(13)
+    })
+  })
+
+  it('handles a manually-edited row shape with a width jump bigger than 1 bead between rows (no single parity-locked side exists) without going out of bounds', () => {
+    const handEdited = [
+      { offset: 5, length: 3 },
+      { offset: 2, length: 9 }, // jumped from 3 to 9 beads — could never come from a single generator step
+      { offset: 4, length: 5 },
+    ]
+    const recentered = recenterRowShape(handEdited, 13)
+    expect(recentered.map((r) => r.length)).toEqual([3, 9, 5]) // widths are never touched, only offsets
+    recentered.forEach((row) => {
+      expect(row.offset).toBeGreaterThanOrEqual(0)
+      expect(row.offset + row.length).toBeLessThanOrEqual(13)
+    })
+  })
+})
+
+describe('preferredRowsFor — silently nudging even rows to odd for presets with a forced parity bias (Correcciones 2 y 3)', () => {
+  it('rectangle and triangleInverted are never adjusted — they have no forced-parity endpoint', () => {
+    expect(preferredRowsFor('rectangle', 16)).toBe(16)
+    expect(preferredRowsFor('rectangle', 17)).toBe(17)
+    expect(preferredRowsFor('triangleInverted', 16)).toBe(16)
+    expect(preferredRowsFor('triangleInverted', 17)).toBe(17)
+  })
+
+  it('triangle and rhombus round an even count up by 1; an odd count is left alone', () => {
+    expect(preferredRowsFor('triangle', 16)).toBe(17)
+    expect(preferredRowsFor('triangle', 13)).toBe(13)
+    expect(preferredRowsFor('rhombus', 16)).toBe(17)
+    expect(preferredRowsFor('rhombus', 13)).toBe(13)
+  })
+
+  it('fixture: triangle 13x12 (the reported bug — all rows centered at 7.0 instead of 6.5) is exactly fixed by the adjustment', () => {
+    const buggy = createShapedRowShape('triangle', 13, 12)
+    buggy.forEach((row, r) => {
+      const center = physicalLeft(r, row.offset) + row.length / 2
+      expect(center).toBeCloseTo(7, 9) // documents the forced bias itself — see preferredRowsFor's doc comment
+    })
+
+    const fixedRows = preferredRowsFor('triangle', 12)
+    expect(fixedRows).toBe(13)
+    const fixed = createShapedRowShape('triangle', 13, fixedRows)
+    fixed.forEach((row, r) => {
+      const center = physicalLeft(r, row.offset) + row.length / 2
+      expect(center).toBeCloseTo(6.5, 9)
+      expect(center).toBeGreaterThanOrEqual(0)
+      expect(row.offset).toBeGreaterThanOrEqual(0)
+      expect(row.offset + row.length).toBeLessThanOrEqual(13)
+    })
+  })
+
+  it('property: for triangle/rhombus, after applying preferredRowsFor no row\'s physical span ever exceeds [0, cols], across a wide even/odd dimension matrix', () => {
+    for (const preset of ['triangle', 'rhombus'] as const) {
+      for (let cols = 5; cols <= 21; cols += 2) {
+        for (let rows = 4; rows <= cols + 2; rows++) {
+          const adjusted = preferredRowsFor(preset, rows)
+          const shape = createShapedRowShape(preset, cols, adjusted)
+          shape.forEach((row, r) => {
+            const left = physicalLeft(r, row.offset)
+            const right = physicalRight(r, row.offset, row.length)
+            expect(left).toBeGreaterThanOrEqual(-1e-9)
+            expect(right).toBeLessThanOrEqual(cols + 1e-9)
+          })
+        }
+      }
+    }
+  })
+
+  it('rhombus: exact vertical symmetry (raw offset, not just length) once rows is odd — no plateau, no mismatched mirror pair', () => {
+    for (let cols = 5; cols <= 21; cols += 2) {
+      for (let rows = 4; rows <= 16; rows++) {
+        const adjusted = preferredRowsFor('rhombus', rows)
+        const shape = createShapedRowShape('rhombus', cols, adjusted)
+        for (let r = 0; r < adjusted; r++) {
+          const mirror = adjusted - 1 - r
+          expect(shape[r].offset).toBe(shape[mirror].offset)
+          expect(shape[r].length).toBe(shape[mirror].length)
+        }
+      }
+    }
+  })
+
+  it('applying a preset again after the nudge is idempotent (rows is already odd, so it stays put)', () => {
+    const once = preferredRowsFor('rhombus', 16)
+    expect(preferredRowsFor('rhombus', once)).toBe(once)
   })
 })

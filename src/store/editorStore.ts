@@ -4,7 +4,7 @@ import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
-import { createRectangleRowShape, normalizeRowShape } from '@/engine/shape'
+import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
@@ -258,6 +258,33 @@ function normalizeRect(r: SelectionRect): SelectionRect {
   }
 }
 
+/**
+ * Drops any painted cell that's no longer inside `rowShape`'s span for its
+ * row — used after `recenterRowShape` moves a row shape's offsets, since
+ * recentering can in principle shift more than just the row that was
+ * directly edited (see `recenterRowShape`'s doc comment) and a cell painted
+ * under the old offsets could fall outside the new ones. Returns the same
+ * `cells` reference untouched if nothing was actually orphaned, so callers
+ * can cheaply check `result !== cells` to decide whether a commit is needed.
+ */
+function pruneOrphanedCells(
+  cells: ColorMap,
+  cols: number,
+  rows: number,
+  fringe: FringeData,
+  rowShape: RowShape[],
+): ColorMap {
+  let next: ColorMap = cells
+  for (const key of Object.keys(cells)) {
+    const { row, col } = parseCellKey(key)
+    if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) {
+      if (next === cells) next = { ...cells }
+      delete next[key]
+    }
+  }
+  return next
+}
+
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 function scheduleAutosave(patternId: string, cells: ColorMap) {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -387,73 +414,97 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setFringeSymmetric: (on) => set({ fringeSymmetric: on }),
 
   growRowEdge: (row, edge) => {
-    const { rowShape, cols } = get()
+    const { rowShape, cols, cells, rows, fringe } = get()
     const shape = rowShape[row]
     if (!shape) return
     const next = edge === 'left' ? { offset: shape.offset - 1, length: shape.length + 1 } : { offset: shape.offset, length: shape.length + 1 }
     if (next.offset < 0 || next.offset + next.length > cols) return // already at the grid's own edge
     const nextRowShape = [...rowShape]
     nextRowShape[row] = next
-    set({ rowShape: nextRowShape })
+    // Recentered from scratch (Corrección 1) — a single edge edit can leave
+    // this row's own offset out of step with its neighbors' (see
+    // `recenterRowShape`'s doc comment), so every row's offset is re-derived
+    // from its width, not just the one that was actually touched.
+    const recentered = recenterRowShape(nextRowShape, cols)
+    set({ rowShape: recentered })
+    // Growing never shrinks the edited row itself, but recentering the rest
+    // of the shape to stay smooth can in principle nudge another row enough
+    // to orphan one of its painted cells — sweep everything, not just this
+    // row, and fold any drops into a single undo step.
+    const pruned = pruneOrphanedCells(cells, cols, rows, fringe, recentered)
+    if (pruned !== cells) get().commit(pruned)
     const id = get().patternId
-    if (id) usePatternsStore.getState().setRowShape(id, nextRowShape)
+    if (id) usePatternsStore.getState().setRowShape(id, recentered)
   },
 
   shrinkRowEdge: (row, edge) => {
-    const { rowShape, cells } = get()
+    const { rowShape, cells, cols, rows, fringe } = get()
     const shape = rowShape[row]
     if (!shape || shape.length <= 1) return // a row always keeps at least 1 bead
     const droppedCol = edge === 'left' ? shape.offset : shape.offset + shape.length - 1
     const next = edge === 'left' ? { offset: shape.offset + 1, length: shape.length - 1 } : { offset: shape.offset, length: shape.length - 1 }
     const nextRowShape = [...rowShape]
     nextRowShape[row] = next
-    set({ rowShape: nextRowShape })
+    const recentered = recenterRowShape(nextRowShape, cols)
+    set({ rowShape: recentered })
 
-    // Shrinking drops any painted color in the bead that just fell outside the row's new span —
-    // it no longer exists. Goes through commit() (undoable), unlike the shape edit itself.
-    const key = cellKey(row, droppedCol)
-    if (key in cells) {
-      const nextCells = { ...cells }
-      delete nextCells[key]
-      get().commit(nextCells)
-    }
+    // The bead the user directly shrank away always drops, regardless of
+    // where recentering ends up putting this row (for a lone, unanchored
+    // row, recentering's own tie-break can in principle land the row back
+    // in a position that would otherwise "un-shrink" that exact edge — the
+    // explicit drop here is what keeps "achicar por la izquierda" always
+    // removing the bead the weaver actually clicked). A second, general
+    // sweep then catches anything else recentering orphaned elsewhere (this
+    // row's *other* edge, or a different row nudged to stay smooth) — both
+    // fold into the same single undo step.
+    const directKey = cellKey(row, droppedCol)
+    const withDirectDrop = directKey in cells ? { ...cells } : cells
+    delete withDirectDrop[directKey]
+    const pruned = pruneOrphanedCells(withDirectDrop, cols, rows, fringe, recentered)
+    if (pruned !== cells) get().commit(pruned)
 
     const id = get().patternId
-    if (id) usePatternsStore.getState().setRowShape(id, nextRowShape)
+    if (id) usePatternsStore.getState().setRowShape(id, recentered)
   },
 
   addRowAtTop: () => {
-    const { cells, rows, rowShape } = get()
+    const { cells, rows, rowShape, cols, fringe } = get()
     const oldFirst = rowShape[0]
     const length = Math.max(1, oldFirst.length - 1)
-    // The new row is index 0; the old first row becomes index 1 (always
-    // odd). Per shape.ts's parity rule, growing *into* an odd row comes from
-    // the left — solved in reverse here, since the old row's own
-    // offset/length must stay exactly as they were.
-    const offset = length === oldFirst.length ? oldFirst.offset : oldFirst.offset + 1
-    const nextRowShape = [{ offset, length }, ...rowShape]
+    // Prepend a placeholder (its offset doesn't matter — recenterRowShape
+    // re-derives every row's offset from scratch right after) rather than
+    // patching just this one row and leaving the rest untouched: inserting
+    // a row shifts every existing row to a new absolute index, flipping its
+    // brick parity, so an offset that was correct before is generally wrong
+    // now (see `recenterRowShape`'s doc comment — this is the "romboide"
+    // bug: 5 additions in a row used to skew the whole silhouette).
+    const nextRowShape = recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
     // Every existing cell (body and fringe alike — they share the same
     // `cells` map) shifts down by one row to make room for the new top row.
-    const nextCells: ColorMap = {}
+    const shiftedCells: ColorMap = {}
     for (const [key, hex] of Object.entries(cells)) {
       const { row, col } = parseCellKey(key)
-      nextCells[cellKey(row + 1, col)] = hex
+      shiftedCells[cellKey(row + 1, col)] = hex
     }
+    // Recentering the rest of the rows could nudge one enough to orphan a
+    // cell that was valid under the old (pre-shift) offsets.
+    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows + 1, fringe, nextRowShape)
     get().commitShapeChange({ rows: rows + 1, rowShape: nextRowShape, cells: nextCells })
   },
 
   removeRowAtTop: () => {
-    const { rows, rowShape, cells } = get()
+    const { rows, rowShape, cells, cols, fringe } = get()
     if (rows <= 1) return // a pattern always keeps at least 1 row
-    const nextRowShape = rowShape.slice(1)
+    const nextRowShape = recenterRowShape(rowShape.slice(1), cols)
     // Shifts every remaining row up by one; anything painted in the row
     // being removed no longer exists.
-    const nextCells: ColorMap = {}
+    const shiftedCells: ColorMap = {}
     for (const [key, hex] of Object.entries(cells)) {
       const { row, col } = parseCellKey(key)
       if (row === 0) continue
-      nextCells[cellKey(row - 1, col)] = hex
+      shiftedCells[cellKey(row - 1, col)] = hex
     }
+    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows - 1, fringe, nextRowShape)
     get().commitShapeChange({ rows: rows - 1, rowShape: nextRowShape, cells: nextCells })
   },
 

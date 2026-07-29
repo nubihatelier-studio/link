@@ -42,7 +42,9 @@ describe('ShapePanel', () => {
     render(<ShapePanel />)
 
     await user.click(screen.getAllByRole('button', { name: 'Achicar por la izquierda' })[0])
-    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 2, length: 2 })
+    // Recentered against row 2 (full-width, forced offset 0) rather than
+    // carried forward from the pre-edit offset — see recenterRowShape (Corrección 1).
+    expect(useEditorStore.getState().rowShape[0]).toEqual({ offset: 1, length: 2 })
   })
 
   it('disables the shrink buttons once a row is down to 1 bead', () => {
