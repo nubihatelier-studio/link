@@ -103,6 +103,51 @@ describe('cellPosition / cellAtPosition — inverse hit-testing', () => {
   })
 })
 
+describe('cellPosition/cellAtPosition/beadCenterX/fringeAnchorX/cellAtPositionWithFringe — staggerPhase (Ronda I)', () => {
+  it('defaults to phase 0 everywhere, reproducing the exact pre-Ronda-I behavior when the argument is omitted (legacy-pattern migration guarantee)', () => {
+    expect(cellPosition('brick', 3, 2)).toEqual(cellPosition('brick', 3, 2, undefined, 0))
+    expect(beadCenterX('brick', 3, 2)).toBe(beadCenterX('brick', 3, 2, 0))
+    expect(fringeAnchorX('brick', 2, 5)).toBe(fringeAnchorX('brick', 2, 5, 0))
+    expect(cellAtPosition('brick', 2.4, 3.1)).toEqual(cellAtPosition('brick', 2.4, 3.1, 0))
+    expect(cellAtPositionWithFringe('brick', 5, 2.4, 3.1)).toEqual(cellAtPositionWithFringe('brick', 5, 2.4, 3.1, 0))
+  })
+
+  it('phase 1 shifts brick\'s stagger check by one — a row that was flush (even) at phase 0 is staggered (odd) at phase 1, and vice versa', () => {
+    // row 0 is even (flush) at phase 0, odd (staggered +0.5) at phase 1.
+    expect(cellPosition('brick', 0, 4).x).toBe(4)
+    expect(cellPosition('brick', 0, 4, undefined, 1).x).toBe(4.5)
+    // row 1 is odd (staggered) at phase 0, even (flush) at phase 1.
+    expect(cellPosition('brick', 1, 4).x).toBe(4.5)
+    expect(cellPosition('brick', 1, 4, undefined, 1).x).toBe(4)
+  })
+
+  it('loom and peyote never gain a phase-dependent x — only brick has a row-parity stagger', () => {
+    expect(cellPosition('loom', 1, 4, undefined, 1)).toEqual(cellPosition('loom', 1, 4, undefined, 0))
+    expect(cellPosition('peyote', 1, 4, undefined, 1)).toEqual(cellPosition('peyote', 1, 4, undefined, 0))
+  })
+
+  it('cellAtPosition (the inverse) resolves the same physical point back to the same cell under a non-default phase, for every technique', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 5; col++) {
+          const pos = cellPosition(technique, row, col, undefined, 1)
+          const hit = cellAtPosition(technique, pos.x + 0.4, pos.y + 0.4, 1)
+          expect(hit).toEqual({ row, col })
+        }
+      }
+    }
+  })
+
+  it('fringeAnchorX/cellAtPositionWithFringe read the same phase as cellPosition, so a fringe column\'s hang point and its hit-test agree under phase 1', () => {
+    const bodyRows = 6
+    const anchor = fringeAnchorX('brick', 2, bodyRows, 1)
+    expect(anchor).toBe(beadCenterX('brick', bodyRows - 1, 2, 1))
+    const fringePos = cellPosition('brick', bodyRows, 2, bodyRows, 1)
+    const hit = cellAtPositionWithFringe('brick', bodyRows, fringePos.x + 0.4, fringePos.y + 0.1, 1)
+    expect(hit).toEqual({ row: bodyRows, col: 2 })
+  })
+})
+
 describe('cellPosition with a fringe zone', () => {
   it('matches the plain body formula when bodyRows is omitted or the row is still in the body', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {

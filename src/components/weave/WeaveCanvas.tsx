@@ -15,12 +15,23 @@ interface WeaveCanvasProps {
   order: Cell[]
   currentIndex: number
   onTapNext: () => void
+  staggerPhase?: 0 | 1
 }
 
 const CELL_PX = 24
 const MARGIN = 28
 
-export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, currentIndex, onTapNext }: WeaveCanvasProps) {
+export function WeaveCanvas({
+  technique,
+  cols,
+  rows,
+  cells,
+  fringe,
+  order,
+  currentIndex,
+  onTapNext,
+  staggerPhase = 0,
+}: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
   const pointerCancelled = useRef(false)
@@ -36,8 +47,8 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
 
   const nextCell = order[currentIndex + 1]
   const direction = useMemo(
-    () => directionAtStep(technique, order, currentIndex + 1, rows),
-    [technique, order, currentIndex, rows],
+    () => directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase),
+    [technique, order, currentIndex, rows, staggerPhase],
   )
 
   useEffect(() => {
@@ -58,7 +69,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        const pos = cellPosition(technique, row, col)
+        const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
         const y = MARGIN + pos.y * CELL_PX + inset
         const w = CELL_PX - inset * 2
@@ -82,7 +93,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
       const length = fringe.lengths[col] ?? 0
       for (let depth = 0; depth < length; depth++) {
         const row = rows + depth
-        const pos = cellPosition(technique, row, col, rows)
+        const pos = cellPosition(technique, row, col, rows, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
         const y = MARGIN + pos.y * CELL_PX + inset
         const w = CELL_PX - inset * 2
@@ -101,7 +112,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
     }
 
     if (nextCell) {
-      const pos = cellPosition(technique, nextCell.row, nextCell.col, rows)
+      const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
       const x = MARGIN + pos.x * CELL_PX
       const y = MARGIN + pos.y * CELL_PX
       ctx.strokeStyle = '#c9a227'
@@ -127,15 +138,15 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
     ctx.textAlign = 'center'
     const step = cols > 40 ? 10 : cols > 20 ? 5 : 1
     for (let c = 0; c < cols; c += step) {
-      const pos = cellPosition(technique, 0, c)
+      const pos = cellPosition(technique, 0, c, undefined, staggerPhase)
       ctx.fillText(String(c + 1), MARGIN + pos.x * CELL_PX + CELL_PX / 2, MARGIN / 2)
     }
     ctx.textAlign = 'right'
     for (let r = 0; r < rows; r += step) {
-      const pos = cellPosition(technique, r, 0)
+      const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, MARGIN + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase])
 
   function isNearNextCell(clientX: number, clientY: number): boolean {
     const canvas = canvasRef.current
@@ -143,7 +154,7 @@ export function WeaveCanvas({ technique, cols, rows, cells, fringe, order, curre
     const rect = canvas.getBoundingClientRect()
     const x = clientX - rect.left
     const y = clientY - rect.top
-    const pos = cellPosition(technique, nextCell.row, nextCell.col, rows)
+    const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
     const cx = MARGIN + pos.x * CELL_PX + CELL_PX / 2
     const cy = MARGIN + pos.y * CELL_PX + CELL_PX / 2
     return Math.hypot(x - cx, y - cy) < CELL_PX * 1.5

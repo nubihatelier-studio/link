@@ -50,6 +50,7 @@ interface EditorSnapshot {
   rows: number
   rowShape: RowShape[]
   fringe: FringeData
+  staggerPhase: 0 | 1
 }
 
 interface EditorState {
@@ -59,6 +60,15 @@ interface EditorState {
   cols: number
   rows: number
   beadTypeId: string
+  /**
+   * 0 or 1 — shifts brick's row-parity stagger check from a row's raw index
+   * to `row + staggerPhase` (see `geometry.ts#cellPosition`). Legacy patterns
+   * load with 0, reproducing their exact prior look. `addRowAtTop`/
+   * `removeRowAtTop` flip it (see their own comments) so that inserting or
+   * removing a row at the top — which reindexes every existing row — doesn't
+   * shift their physical stagger and break the pattern's centering.
+   */
+  staggerPhase: 0 | 1
   cells: ColorMap
 
   /**
@@ -136,7 +146,7 @@ interface EditorState {
   /** Removes the topmost row — a no-op if only 1 row remains (a pattern always keeps at least 1 row). Single undo entry, same as `addRowAtTop`. */
   removeRowAtTop: () => void
   /** Shared plumbing for `addRowAtTop`/`removeRowAtTop`: one undo entry, one persisted write, and an explicit (never silent, never corrupted) weave-progress reset since a row-count change renumbers the whole weave order. */
-  commitShapeChange: (next: { rows: number; rowShape: RowShape[]; cells: ColorMap }) => void
+  commitShapeChange: (next: { rows: number; rowShape: RowShape[]; cells: ColorMap; staggerPhase: 0 | 1 }) => void
   /**
    * Set by `commitShapeChange` to the weave progress index that was just
    * reset (so the UI can offer "Deshacer" on that specific reset), or `null`
@@ -308,6 +318,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   cols: 20,
   rows: 20,
   beadTypeId: 'miyuki-delica-11',
+  staggerPhase: 0,
   cells: {},
 
   fringe: createEmptyFringe(20),
@@ -401,9 +412,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
   },
   fringeSculptEnd: () => {
-    const { fringeSculptBase, cells, history, rows, rowShape, fringe, patternId } = get()
+    const { fringeSculptBase, cells, history, rows, rowShape, fringe, staggerPhase, patternId } = get()
     if (fringeSculptBase && fringeSculptBase !== cells) {
-      set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe }].slice(-100), future: [] })
+      set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe, staggerPhase }].slice(-100), future: [] })
     }
     set({ fringeSculptBase: null })
     if (patternId) usePatternsStore.getState().setFringe(patternId, fringe)
@@ -414,7 +425,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setFringeSymmetric: (on) => set({ fringeSymmetric: on }),
 
   growRowEdge: (row, edge) => {
-    const { rowShape, cols, cells, rows, fringe } = get()
+    const { rowShape, cols, cells, rows, fringe, staggerPhase } = get()
     const shape = rowShape[row]
     if (!shape) return
     const next = edge === 'left' ? { offset: shape.offset - 1, length: shape.length + 1 } : { offset: shape.offset, length: shape.length + 1 }
@@ -424,8 +435,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     // Recentered from scratch (Corrección 1) — a single edge edit can leave
     // this row's own offset out of step with its neighbors' (see
     // `recenterRowShape`'s doc comment), so every row's offset is re-derived
-    // from its width, not just the one that was actually touched.
-    const recentered = recenterRowShape(nextRowShape, cols)
+    // from its width, not just the one that was actually touched. Row count
+    // doesn't change here, so the phase stays whatever it already was.
+    const recentered = recenterRowShape(nextRowShape, cols, staggerPhase)
     set({ rowShape: recentered })
     // Growing never shrinks the edited row itself, but recentering the rest
     // of the shape to stay smooth can in principle nudge another row enough
@@ -438,14 +450,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   shrinkRowEdge: (row, edge) => {
-    const { rowShape, cells, cols, rows, fringe } = get()
+    const { rowShape, cells, cols, rows, fringe, staggerPhase } = get()
     const shape = rowShape[row]
     if (!shape || shape.length <= 1) return // a row always keeps at least 1 bead
     const droppedCol = edge === 'left' ? shape.offset : shape.offset + shape.length - 1
     const next = edge === 'left' ? { offset: shape.offset + 1, length: shape.length - 1 } : { offset: shape.offset, length: shape.length - 1 }
     const nextRowShape = [...rowShape]
     nextRowShape[row] = next
-    const recentered = recenterRowShape(nextRowShape, cols)
+    const recentered = recenterRowShape(nextRowShape, cols, staggerPhase)
     set({ rowShape: recentered })
 
     // The bead the user directly shrank away always drops, regardless of
@@ -468,9 +480,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   addRowAtTop: () => {
-    const { cells, rows, rowShape, cols, fringe } = get()
+    const { cells, rows, rowShape, cols, fringe, staggerPhase } = get()
     const oldFirst = rowShape[0]
     const length = Math.max(1, oldFirst.length - 1)
+    // Inserting a row reindexes every existing row by +1, flipping which
+    // absolute index (and thus brick parity) each one lands on — flipping
+    // staggerPhase in lockstep exactly cancels that shift, so every
+    // pre-existing row's real physical stagger (and its centered offset)
+    // stays the same; only the new row's own slot is actually new. See this
+    // file's `staggerPhase` field doc and `shape.ts#recenterRowShape`.
+    const nextStaggerPhase: 0 | 1 = staggerPhase === 0 ? 1 : 0
     // Prepend a placeholder (its offset doesn't matter — recenterRowShape
     // re-derives every row's offset from scratch right after) rather than
     // patching just this one row and leaving the rest untouched: inserting
@@ -478,7 +497,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     // brick parity, so an offset that was correct before is generally wrong
     // now (see `recenterRowShape`'s doc comment — this is the "romboide"
     // bug: 5 additions in a row used to skew the whole silhouette).
-    const nextRowShape = recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
+    const nextRowShape = recenterRowShape([{ offset: 0, length }, ...rowShape], cols, nextStaggerPhase)
     // Every existing cell (body and fringe alike — they share the same
     // `cells` map) shifts down by one row to make room for the new top row.
     const shiftedCells: ColorMap = {}
@@ -489,13 +508,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     // Recentering the rest of the rows could nudge one enough to orphan a
     // cell that was valid under the old (pre-shift) offsets.
     const nextCells = pruneOrphanedCells(shiftedCells, cols, rows + 1, fringe, nextRowShape)
-    get().commitShapeChange({ rows: rows + 1, rowShape: nextRowShape, cells: nextCells })
+    get().commitShapeChange({ rows: rows + 1, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
   },
 
   removeRowAtTop: () => {
-    const { rows, rowShape, cells, cols, fringe } = get()
+    const { rows, rowShape, cells, cols, fringe, staggerPhase } = get()
     if (rows <= 1) return // a pattern always keeps at least 1 row
-    const nextRowShape = recenterRowShape(rowShape.slice(1), cols)
+    // Removing the top row reindexes every remaining row by -1 — the same
+    // parity-cancelling flip as addRowAtTop (±1 mod 2 is the same shift).
+    const nextStaggerPhase: 0 | 1 = staggerPhase === 0 ? 1 : 0
+    const nextRowShape = recenterRowShape(rowShape.slice(1), cols, nextStaggerPhase)
     // Shifts every remaining row up by one; anything painted in the row
     // being removed no longer exists.
     const shiftedCells: ColorMap = {}
@@ -505,7 +527,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       shiftedCells[cellKey(row - 1, col)] = hex
     }
     const nextCells = pruneOrphanedCells(shiftedCells, cols, rows - 1, fringe, nextRowShape)
-    get().commitShapeChange({ rows: rows - 1, rowShape: nextRowShape, cells: nextCells })
+    get().commitShapeChange({ rows: rows - 1, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
   },
 
   note: '',
@@ -585,6 +607,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),
       rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
+      staggerPhase: doc.config.staggerPhase ?? 0,
       note: doc.note ?? '',
       history: [],
       future: [],
@@ -624,23 +647,26 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   commit: (next) => {
-    const { cells, rows, rowShape, fringe, history } = get()
-    set({ cells: next, history: [...history, { cells, rows, rowShape, fringe }].slice(-100), future: [] })
+    const { cells, rows, rowShape, fringe, staggerPhase, history } = get()
+    set({ cells: next, history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100), future: [] })
     const id = get().patternId
     if (id) scheduleAutosave(id, next)
   },
 
   commitShapeChange: (next) => {
-    const { cells, rows, rowShape, fringe, history, patternId } = get()
+    const { cells, rows, rowShape, fringe, staggerPhase, history, patternId } = get()
     set({
       cells: next.cells,
       rows: next.rows,
       rowShape: next.rowShape,
-      history: [...history, { cells, rows, rowShape, fringe }].slice(-100),
+      staggerPhase: next.staggerPhase,
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100),
       future: [],
     })
     if (!patternId) return
-    usePatternsStore.getState().setShapeStructure(patternId, { rows: next.rows, rowShape: next.rowShape, cells: next.cells, fringe })
+    usePatternsStore
+      .getState()
+      .setShapeStructure(patternId, { rows: next.rows, rowShape: next.rowShape, cells: next.cells, fringe, staggerPhase: next.staggerPhase })
     // A row-count change renumbers the whole weave order — the old
     // `currentIndex` no longer points at a meaningful bead. Never leave it
     // silently wrong: reset it explicitly, and surface the old value so the
@@ -705,7 +731,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   applyGradient: (startHex, endHex, direction) => {
-    const { cells, cols, rows, fringe, rowShape, technique, selection, colorSelectionMask } = get()
+    const { cells, cols, rows, fringe, rowShape, technique, selection, colorSelectionMask, staggerPhase } = get()
     const targets: { row: number; col: number }[] = []
     if (selection) {
       for (let r = selection.r0; r <= selection.r1; r++) {
@@ -728,7 +754,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (targets.length === 0) return
 
     const palette = paletteFromCells(cells).map((p) => p.hex)
-    const gradientColors = computeGradientCells(targets, technique, rows, startHex, endHex, direction, palette)
+    const gradientColors = computeGradientCells(targets, technique, rows, startHex, endHex, direction, palette, 0.2, staggerPhase)
     get().registerColor(startHex)
     get().registerColor(endHex)
     get().commit({ ...cells, ...gradientColors })
@@ -760,12 +786,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   strokeEnd: () => {
-    const { strokeBase, cells, rows, rowShape, fringe, history } = get()
+    const { strokeBase, cells, rows, rowShape, fringe, staggerPhase, history } = get()
     if (!strokeBase || strokeBase === cells) {
       set({ strokeBase: null })
       return
     }
-    set({ history: [...history, { cells: strokeBase, rows, rowShape, fringe }].slice(-100), future: [], strokeBase: null })
+    set({
+      history: [...history, { cells: strokeBase, rows, rowShape, fringe, staggerPhase }].slice(-100),
+      future: [],
+      strokeBase: null,
+    })
     const id = get().patternId
     if (id) scheduleAutosave(id, cells)
   },
@@ -848,7 +878,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   undo: () => {
-    const { history, cells, rows, rowShape, fringe, future } = get()
+    const { history, cells, rows, rowShape, fringe, staggerPhase, future } = get()
     if (history.length === 0) return
     const prev = history[history.length - 1]
     set({
@@ -856,15 +886,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rows: prev.rows,
       rowShape: prev.rowShape,
       fringe: prev.fringe,
+      staggerPhase: prev.staggerPhase,
       history: history.slice(0, -1),
-      future: [{ cells, rows, rowShape, fringe }, ...future].slice(0, 100),
+      future: [{ cells, rows, rowShape, fringe, staggerPhase }, ...future].slice(0, 100),
     })
     const id = get().patternId
     if (id) usePatternsStore.getState().setShapeStructure(id, prev)
   },
 
   redo: () => {
-    const { future, cells, rows, rowShape, fringe, history } = get()
+    const { future, cells, rows, rowShape, fringe, staggerPhase, history } = get()
     if (future.length === 0) return
     const next = future[0]
     set({
@@ -872,8 +903,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rows: next.rows,
       rowShape: next.rowShape,
       fringe: next.fringe,
+      staggerPhase: next.staggerPhase,
       future: future.slice(1),
-      history: [...history, { cells, rows, rowShape, fringe }].slice(-100),
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100),
     })
     const id = get().patternId
     if (id) usePatternsStore.getState().setShapeStructure(id, next)

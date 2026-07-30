@@ -49,6 +49,7 @@ export function EditorPage() {
     cols,
     rows,
     beadTypeId,
+    staggerPhase,
     cells,
     fringe,
     rowShape,
@@ -196,7 +197,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, note, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }
@@ -206,7 +207,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, beadType: bead, showLetters })
+      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }
@@ -216,7 +217,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, beadType: bead, showLetters })
+      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }

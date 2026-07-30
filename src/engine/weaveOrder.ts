@@ -102,20 +102,22 @@ export function buildWeaveOrder(
 /**
  * Direction vector (in bead units) from step `index` to `index + 1`, for
  * drawing a "next bead" arrow. Pass `bodyRows` (the pattern's body row
- * count) so a step landing in the fringe zone positions correctly — see
- * `cellPosition`.
+ * count) so a step landing in the fringe zone positions correctly, and
+ * `staggerPhase` so the vector matches the pattern's actual physical
+ * stagger — see `cellPosition`.
  */
 export function directionAtStep(
   technique: Technique,
   order: Cell[],
   index: number,
   bodyRows?: number,
+  staggerPhase: 0 | 1 = 0,
 ): { dx: number; dy: number } | null {
   const next = order[index + 1]
   if (!next) return null
   const current = order[index]
-  const p0 = cellPosition(technique, current.row, current.col, bodyRows)
-  const p1 = cellPosition(technique, next.row, next.col, bodyRows)
+  const p0 = cellPosition(technique, current.row, current.col, bodyRows, staggerPhase)
+  const p1 = cellPosition(technique, next.row, next.col, bodyRows, staggerPhase)
   return { dx: p1.x - p0.x, dy: p1.y - p0.y }
 }
 

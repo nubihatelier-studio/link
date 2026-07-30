@@ -16,6 +16,8 @@ export interface ExportImageOptions {
   fringe?: FringeData
   /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
   rowShape?: RowShape[]
+  /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
+  staggerPhase?: 0 | 1
   beadType: BeadTypeDef
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true. */
   showLetters?: boolean
@@ -63,7 +65,7 @@ export function renderPatternCanvas(
   backgroundHex: string,
   targetLongSidePx: number,
 ): HTMLCanvasElement {
-  const { technique, cols, rows, cells, fringe, rowShape } = opts
+  const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0 } = opts
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const cellPx = computeExportCellPx(bounds.width, bounds.height, targetLongSidePx)
   const margin = cellPx * 0.6
@@ -98,7 +100,7 @@ export function renderPatternCanvas(
     if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) return
     const hex = cells[cellKey(row, col)]
     if (!hex) return
-    const pos = cellPosition(technique, row, col, rows)
+    const pos = cellPosition(technique, row, col, rows, staggerPhase)
     const x = margin + pos.x * cellPx + inset
     const y = margin + pos.y * cellPx + inset
     const w = cellPx - inset * 2

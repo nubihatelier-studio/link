@@ -22,6 +22,8 @@ export interface ExportPatternOptions {
   fringe?: FringeData
   /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
   rowShape?: RowShape[]
+  /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
+  staggerPhase?: 0 | 1
   /** Free-text note — printed in the ficha page's notes area instead of blank handwriting lines when present. */
   note?: string
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
@@ -84,8 +86,8 @@ function drawChart(
   cellW: number,
   cellH: number,
 ): void {
-  const { technique, cells, cols, rows, fringe, rowShape } = opts
-  const origin = cellPosition(technique, 0, 0, rows)
+  const { technique, cells, cols, rows, fringe, rowShape, staggerPhase = 0 } = opts
+  const origin = cellPosition(technique, 0, 0, rows, staggerPhase)
 
   const step = cols > 60 ? 10 : cols > 30 ? 5 : 1
   doc.setFont('helvetica', 'normal')
@@ -93,12 +95,12 @@ function drawChart(
   doc.setTextColor(120)
   for (let c = 0; c < cols; c++) {
     if (c % step !== 0 && c !== cols - 1) continue
-    const pos = cellPosition(technique, 0, c, rows)
+    const pos = cellPosition(technique, 0, c, rows, staggerPhase)
     doc.text(String(c + 1), originX + (pos.x - origin.x) * cellW + cellW / 2, originY - 2, { align: 'center' })
   }
   for (let r = 0; r < totalRows; r++) {
     if (r % step !== 0 && r !== totalRows - 1) continue
-    const pos = cellPosition(technique, r, 0, rows)
+    const pos = cellPosition(technique, r, 0, rows, staggerPhase)
     doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2 + 1, { align: 'right' })
   }
 
@@ -115,7 +117,7 @@ function drawChart(
       if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) continue
 
       const hex = cells[cellKey(row, col)]
-      const pos = cellPosition(technique, row, col, rows)
+      const pos = cellPosition(technique, row, col, rows, staggerPhase)
       const x = originX + (pos.x - origin.x) * cellW
       const y = originY + (pos.y - origin.y) * cellH
 

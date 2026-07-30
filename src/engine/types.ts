@@ -18,6 +18,8 @@ export interface PatternConfig {
   cols: number
   rows: number
   beadTypeId: string
+  /** 0 or 1, defaults to 0 for legacy patterns. See `geometry.ts#cellPosition`. */
+  staggerPhase?: 0 | 1
 }
 
 export interface Cell {

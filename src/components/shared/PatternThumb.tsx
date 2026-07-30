@@ -24,7 +24,7 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, size, size)
 
-    const { technique, cols, rows } = pattern.config
+    const { technique, cols, rows, staggerPhase = 0 } = pattern.config
     const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(pattern.fringe))
     const scale = Math.min(size / Math.max(bounds.width, 1), size / Math.max(bounds.height, 1))
     const offsetX = (size - bounds.width * scale) / 2
@@ -37,7 +37,7 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     for (const [key, hex] of Object.entries(pattern.cells)) {
       if (!hex) continue
       const { row, col } = parseCellKey(key)
-      const pos = cellPosition(technique, row, col, rows)
+      const pos = cellPosition(technique, row, col, rows, staggerPhase)
       ctx.fillStyle = hex
       ctx.fillRect(offsetX + pos.x * scale, offsetY + pos.y * scale, cell, cell)
     }

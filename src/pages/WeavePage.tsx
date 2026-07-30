@@ -230,6 +230,7 @@ export function WeavePage() {
             order={order}
             currentIndex={currentIndex}
             onTapNext={advance}
+            staggerPhase={pattern.config.staggerPhase ?? 0}
           />
         )}
       </div>

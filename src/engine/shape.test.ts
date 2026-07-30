@@ -341,6 +341,219 @@ describe('recenterRowShape — centering as an invariant, not an incremental cal
   })
 })
 
+describe('recenterRowShape + staggerPhase — insertion/removal keeps the whole silhouette centered (Corrección 1, Ronda I)', () => {
+  interface Shaped {
+    rowShape: { offset: number; length: number }[]
+    staggerPhase: 0 | 1
+  }
+
+  /** Mirrors editorStore.ts's addRowAtTop exactly: prepend a narrower row, flip staggerPhase, recenter with the NEW phase. */
+  function addRowAtTop(state: Shaped, cols: number): Shaped {
+    const oldFirst = state.rowShape[0]
+    const length = Math.max(1, oldFirst.length - 1)
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape([{ offset: 0, length }, ...state.rowShape], cols, staggerPhase), staggerPhase }
+  }
+
+  /** Mirrors editorStore.ts's removeRowAtTop exactly. */
+  function removeRowAtTop(state: Shaped, cols: number): Shaped {
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape(state.rowShape.slice(1), cols, staggerPhase), staggerPhase }
+  }
+
+  function physicalLeft(row: number, offset: number, phase: 0 | 1): number {
+    return offset + (isOddIndex(row + phase) ? 0.5 : 0)
+  }
+
+  /**
+   * Asserts (a) every row centered within 0.5 bead of cols/2, and (b) no
+   * row's physical edge ever falls outside [0, cols + 0.5] — the "+ 0.5" is
+   * not a fudge factor, it's the technique's own physical reservation for
+   * brick's stagger (see `geometry.ts#gridBoundsUnits`'s `extraX`): a row
+   * landing on the "odd" stagger is legitimately shifted half a bead right,
+   * same as every other odd row in a real brick-stitch chart, and the
+   * canvas is already sized to fit that. Correcciones 1 and 2.
+   */
+  function assertCenteredAndBounded(state: Shaped, cols: number) {
+    state.rowShape.forEach((row, r) => {
+      const left = physicalLeft(r, row.offset, state.staggerPhase)
+      const right = left + row.length
+      expect(left).toBeGreaterThanOrEqual(-1e-9)
+      expect(right).toBeLessThanOrEqual(cols + 0.5 + 1e-9)
+      const center = left + row.length / 2
+      expect(Math.abs(center - cols / 2)).toBeLessThanOrEqual(0.5 + 1e-9)
+    })
+  }
+
+  const presetsAndCols: readonly (readonly ['triangle' | 'rhombus', number])[] = [
+    ['triangle', 13],
+    ['triangle', 12],
+    ['rhombus', 13],
+    ['rhombus', 12],
+  ]
+
+  // Row count uses `preferredRowsFor` — the same silent nudge ConfiguratorPage
+  // applies when a preset is picked — so every starting silhouette here is
+  // already correctly, symmetrically centered (H2/H3's own fix), and these
+  // tests isolate exactly what Ronda I is responsible for: that inserting or
+  // removing rows on top of an already-correct silhouette doesn't undo that.
+  function initialState(preset: 'triangle' | 'rhombus', cols: number): Shaped {
+    const rows = preferredRowsFor(preset, cols)
+    return { rowShape: createShapedRowShape(preset, cols, rows), staggerPhase: 0 }
+  }
+
+  it.each(presetsAndCols)(
+    '%s at %i cols stays centered and in-bounds through 1, 2, 5 and 10 additions on top',
+    (preset, cols) => {
+      let state = initialState(preset, cols)
+      assertCenteredAndBounded(state, cols)
+      let added = 0
+      for (const checkpoint of [1, 2, 5, 10]) {
+        while (added < checkpoint) {
+          state = addRowAtTop(state, cols)
+          added++
+          assertCenteredAndBounded(state, cols)
+        }
+      }
+    },
+  )
+
+  it.each(presetsAndCols)(
+    '%s at %i cols: adding 10 rows then removing 10 rows returns exactly the original silhouette (round-trip idempotent)',
+    (preset, cols) => {
+      const initial = initialState(preset, cols)
+      let state = initial
+      for (let i = 0; i < 10; i++) state = addRowAtTop(state, cols)
+      for (let i = 0; i < 10; i++) state = removeRowAtTop(state, cols)
+      expect(state.staggerPhase).toBe(initial.staggerPhase)
+      expect(state.rowShape).toEqual(initial.rowShape)
+    },
+  )
+
+  it('regression fixture from the reported screenshot: 13 cols x 15 rows (triangle, 2 additions from 13x13) stays centered and in-bounds at every intermediate step', () => {
+    let state: Shaped = { rowShape: createShapedRowShape('triangle', 13, 13), staggerPhase: 0 }
+    assertCenteredAndBounded(state, 13)
+    for (let i = 0; i < 2; i++) {
+      state = addRowAtTop(state, 13)
+      assertCenteredAndBounded(state, 13)
+    }
+    expect(state.rowShape).toHaveLength(15)
+    // The widest row (13 beads, full grid width) must sit with its left edge
+    // at exactly 0 — the exact overflow the user's screenshot showed fixed.
+    const widest = state.rowShape[state.rowShape.length - 1]
+    expect(widest.length).toBe(13)
+    expect(physicalLeft(state.rowShape.length - 1, widest.offset, state.staggerPhase)).toBe(0)
+  })
+
+  it('without staggerPhase compensation (phase pinned to 0 throughout), the same insertion sequence WOULD overflow — proves the fix is load-bearing, not a no-op', () => {
+    // Same as addRowAtTop above but never flips (or passes) staggerPhase —
+    // reproduces the pre-Ronda-I behavior exactly, to guard against this
+    // suite accidentally passing for reasons unrelated to the phase fix.
+    function addRowAtTopNoPhase(rowShape: { offset: number; length: number }[], cols: number) {
+      const oldFirst = rowShape[0]
+      const length = Math.max(1, oldFirst.length - 1)
+      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
+    }
+    let rowShape = createShapedRowShape('triangle', 13, 13)
+    rowShape = addRowAtTopNoPhase(rowShape, 13)
+    const widest = rowShape[rowShape.length - 1]
+    expect(widest.length).toBe(13)
+    // Reproduces the exact bug: the full-width row's left edge overflows past 0.
+    expect(physicalLeft(rowShape.length - 1, widest.offset, 0)).toBe(0.5)
+  })
+})
+
+describe('Corrección 2 — never drawing outside the grid, across a wide matrix of dimensions and edit sequences', () => {
+  interface Shaped {
+    rowShape: { offset: number; length: number }[]
+    staggerPhase: 0 | 1
+  }
+
+  function addRowAtTop(state: Shaped, cols: number): Shaped {
+    const oldFirst = state.rowShape[0]
+    const length = Math.max(1, oldFirst.length - 1)
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape([{ offset: 0, length }, ...state.rowShape], cols, staggerPhase), staggerPhase }
+  }
+
+  function removeRowAtTop(state: Shaped, cols: number): Shaped {
+    if (state.rowShape.length <= 1) return state
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape(state.rowShape.slice(1), cols, staggerPhase), staggerPhase }
+  }
+
+  /** Mirrors editorStore.ts's growRowEdge: row count/phase unchanged, only that one row's width (+1 bead) changes before the whole shape is recentered. */
+  function growRowEdge(state: Shaped, cols: number, row: number, edge: 'left' | 'right'): Shaped {
+    const shape = state.rowShape[row]
+    const next = edge === 'left' ? { offset: shape.offset - 1, length: shape.length + 1 } : { offset: shape.offset, length: shape.length + 1 }
+    if (next.offset < 0 || next.offset + next.length > cols) return state
+    const nextRowShape = [...state.rowShape]
+    nextRowShape[row] = next
+    return { rowShape: recenterRowShape(nextRowShape, cols, state.staggerPhase), staggerPhase: state.staggerPhase }
+  }
+
+  /** Mirrors editorStore.ts's shrinkRowEdge. */
+  function shrinkRowEdge(state: Shaped, cols: number, row: number, edge: 'left' | 'right'): Shaped {
+    const shape = state.rowShape[row]
+    if (shape.length <= 1) return state
+    const next = edge === 'left' ? { offset: shape.offset + 1, length: shape.length - 1 } : { offset: shape.offset, length: shape.length - 1 }
+    const nextRowShape = [...state.rowShape]
+    nextRowShape[row] = next
+    return { rowShape: recenterRowShape(nextRowShape, cols, state.staggerPhase), staggerPhase: state.staggerPhase }
+  }
+
+  /** No row's physical edge — offset plus brick's own stagger for its (index + phase) parity — may ever fall outside [0, cols + 0.5], the technique's own canvas reservation (see `gridBoundsUnits`'s `extraX`). */
+  function assertNeverOutsideGrid(state: Shaped, cols: number) {
+    state.rowShape.forEach((row, r) => {
+      const left = row.offset + (isOddIndex(r + state.staggerPhase) ? 0.5 : 0)
+      expect(left).toBeGreaterThanOrEqual(-1e-9)
+      expect(left + row.length).toBeLessThanOrEqual(cols + 0.5 + 1e-9)
+    })
+  }
+
+  // A small deterministic PRNG (mulberry32) — reproducible across runs, no
+  // external dependency, just enough to generate varied but stable sequences
+  // of add/remove/grow/shrink operations per (preset, cols) combination.
+  function mulberry32(seed: number) {
+    let a = seed
+    return () => {
+      a |= 0
+      a = (a + 0x6d2b79f5) | 0
+      let t = Math.imul(a ^ (a >>> 15), 1 | a)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
+  const dims: readonly (readonly ['triangle' | 'triangleInverted' | 'rhombus' | 'rectangle', number])[] = [
+    ['triangle', 7],
+    ['triangle', 8],
+    ['triangle', 13],
+    ['triangleInverted', 9],
+    ['triangleInverted', 10],
+    ['rhombus', 11],
+    ['rhombus', 12],
+    ['rectangle', 6],
+  ]
+
+  it.each(dims)('%s at %i cols never draws outside the grid across 60 randomized add/remove/grow/shrink steps', (preset, cols) => {
+    const rows = preferredRowsFor(preset, cols)
+    let state: Shaped = { rowShape: createShapedRowShape(preset, cols, rows), staggerPhase: 0 }
+    assertNeverOutsideGrid(state, cols)
+    const rand = mulberry32(cols * 1000 + preset.length)
+    for (let step = 0; step < 60; step++) {
+      const op = Math.floor(rand() * 4)
+      const row = Math.floor(rand() * state.rowShape.length)
+      const edge = rand() < 0.5 ? 'left' : 'right'
+      if (op === 0) state = addRowAtTop(state, cols)
+      else if (op === 1) state = removeRowAtTop(state, cols)
+      else if (op === 2) state = growRowEdge(state, cols, row, edge)
+      else state = shrinkRowEdge(state, cols, row, edge)
+      assertNeverOutsideGrid(state, cols)
+    }
+  })
+})
+
 describe('preferredRowsFor — silently nudging even rows to odd for presets with a forced parity bias (Correcciones 2 y 3)', () => {
   it('rectangle and triangleInverted are never adjusted — they have no forced-parity endpoint', () => {
     expect(preferredRowsFor('rectangle', 16)).toBe(16)

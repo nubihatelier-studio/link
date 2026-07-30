@@ -35,7 +35,10 @@ interface PatternsState {
   setFringe: (id: string, fringe: FringeData) => void
   setRowShape: (id: string, rowShape: RowShape[]) => void
   /** Persists a row-count change (add/remove row) in one write — rows, rowShape, cells and fringe all shift together, so they must land in the same save, not four separate ones. */
-  setShapeStructure: (id: string, changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData }) => void
+  setShapeStructure: (
+    id: string,
+    changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: 0 | 1 },
+  ) => void
   setNote: (id: string, note: string) => void
   getPattern: (id: string) => PatternDoc | undefined
 }
@@ -251,7 +254,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       if (!doc) return s
       updated = {
         ...doc,
-        config: { ...doc.config, rows: changes.rows },
+        config: { ...doc.config, rows: changes.rows, staggerPhase: changes.staggerPhase },
         rowShape: changes.rowShape,
         cells: changes.cells,
         fringe: changes.fringe,

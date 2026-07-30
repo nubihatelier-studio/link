@@ -65,12 +65,26 @@ export function rowPitch(technique: Technique): number {
  * hanging strand doesn't interlock sideways — only the anchor column's own x
  * is carried forward. For loom this is a no-op vs. the plain formula (loom's
  * pitch is already 1 with no offset).
+ *
+ * `staggerPhase` (0 or 1, default 0) shifts brick's row-parity check from the
+ * row's raw index to `row + staggerPhase`. It exists so that inserting or
+ * removing a row at the top of a pattern — which reindexes every existing
+ * row by ±1 — can flip the phase to exactly cancel that reindex, leaving
+ * every pre-existing row's real physical stagger (and thus the pattern's
+ * centering) unchanged. See `shape.ts#recenterRowShape` and
+ * `editorStore.ts#addRowAtTop`/`removeRowAtTop`.
  */
-export function cellPosition(technique: Technique, row: number, col: number, bodyRows?: number): CellPosition {
+export function cellPosition(
+  technique: Technique,
+  row: number,
+  col: number,
+  bodyRows?: number,
+  staggerPhase: 0 | 1 = 0,
+): CellPosition {
   if (bodyRows !== undefined && row >= bodyRows) {
-    const anchorY = cellPosition(technique, bodyRows - 1, col).y
+    const anchorY = cellPosition(technique, bodyRows - 1, col, undefined, staggerPhase).y
     const pitch = rowPitch(technique)
-    return { x: fringeAnchorX(technique, col, bodyRows), y: anchorY + (row - (bodyRows - 1)) * pitch }
+    return { x: fringeAnchorX(technique, col, bodyRows, staggerPhase), y: anchorY + (row - (bodyRows - 1)) * pitch }
   }
   switch (technique) {
     case 'loom':
@@ -82,15 +96,15 @@ export function cellPosition(technique: Technique, row: number, col: number, bod
     }
     case 'brick': {
       const pitch = BRICK_ROW_COMPACTION
-      const xOffset = isOddIndex(row) ? 0.5 : 0
+      const xOffset = isOddIndex(row + staggerPhase) ? 0.5 : 0
       return { x: col + xOffset, y: row * pitch }
     }
   }
 }
 
 /** The X position (bead units) of the bead at (row, col) — same as `cellPosition(...).x`, named for callers that only need the horizontal position. */
-export function beadCenterX(technique: Technique, row: number, col: number): number {
-  return cellPosition(technique, row, col).x
+export function beadCenterX(technique: Technique, row: number, col: number, staggerPhase: 0 | 1 = 0): number {
+  return cellPosition(technique, row, col, undefined, staggerPhase).x
 }
 
 /**
@@ -102,8 +116,8 @@ export function beadCenterX(technique: Technique, row: number, col: number): num
  * fringe column's X any other way, or two code paths can end up disagreeing
  * about where a given column's fringe hangs from.
  */
-export function fringeAnchorX(technique: Technique, col: number, bodyRows: number): number {
-  return beadCenterX(technique, bodyRows - 1, col)
+export function fringeAnchorX(technique: Technique, col: number, bodyRows: number, staggerPhase: 0 | 1 = 0): number {
+  return beadCenterX(technique, bodyRows - 1, col, staggerPhase)
 }
 
 /**
@@ -170,7 +184,12 @@ export function physicalSizeMm(
  * the pointer is visually over. Rounding here previously snapped the cell's
  * own center to the *next* cell, shifting every hit-test one row/col off.
  */
-export function cellAtPosition(technique: Technique, xUnits: number, yUnits: number): { row: number; col: number } {
+export function cellAtPosition(
+  technique: Technique,
+  xUnits: number,
+  yUnits: number,
+  staggerPhase: 0 | 1 = 0,
+): { row: number; col: number } {
   switch (technique) {
     case 'loom':
       return { row: Math.floor(yUnits), col: Math.floor(xUnits) }
@@ -184,7 +203,7 @@ export function cellAtPosition(technique: Technique, xUnits: number, yUnits: num
     case 'brick': {
       const pitch = BRICK_ROW_COMPACTION
       const row = Math.floor(yUnits / pitch)
-      const xOffset = isOddIndex(row) ? 0.5 : 0
+      const xOffset = isOddIndex(row + staggerPhase) ? 0.5 : 0
       const col = Math.floor(xUnits - xOffset)
       return { row, col }
     }
@@ -208,10 +227,11 @@ export function cellAtPositionWithFringe(
   bodyRows: number,
   xUnits: number,
   yUnits: number,
+  staggerPhase: 0 | 1 = 0,
 ): { row: number; col: number } {
   const pitch = rowPitch(technique)
-  const anchorY = cellPosition(technique, bodyRows - 1, 0).y
-  if (yUnits < anchorY + pitch) return cellAtPosition(technique, xUnits, yUnits)
+  const anchorY = cellPosition(technique, bodyRows - 1, 0, undefined, staggerPhase).y
+  if (yUnits < anchorY + pitch) return cellAtPosition(technique, xUnits, yUnits, staggerPhase)
 
   const depth = Math.max(0, Math.floor((yUnits - anchorY) / pitch) - 1)
   const row = bodyRows + depth
@@ -220,7 +240,7 @@ export function cellAtPositionWithFringe(
   // xUnits recovers the real column — the exact inverse of how cellPosition
   // computes a fringe cell's x. Same anchor function as the renderer, so a
   // click always resolves to the column its fringe was actually drawn at.
-  const col = Math.floor(xUnits - fringeAnchorX(technique, 0, bodyRows))
+  const col = Math.floor(xUnits - fringeAnchorX(technique, 0, bodyRows, staggerPhase))
   return { row, col }
 }
 

@@ -151,16 +151,21 @@ function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number)
  * a fresh preset (e.g. several independent manual edge edits stacked up
  * without a recenter in between), so it just centers that one row on its
  * own rather than guessing a side.
+ *
+ * `staggerPhase` shifts every parity check from the row's raw index to
+ * `row + staggerPhase`, matching `geometry.ts#cellPosition` — see that
+ * function's doc comment for why this parameter exists at all.
  */
-function walkFrom(cols: number, widths: number[], anchor: number): number[] {
+function walkFrom(cols: number, widths: number[], anchor: number, staggerPhase: 0 | 1): number[] {
   const offsets = [anchor]
   for (let r = 1; r < widths.length; r++) {
     const delta = widths[r] - widths[r - 1]
+    const odd = isOddIndex(r + staggerPhase)
     if (Math.abs(delta) > 1) {
-      const centered = Math.round((cols - widths[r]) / 2 - (isOddIndex(r) ? 0.5 : 0))
+      const centered = Math.round((cols - widths[r]) / 2 - (odd ? 0.5 : 0))
       offsets.push(Math.max(0, Math.min(cols - widths[r], centered)))
-    } else if (delta === 1 && isOddIndex(r)) offsets.push(offsets[r - 1] - 1) // grow left
-    else if (delta === -1 && !isOddIndex(r)) offsets.push(offsets[r - 1] + 1) // shrink left
+    } else if (delta === 1 && odd) offsets.push(offsets[r - 1] - 1) // grow left
+    else if (delta === -1 && !odd) offsets.push(offsets[r - 1] + 1) // shrink left
     else offsets.push(offsets[r - 1]) // grew/shrank right, or no change at all
   }
   return offsets
@@ -187,14 +192,14 @@ function walkFrom(cols: number, widths: number[], anchor: number): number[] {
  * and of what's left keep whichever keeps every row's center closest to
  * `cols / 2`.
  */
-function walkOffsets(cols: number, widths: number[]): number[] {
+function walkOffsets(cols: number, widths: number[], staggerPhase: 0 | 1): number[] {
   const ideal = (cols - widths[0]) / 2
   let best: { offsets: number[]; maxDev: number; rawAsymmetry: number } | null = null
   for (const anchor of new Set([Math.floor(ideal), Math.ceil(ideal)])) {
-    const offsets = walkFrom(cols, widths, anchor)
+    const offsets = walkFrom(cols, widths, anchor, staggerPhase)
     if (!offsets.every((o, r) => o >= 0 && o + widths[r] <= cols)) continue
     const maxDev = Math.max(
-      ...offsets.map((o, r) => Math.abs(o + (isOddIndex(r) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
+      ...offsets.map((o, r) => Math.abs(o + (isOddIndex(r + staggerPhase) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
     )
     // A tie here (both anchors land exactly half a bead off, just to
     // opposite sides — the brick stagger term makes that possible) is broken
@@ -207,7 +212,7 @@ function walkOffsets(cols: number, widths: number[]): number[] {
     if (better) best = { offsets, maxDev, rawAsymmetry }
   }
   // Shouldn't happen for a valid width sequence — fall back rather than crash.
-  return best?.offsets ?? walkFrom(cols, widths, Math.round(ideal))
+  return best?.offsets ?? walkFrom(cols, widths, Math.round(ideal), staggerPhase)
 }
 
 /**
@@ -226,11 +231,40 @@ function walkOffsets(cols: number, widths: number[]): number[] {
  * re-derive every row's offset from its width and its (possibly new)
  * absolute index, treating centeredness as an invariant to restore, not a
  * value to carry forward.
+ *
+ * Even this, though, cannot fully absorb a row *insertion/removal*: adding a
+ * row at the top reindexes every existing row, flipping which absolute index
+ * (and thus which brick parity) each one lands on — and with a ±1-bead taper,
+ * a row's exact centering is only possible at ONE parity. That's what
+ * `staggerPhase` is for (default 0, matching all prior behavior): pass the
+ * pattern's current phase so parity checks here match `geometry.ts`'s
+ * `cellPosition` exactly. `addRowAtTop`/`removeRowAtTop` flip the phase
+ * *before* calling this, so every pre-existing row's physical stagger (and
+ * hence its centered offset) stays exactly what it was — only the newly
+ * added/removed row's own slot changes.
+ *
+ * Corrección 2 — never drawing outside the grid: `walkOffsets`/`walkFrom`'s
+ * growth rules assume a clean, single taper from a well-chosen anchor, which
+ * holds for a fresh preset or one clean edit, but a long enough chain of
+ * edits (grow/shrink one row, then another, then add/remove rows, repeat)
+ * can compound into a row-to-row jump the growth rule was never designed
+ * for, and neither the growth rule's own branches nor `walkOffsets`'s
+ * last-resort fallback (used when *no* anchor candidate stays in bounds)
+ * re-validate the result — silently producing a negative offset or a
+ * physical edge past `cols`. Rather than trying to make the search itself
+ * exhaustively correct for every adversarial edit sequence, this last step
+ * clamps every row's offset back into `[0, cols - length]` — the same
+ * bound `walkOffsets` already checks candidates against — as a final,
+ * unconditional safety net. It's a no-op for every already-valid offset
+ * (which is the overwhelming majority of cases), and for the rare
+ * out-of-bounds one it trades a sliver of that one row's centering for the
+ * absolute guarantee that nothing is ever asked to draw outside the grid —
+ * fixed here, in the engine, not papered over with clamping in a renderer.
  */
-export function recenterRowShape(rowShape: RowShape[], cols: number): RowShape[] {
+export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhase: 0 | 1 = 0): RowShape[] {
   const widths = rowShape.map((row) => row.length)
-  const offsets = walkOffsets(cols, widths)
-  return widths.map((length, r) => ({ offset: offsets[r], length }))
+  const offsets = walkOffsets(cols, widths, staggerPhase)
+  return widths.map((length, r) => ({ offset: Math.max(0, Math.min(cols - length, offsets[r])), length }))
 }
 
 function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {

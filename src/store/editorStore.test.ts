@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
-import { createRectangleRowShape, createShapedRowShape } from '@/engine/shape'
+import { createRectangleRowShape, createShapedRowShape, preferredRowsFor } from '@/engine/shape'
 import type { FringeData, PatternDoc, RowShape } from '@/engine/types'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
@@ -12,6 +12,7 @@ function resetStore(
     fringe?: FringeData
     rowShape?: RowShape[]
     patternId?: string | null
+    staggerPhase?: 0 | 1
   } = {},
 ) {
   useEditorStore.setState({
@@ -23,6 +24,7 @@ function resetStore(
     rows: 10,
     fringe: overrides.fringe ?? createEmptyFringe(10),
     rowShape: overrides.rowShape ?? createRectangleRowShape(10, 10),
+    staggerPhase: overrides.staggerPhase ?? 0,
     note: '',
     tool: 'pencil',
     selection: null,
@@ -522,27 +524,27 @@ describe('editorStore — agregar/quitar fila arriba (Corrección 3)', () => {
     useEditorStore.setState({ cols: 4, rows: 4 })
   })
 
-  it('addRowAtTop agrega una fila más angosta arriba, siguiendo la pendiente, y recentra el resto (Corrección 1)', () => {
+  it('addRowAtTop agrega una fila más angosta arriba, flipea staggerPhase, y cada fila preexistente conserva su posición física (Corrección 1, Ronda I)', () => {
     useEditorStore.getState().addRowAtTop()
-    const { rows, rowShape, cells } = useEditorStore.getState()
+    const { rows, rowShape, cells, staggerPhase } = useEditorStore.getState()
     expect(rows).toBe(5)
-    // Every row is recentered from scratch, not just shifted down an index —
-    // inserting a row flips every existing row's absolute parity (odd/even),
-    // so the old row 0 ({offset:2,length:1}) is recentered to {offset:1} at
-    // its new index 1, not carried forward unchanged (see
-    // recenterRowShape's doc comment — this is the actual fix for the
-    // "romboide" bug, verified fully in shape.test.ts).
-    expect(rowShape[0]).toEqual({ offset: 1, length: 1 })
-    expect(rowShape[1]).toEqual({ offset: 1, length: 1 }) // the old row 0, recentered at its new index
+    expect(staggerPhase).toBe(1) // flipped from the default 0 — see addRowAtTop's own comment
+    // Inserting a row reindexes every existing row by +1, flipping which
+    // absolute index (and thus brick parity) each one lands on — but
+    // flipping staggerPhase in lockstep exactly cancels that shift (Ronda
+    // I's staggerPhase fix), so the old row 0 ({offset:2,length:1} at old
+    // index 0, phase 0) keeps that *exact same* offset at its new index 1
+    // (phase 1): isOddIndex(0+0) === isOddIndex(1+1). No more "romboide"
+    // drift from insertion alone.
+    expect(rowShape[0]).toEqual({ offset: 2, length: 1 }) // the new row
+    expect(rowShape[1]).toEqual({ offset: 2, length: 1 }) // the old row 0 — same offset as before
     expect(rowShape[4]).toEqual({ offset: 0, length: 4 }) // the old row 3 — unaffected this time
-    // Cells shift down by one row first...
+    // Cells shift down by one row, and since every pre-existing row's
+    // physical position is preserved (not just its width), nothing is
+    // spuriously orphaned any more.
     expect(cells['4,0']).toBe('#222222') // the old row 3's bead, unaffected, just shifted
-    // ...but a cell whose row got recentered to a *different* column (like
-    // row 0 above, shifted from column 2 to column 1) is orphaned: there's
-    // no "this bead's paint follows its row" concept, only (row, col) keys.
-    // A real, if rare, trade-off of insisting on correct centering.
-    expect(cells['1,2']).toBeUndefined()
-    expect(cells['0,2']).toBeUndefined()
+    expect(cells['1,2']).toBe('#111111') // the old row 0's bead, shifted down, still inside its row's span
+    expect(cells['0,2']).toBeUndefined() // nothing was ever painted in the brand-new row
   })
 
   it('removeRowAtTop quita la fila superior y corre el resto una fila hacia arriba, perdiendo lo pintado ahí', () => {
@@ -560,20 +562,21 @@ describe('editorStore — agregar/quitar fila arriba (Corrección 3)', () => {
     expect(useEditorStore.getState().rows).toBe(1)
   })
 
-  it('agregar y luego quitar una fila vuelve exactamente a la misma silueta (la geometría es la operación redonda, no necesariamente cada mostacilla pintada)', () => {
+  it('agregar y luego quitar una fila vuelve exactamente a la misma silueta, incluyendo las mostacillas pintadas (staggerPhase preserva la posición física, Ronda I)', () => {
     const before = useEditorStore.getState()
     const beforeRowShape = before.rowShape
     useEditorStore.getState().addRowAtTop()
     useEditorStore.getState().removeRowAtTop()
     const after = useEditorStore.getState()
     expect(after.rows).toBe(4)
+    expect(after.staggerPhase).toBe(0) // flipped twice — back to the original
     expect(after.rowShape).toEqual(beforeRowShape) // the shape itself always round-trips exactly
-    // Cells don't necessarily round-trip: adding a row can recenter (and
-    // therefore orphan) a cell partway through, before it's ever removed
-    // again — see the "recentra el resto" test above. Here, only the row 3
-    // bead (untouched by the add step) survives the whole round trip.
+    // Cells now round-trip exactly too: since staggerPhase keeps every
+    // pre-existing row's physical position identical through the add step,
+    // nothing is spuriously orphaned along the way, so removing the row
+    // added on top restores the *exact* original silhouette, paint and all.
     expect(after.cells['3,0']).toBe('#222222')
-    expect(after.cells['0,2']).toBeUndefined()
+    expect(after.cells['0,2']).toBe('#111111')
   })
 
   it('cada llamada agrega exactamente una entrada al historial de deshacer (un solo paso, no varios)', () => {
@@ -640,5 +643,96 @@ describe('editorStore — reinicio explícito del progreso de tejido al cambiar 
     useEditorStore.getState().clearWeaveResetPending()
     expect(useEditorStore.getState().weaveResetPending).toBeNull()
     expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1)
+  })
+})
+
+describe('editorStore — staggerPhase se mantiene centrado a través del store real (verificación final Ronda I)', () => {
+  function physicalLeft(row: number, offset: number, phase: 0 | 1): boolean | number {
+    return offset + ((row + phase) % 2 === 1 ? 0.5 : 0)
+  }
+
+  function assertCenteredAndBounded(cols: number) {
+    const { rowShape, staggerPhase } = useEditorStore.getState()
+    rowShape.forEach((row, r) => {
+      const left = physicalLeft(r, row.offset, staggerPhase) as number
+      expect(left).toBeGreaterThanOrEqual(-1e-9)
+      expect(left + row.length).toBeLessThanOrEqual(cols + 0.5 + 1e-9)
+      const center = left + row.length / 2
+      expect(Math.abs(center - cols / 2)).toBeLessThanOrEqual(0.5 + 1e-9)
+    })
+  }
+
+  it.each([13, 12] as const)(
+    '"Aro con flecos" a %i columnas (triángulo): agregar 10 filas una por una se mantiene centrado y acotado en cada paso, y quitar las 10 vuelve exactamente al original',
+    (cols) => {
+      // Same silent nudge ConfiguratorPage applies when the preset is picked
+      // (preferredRowsFor) — starts from an already correctly centered
+      // silhouette, same as real "Aro con flecos" creation.
+      const rows = preferredRowsFor('triangle', cols)
+      const original = createShapedRowShape('triangle', cols, rows)
+      resetStore({ rowShape: original })
+      useEditorStore.setState({ cols, rows, technique: 'brick' })
+      assertCenteredAndBounded(cols)
+
+      for (let i = 0; i < 10; i++) {
+        useEditorStore.getState().addRowAtTop()
+        assertCenteredAndBounded(cols)
+      }
+      expect(useEditorStore.getState().rows).toBe(rows + 10)
+
+      for (let i = 0; i < 10; i++) {
+        useEditorStore.getState().removeRowAtTop()
+        assertCenteredAndBounded(cols)
+      }
+      expect(useEditorStore.getState().rows).toBe(rows)
+      expect(useEditorStore.getState().staggerPhase).toBe(0)
+      expect(useEditorStore.getState().rowShape).toEqual(original)
+    },
+  )
+
+  it('lo mismo con el preset rombo a 13 columnas', () => {
+    const cols = 13
+    const rows = preferredRowsFor('rhombus', cols)
+    const original = createShapedRowShape('rhombus', cols, rows)
+    resetStore({ rowShape: original })
+    useEditorStore.setState({ cols, rows, technique: 'brick' })
+    assertCenteredAndBounded(cols)
+
+    for (let i = 0; i < 10; i++) {
+      useEditorStore.getState().addRowAtTop()
+      assertCenteredAndBounded(cols)
+    }
+    for (let i = 0; i < 10; i++) {
+      useEditorStore.getState().removeRowAtTop()
+      assertCenteredAndBounded(cols)
+    }
+    expect(useEditorStore.getState().staggerPhase).toBe(0)
+    expect(useEditorStore.getState().rowShape).toEqual(original)
+  })
+
+  it('regresión de la captura: triángulo 13x13, agregar 2 filas da 13x15 sin inclinación (fila más ancha con borde izquierdo en 0)', () => {
+    const cols = 13
+    resetStore({ rowShape: createShapedRowShape('triangle', cols, cols) })
+    useEditorStore.setState({ cols, rows: cols, technique: 'brick' })
+    useEditorStore.getState().addRowAtTop()
+    useEditorStore.getState().addRowAtTop()
+    const { rows, rowShape, staggerPhase } = useEditorStore.getState()
+    expect(rows).toBe(15)
+    const widest = rowShape[rowShape.length - 1]
+    expect(widest.length).toBe(13)
+    expect(physicalLeft(rowShape.length - 1, widest.offset, staggerPhase)).toBe(0)
+  })
+
+  it('loadPattern respeta staggerPhase ausente en config (patrones guardados antes de Ronda I) como 0, sin cambiar de aspecto', () => {
+    const doc: PatternDoc = {
+      id: 'p_legacy',
+      name: 'Legacy',
+      config: { technique: 'brick', cols: 4, rows: 4, beadTypeId: 'miyuki-delica-11' },
+      cells: {},
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    useEditorStore.getState().loadPattern(doc)
+    expect(useEditorStore.getState().staggerPhase).toBe(0)
   })
 })

@@ -201,6 +201,23 @@ describe('directionAtStep with a fringe', () => {
   })
 })
 
+describe('directionAtStep with staggerPhase (Corrección 3, Ronda I)', () => {
+  it('defaults to phase 0, matching the pre-Ronda-I behavior exactly when omitted', () => {
+    const order = buildWeaveOrder('brick', 4, 3)
+    expect(directionAtStep('brick', order, 1, 3)).toEqual(directionAtStep('brick', order, 1, 3, 0))
+  })
+
+  it('shifts the horizontal component of a row-to-row step by exactly half a bead when staggerPhase flips — the "next bead" arrow must read the same physical stagger the canvas actually drew', () => {
+    const order = buildWeaveOrder('brick', 4, 3)
+    // Step from row 0's last cell to row 1's first cell — which row lands on
+    // the "odd" (staggered) parity depends on staggerPhase, so the dx
+    // differs by exactly the 0.5-bead stagger between the two phases.
+    const dxPhase0 = directionAtStep('brick', order, 3, 3, 0)!.dx
+    const dxPhase1 = directionAtStep('brick', order, 3, 3, 1)!.dx
+    expect(Math.abs(dxPhase1 - dxPhase0)).toBeCloseTo(1, 10)
+  })
+})
+
 describe('firstIndexOfNextFringeColumn', () => {
   it('finds the first fringe step of the next column that actually has a fringe', () => {
     const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }

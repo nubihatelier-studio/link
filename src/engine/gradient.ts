@@ -83,6 +83,7 @@ export function computeGradientCells(
   direction: GradientDirection,
   palette: string[],
   ditherStrength = 0.2,
+  staggerPhase: 0 | 1 = 0,
 ): ColorMap {
   if (cellsToFill.length === 0) return {}
 
@@ -91,7 +92,10 @@ export function computeGradientCells(
   const endLab = hexToLab(endHex)
   const labCache = new Map<string, Lab>()
 
-  const withPos = cellsToFill.map((cell) => ({ cell, pos: cellPosition(technique, cell.row, cell.col, bodyRows) }))
+  const withPos = cellsToFill.map((cell) => ({
+    cell,
+    pos: cellPosition(technique, cell.row, cell.col, bodyRows, staggerPhase),
+  }))
   const axisValues = withPos.map(({ pos }) => gradientAxisValue(pos, direction))
   const min = Math.min(...axisValues)
   const max = Math.max(...axisValues)
