@@ -264,7 +264,9 @@ export function HomePage() {
             <p className="text-sm text-text-muted">
               {heroSummary.isFringe
                 ? t.weave.fringeUnitLabel
-                : `${heroSummary.unit === 'column' ? t.weave.column : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
+                : heroSummary.grouped
+                  ? t.weave.foundationPass
+                  : `${t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
               · {heroSummary.percent}%
             </p>
           </div>

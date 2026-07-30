@@ -631,14 +631,14 @@ describe('editorStore — reinicio explícito del progreso de tejido al cambiar 
   })
 
   it('reinicia explícitamente el progreso guardado y expone el índice anterior para poder deshacerlo', () => {
-    useWeaveStore.getState().setIndex(patternId, 7)
+    useWeaveStore.getState().setIndex(patternId, 7, 1)
     useEditorStore.getState().addRowAtTop()
     expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1) // reset, never left silently wrong
     expect(useEditorStore.getState().weaveResetPending).toBe(7) // the old value, for the undo toast
   })
 
   it('clearWeaveResetPending limpia el aviso sin tocar el progreso de tejido', () => {
-    useWeaveStore.getState().setIndex(patternId, 7)
+    useWeaveStore.getState().setIndex(patternId, 7, 1)
     useEditorStore.getState().addRowAtTop()
     useEditorStore.getState().clearWeaveResetPending()
     expect(useEditorStore.getState().weaveResetPending).toBeNull()

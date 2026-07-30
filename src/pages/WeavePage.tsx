@@ -6,12 +6,13 @@ import { useWeaveStore } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
 import {
   buildWeaveOrder,
+  firstIndexOfNextBodyRow,
   firstIndexOfNextFringeColumn,
-  firstIndexOfUnit,
   isFringeStep,
   jumpTargetToIndex,
-  unitIndexOf,
-  weaveUnit,
+  totalBeadCount,
+  beadsThrough,
+  WEAVE_ORDER_VERSION,
   type JumpTarget,
 } from '@/engine/weaveOrder'
 import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
@@ -25,9 +26,10 @@ import { HandsBusyView } from '@/components/weave/HandsBusyView'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { Toast } from '@/components/shared/Toast'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 
-/** Serializes a JumpTarget as an <option value> for the "Ir a" selector — plain numeric values can't tell a body index and a fringe column apart. */
+/** Serializes a JumpTarget as an <option value> for the "Ir a" selector — plain numeric values can't tell a body row, a fringe column, and the foundation pass apart. */
 function encodeJumpValue(target: JumpTarget): string {
   return `${target.kind}:${target.index}`
 }
@@ -35,18 +37,21 @@ function encodeJumpValue(target: JumpTarget): string {
 /** Inverse of encodeJumpValue — parses the selector's raw string value back into a JumpTarget. */
 function decodeJumpValue(value: string): JumpTarget {
   const [kind, index] = value.split(':')
-  return { kind: kind === 'fringe' ? 'fringe' : 'body', index: Number(index) }
+  return { kind: kind === 'fringe' ? 'fringe' : kind === 'foundation' ? 'foundation' : 'body', index: Number(index) }
 }
 
 export function WeavePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
-  const { getIndex, setIndex, reset, loadProgress } = useWeaveStore()
+  const { getIndex, getOrderVersion, setIndex, reset, loadProgress } = useWeaveStore()
   const { handsBusyMode, tapAnywhereToAdvance, setHandsBusyMode, setTapAnywhereToAdvance } = useWeavePrefsStore()
   const touchStartX = useRef<number | null>(null)
   // Captured index to restore if "Reiniciar" gets undone within the toast window.
   const [pendingReset, setPendingReset] = useState<number | null>(null)
+  // Set once, the first time we notice a saved index was recorded under a since-corrected
+  // traversal order — not undoable (the old index doesn't point at a meaningful bead any more).
+  const [progressInvalidated, setProgressInvalidated] = useState(false)
 
   // The whole point of Weave Mode is a hands-busy session — keep the screen
   // on for as long as this page is mounted, not just in the hands-busy view.
@@ -72,15 +77,27 @@ export function WeavePage() {
     [pattern, fringe, rowShape],
   )
   const technique = pattern?.config.technique ?? 'loom'
-  const unit = weaveUnit(technique)
-  const unitLabel = unit === 'column' ? t.weave.column : t.weave.row
+  const orderVersion = WEAVE_ORDER_VERSION[technique]
+  const rows = pattern?.config.rows ?? 0
   const currentIndex = id ? getIndex(id) : -1
   const total = order.length
+  const totalBeads = totalBeadCount(order)
+  const beadsWoven = beadsThrough(order, currentIndex)
   const currentStep = order[currentIndex]
   const onFringe = currentStep ? isFringeStep(currentStep) : false
-  const currentUnitIndex = currentStep ? unitIndexOf(technique, currentStep) : 0
-  const unitCount = unit === 'column' ? (pattern?.config.cols ?? 0) : (pattern?.config.rows ?? 0)
+  const onFoundation = currentStep?.grouped ?? false
+  const currentUnitIndex = currentStep ? currentStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
+
+  // A saved index from before this technique's traversal order was corrected points at a
+  // completely different bead now — never silently misread it, reset and say so explicitly.
+  useEffect(() => {
+    if (!id || !pattern) return
+    if (currentIndex < 0) return
+    if (getOrderVersion(id) === orderVersion) return
+    reset(id)
+    setProgressInvalidated(true)
+  }, [id, pattern, currentIndex, getOrderVersion, orderVersion, reset])
 
   const wordChartLines = useMemo(() => {
     if (!pattern) return []
@@ -97,8 +114,10 @@ export function WeavePage() {
     )
   }, [pattern, technique, fringe, rowShape])
   const currentLine = onFringe
-    ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.col)
-    : wordChartLines[currentUnitIndex]
+    ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.unit)
+    : onFoundation
+      ? wordChartLines.find((l) => l.grouped)
+      : wordChartLines.find((l) => !l.isFringe && !l.grouped && l.unitIndex === currentUnitIndex)
   const currentLineText = formatWordChartLineForDisplay(currentLine?.text ?? '')
 
   useEffect(() => {
@@ -106,15 +125,15 @@ export function WeavePage() {
       if (!id) return
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
         e.preventDefault()
-        setIndex(id, Math.min(total - 1, currentIndex + 1))
+        setIndex(id, Math.min(total - 1, currentIndex + 1), orderVersion)
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        setIndex(id, Math.max(-1, currentIndex - 1))
+        setIndex(id, Math.max(-1, currentIndex - 1), orderVersion)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [id, currentIndex, total, setIndex])
+  }, [id, currentIndex, total, orderVersion, setIndex])
 
   if (!pattern || !id) {
     return (
@@ -127,27 +146,27 @@ export function WeavePage() {
   }
 
   function advance() {
-    setIndex(id!, Math.min(total - 1, currentIndex + 1))
+    setIndex(id!, Math.min(total - 1, currentIndex + 1), orderVersion)
   }
   function goBack() {
-    setIndex(id!, Math.max(-1, currentIndex - 1))
+    setIndex(id!, Math.max(-1, currentIndex - 1), orderVersion)
   }
   function markUnitDone() {
     const nextStart = onFringe
-      ? firstIndexOfNextFringeColumn(order, currentStep!.col)
-      : firstIndexOfUnit(technique, order, currentUnitIndex + 1)
-    setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1)
+      ? firstIndexOfNextFringeColumn(order, currentStep!.unit)
+      : firstIndexOfNextBodyRow(order, currentIndex)
+    setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1, orderVersion)
   }
   function jumpTo(target: JumpTarget) {
-    const start = jumpTargetToIndex(technique, order, target)
-    if (start !== -1) setIndex(id!, start - 1)
+    const start = jumpTargetToIndex(order, target)
+    if (start !== -1) setIndex(id!, start - 1, orderVersion)
   }
   function requestReset() {
     setPendingReset(currentIndex)
     reset(id!)
   }
   function undoReset() {
-    if (pendingReset !== null) setIndex(id!, pendingReset)
+    if (pendingReset !== null) setIndex(id!, pendingReset, orderVersion)
     setPendingReset(null)
   }
 
@@ -162,6 +181,39 @@ export function WeavePage() {
       ? t.weave.wakeLockActive
       : t.weave.wakeLockRetrying
   const WakeLockIcon = !wakeLock.isSupported ? Moon : wakeLock.isActive ? Sun : RefreshCw
+
+  const currentRowLabel = onFringe
+    ? t.weave.fringeColumnHeader(currentStep!.unit + 1)
+    : onFoundation
+      ? t.weave.foundationPass
+      : currentStep?.isBaseRow
+        ? t.weave.baseRow
+        : `${t.weave.row} ${currentUnitIndex + 1}`
+  // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
+  const directionArrow = !onFringe && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
+  const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
+
+  // "Ir a" selector: peyote's foundation pass collapses rows 1-2 into one option; brick's
+  // widest row (the base row) keeps its numeric slot but reads "Fila base" instead of "Fila N".
+  const rowJumpOptions: { target: JumpTarget; label: string }[] =
+    technique === 'peyote' && rows >= 2
+      ? [
+          { target: { kind: 'foundation', index: 0 }, label: t.weave.foundationPass },
+          ...Array.from({ length: rows - 2 }, (_, i) => ({
+            target: { kind: 'body' as const, index: i + 2 },
+            label: `${t.weave.row} ${i + 3}`,
+          })),
+        ]
+      : Array.from({ length: rows }, (_, i) => ({
+          target: { kind: 'body' as const, index: i },
+          label: technique === 'brick' && i === rows - 1 ? t.weave.baseRow : `${t.weave.row} ${i + 1}`,
+        }))
+
+  const currentJumpValue = onFringe
+    ? encodeJumpValue({ kind: 'fringe', index: currentStep!.unit })
+    : onFoundation
+      ? encodeJumpValue({ kind: 'foundation', index: 0 })
+      : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
 
   return (
     <div
@@ -184,8 +236,13 @@ export function WeavePage() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-bold">{pattern.name}</p>
           <p className="text-xs text-text-muted">
-            {onFringe ? t.weave.fringeColumnHeader(currentStep!.col + 1) : `${unitLabel} ${currentUnitIndex + 1}`} ·{' '}
-            {Math.max(0, currentIndex + 1)} / {total} {t.weave.beadsWoven}
+            {currentRowLabel}
+            {directionArrow && (
+              <span className="ml-1" role="img" aria-label={directionLabel} title={directionLabel}>
+                {directionArrow}
+              </span>
+            )}{' '}
+            · {Math.max(0, beadsWoven)} / {totalBeads} {t.weave.beadsWoven}
           </p>
         </div>
         <span
@@ -212,9 +269,11 @@ export function WeavePage() {
       <div className="relative min-h-0 flex-1">
         {handsBusyMode ? (
           <HandsBusyView
-            unitLabel={onFringe ? t.weave.fringeUnitLabel : unitLabel}
-            unitIndex={onFringe ? currentStep!.col : currentUnitIndex}
-            unitCount={onFringe ? pattern.config.cols : unitCount}
+            unitLabel={onFringe ? t.weave.fringeUnitLabel : onFoundation ? t.weave.foundationPass : t.weave.row}
+            unitIndex={onFringe ? currentStep!.unit : currentUnitIndex}
+            unitCount={onFringe ? pattern.config.cols : rows}
+            showCount={!onFoundation}
+            hint={onFoundation ? t.weave.foundationPassHint(currentStep!.cells.length) : undefined}
             lineText={currentLineText}
             onAdvance={advance}
             tapAnywhere={tapAnywhereToAdvance}
@@ -237,17 +296,15 @@ export function WeavePage() {
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <label className="text-xs text-text-muted">
-            {fringeColumns.length > 0 ? t.weave.jumpTo : unit === 'column' ? t.weave.jumpToColumn : t.weave.jumpToRow}
-          </label>
+          <label className="text-xs text-text-muted">{fringeColumns.length > 0 ? t.weave.jumpTo : t.weave.jumpToRow}</label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
-            value={encodeJumpValue(onFringe ? { kind: 'fringe', index: currentStep!.col } : { kind: 'body', index: currentUnitIndex })}
+            value={currentJumpValue}
             onChange={(e) => jumpTo(decodeJumpValue(e.target.value))}
           >
-            {Array.from({ length: unitCount }, (_, i) => (
-              <option key={`body-${i}`} value={encodeJumpValue({ kind: 'body', index: i })}>
-                {unitLabel} {i + 1}
+            {rowJumpOptions.map(({ target, label }) => (
+              <option key={encodeJumpValue(target)} value={encodeJumpValue(target)}>
+                {label}
               </option>
             ))}
             {fringeColumns.map((col) => (
@@ -257,7 +314,7 @@ export function WeavePage() {
             ))}
           </select>
           <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
-            {onFringe ? t.weave.markFringeDone : unit === 'column' ? t.weave.markColumnDone : t.weave.markRowDone}
+            {onFringe ? t.weave.markFringeDone : onFoundation ? t.weave.markFoundationDone : t.weave.markRowDone}
           </button>
           {handsBusyMode && (
             <button
@@ -288,6 +345,9 @@ export function WeavePage() {
 
       {pendingReset !== null && (
         <UndoToast message={t.weave.resetDone} onUndo={undoReset} onExpire={() => setPendingReset(null)} />
+      )}
+      {progressInvalidated && pendingReset === null && (
+        <Toast message={t.weave.progressInvalidated} actionLabel={t.common.close} onAction={() => setProgressInvalidated(false)} />
       )}
     </div>
   )

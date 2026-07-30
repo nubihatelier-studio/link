@@ -5,7 +5,6 @@ import { cellPosition, physicalSizeMm, beadCount } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { buildWordChart } from '@/engine/wordChart'
-import { weaveUnit } from '@/engine/weaveOrder'
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
@@ -305,7 +304,6 @@ function drawWordChartPages(
     opts.fringe,
     opts.rowShape,
   )
-  const unitLabel = weaveUnit(opts.technique) === 'column' ? 'Columna' : 'Fila'
   const lineHeight = 4.6
   const footerReserve = 10
   const headerHeight = 16
@@ -330,7 +328,13 @@ function drawWordChartPages(
   let y = drawPageHeader()
 
   for (const line of lines) {
-    const prefix = line.isFringe ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: ` : `${unitLabel} ${line.unitIndex + 1}: `
+    const prefix = line.isFringe
+      ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: `
+      : line.grouped
+        ? `${t.weave.foundationPass}: `
+        : line.isBaseRow
+          ? `${t.weave.baseRow}: `
+          : `${t.weave.row} ${line.unitIndex + 1}: `
     const indent = ' '.repeat(prefix.length)
     const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
 

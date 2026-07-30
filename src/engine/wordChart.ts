@@ -1,63 +1,43 @@
 import type { ColorMap, FringeData, RowShape, Technique } from './types'
 import { cellKey } from './cellKey'
-import { buildWeaveOrder, unitIndexOf } from './weaveOrder'
+import { buildWeaveOrder } from './weaveOrder'
 
 /** Placeholder token for an empty (uncolored) bead slot in the word chart. */
 const EMPTY_TOKEN = '–'
 
 export interface WordChartLine {
   /**
-   * 0-based row/column index (whichever this technique's weave unit is — see
-   * weaveUnit) for a body line; the body column index for a fringe line
-   * (`isFringe: true`) — fringes hang per column regardless of technique.
+   * 0-based row index for a body line, or the fringe column for a fringe
+   * line (`isFringe: true`) — fringes hang per column regardless of
+   * technique. Meaningless (0) for a `grouped` line (peyote's foundation
+   * pass), since that line doesn't belong to a single row.
    */
   unitIndex: number
   /** Run-length-encoded sequence for this unit, e.g. "3A, 2B, 1A" (fringe lines add a trailing ", giro" when the deepest bead is a turn bead). */
   text: string
   /** Set only on the fringe section's lines, appended after every body line. */
   isFringe?: true
-}
-
-/** Run-length-encodes a sequence of letter tokens, e.g. ['A','A','B'] -> ['2A', '1B']. */
-function runLengthEncode(tokens: string[]): string[] {
-  const out: string[] = []
-  let letter: string | null = null
-  let count = 0
-  for (const t of tokens) {
-    if (t === letter) {
-      count++
-    } else {
-      if (count > 0 && letter !== null) out.push(`${count}${letter}`)
-      letter = t
-      count = 1
-    }
-  }
-  if (count > 0 && letter !== null) out.push(`${count}${letter}`)
-  return out
+  /** Set only on peyote's foundation pass — the first two rows strung together, see `weaveOrder.ts#buildPeyoteOrder`. */
+  grouped?: true
+  /** Set only on brick's very first line — the widest row the whole body is built up from, see `weaveOrder.ts#buildBrickOrder`. */
+  isBaseRow?: true
 }
 
 /**
  * Textual "word chart": the same bead-by-bead sequence Weave Mode walks
- * (buildWeaveOrder is the single source of truth for that order — see
- * weaveOrder.ts), collapsed into one line per row/column and run-length
+ * (`buildWeaveOrder` is the single source of truth for that order — see
+ * `weaveOrder.ts`), collapsed into one line per step-run and run-length
  * encoded ("3A" = three beads of letter A in a row) so it reads like a
  * knitting-style pattern instruction instead of a raw cell dump. Used by
  * the PDF export as a colorblind/black-and-white-print-safe fallback to the
  * visual chart.
  *
- * When `fringe` is given, a fringe section is appended after every body
- * line: one line per column with a fringe (`isFringe: true`), read
- * depth-ascending (closest to the body first) — fringes hang per column
- * regardless of technique, so they're never merged into the body's own
- * row/column lines (that would misgroup them for brick/loom, whose body
- * unit is the row, not the column).
- *
- * When `rowShape` is given (a shaped brick body), a narrower row simply
- * produces a shorter line — `buildWeaveOrder` already only visits that
- * row's active cells. The fringe section's own loop below also checks
- * `rowShape` directly (not just trusting `fringe.lengths` to already be
- * zero outside the last row's span) so the two stay correct even if fringe
- * and shape data ever come from different places and drift apart.
+ * A "line" is a maximal run of consecutive steps that share the same
+ * grouping key (body row, fringe column, or "the one grouped step") — since
+ * `buildWeaveOrder` already walks brick bottom-up, reverses direction every
+ * row, orders fringe columns by the thread's natural direction, and bundles
+ * peyote's foundation pass into one step, this function doesn't need to
+ * know any of that: it just groups whatever comes out contiguously.
  */
 export function buildWordChart(
   technique: Technique,
@@ -68,12 +48,12 @@ export function buildWordChart(
   fringe?: FringeData,
   rowShape?: RowShape[],
 ): WordChartLine[] {
-  // No `fringe` arg here on purpose — this pass is body-only; the fringe section is
-  // built separately below, so passing fringe would double the fringe beads into both.
-  const order = buildWeaveOrder(technique, cols, rows, undefined, rowShape)
+  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape)
   const lines: WordChartLine[] = []
 
-  let currentUnit = -1
+  let currentKey: string | null = null
+  let lineMeta: { unitIndex: number; isFringe?: true; grouped?: true; isBaseRow?: true } | null = null
+  let endsOnTurnBead = false
   let tokens: string[] = []
   let runLetter: string | null = null
   let runCount = 0
@@ -85,47 +65,40 @@ export function buildWordChart(
   }
   const flushLine = () => {
     flushRun()
-    if (currentUnit >= 0) lines.push({ unitIndex: currentUnit, text: tokens.join(', ') })
+    if (lineMeta) {
+      if (endsOnTurnBead) tokens.push('giro')
+      lines.push({ ...lineMeta, text: tokens.join(', ') })
+    }
     tokens = []
+    endsOnTurnBead = false
   }
 
-  for (const cell of order) {
-    const unitIndex = unitIndexOf(technique, cell)
-    if (unitIndex !== currentUnit) {
+  for (const step of order) {
+    const key = step.isFringe ? `fringe:${step.unit}` : step.grouped ? 'grouped' : `body:${step.unit}`
+    if (key !== currentKey) {
       flushLine()
-      currentUnit = unitIndex
+      currentKey = key
+      lineMeta = {
+        unitIndex: step.unit,
+        ...(step.isFringe ? { isFringe: true as const } : {}),
+        ...(step.grouped ? { grouped: true as const } : {}),
+        ...(step.isBaseRow ? { isBaseRow: true as const } : {}),
+      }
     }
-    const hex = cells[cellKey(cell.row, cell.col)]
-    const letter = hex ? letterForHex(hex) : EMPTY_TOKEN
-    if (letter === runLetter) {
-      runCount++
-    } else {
-      flushRun()
-      runLetter = letter
-      runCount = 1
+    endsOnTurnBead = step.isTurnBead === true
+    for (const cell of step.cells) {
+      const hex = cells[cellKey(cell.row, cell.col)]
+      const letter = hex ? letterForHex(hex) : EMPTY_TOKEN
+      if (letter === runLetter) {
+        runCount++
+      } else {
+        flushRun()
+        runLetter = letter
+        runCount = 1
+      }
     }
   }
   flushLine()
-
-  if (fringe) {
-    const lastRowShape = rowShape?.[rows - 1]
-    for (let col = 0; col < cols; col++) {
-      // Same rule as isPaintableCell/buildWeaveOrder: a fringe strand only exists under a column
-      // the body's LAST row actually reaches — checked here too (not just trusted from
-      // createFringeLengthsForShape's zero-padding) in case fringe/shape data ever drift apart.
-      if (lastRowShape && (col < lastRowShape.offset || col >= lastRowShape.offset + lastRowShape.length)) continue
-      const length = fringe.lengths[col] ?? 0
-      if (length === 0) continue
-      const letters: string[] = []
-      for (let depth = 0; depth < length; depth++) {
-        const hex = cells[cellKey(rows + depth, col)]
-        letters.push(hex ? letterForHex(hex) : EMPTY_TOKEN)
-      }
-      const fringeTokens = runLengthEncode(letters)
-      if (fringe.turnBeads[col]) fringeTokens.push('giro')
-      lines.push({ unitIndex: col, text: fringeTokens.join(', '), isFringe: true })
-    }
-  }
 
   return lines
 }

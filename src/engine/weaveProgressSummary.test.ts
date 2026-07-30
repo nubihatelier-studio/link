@@ -7,45 +7,52 @@ describe('summarizeWeaveProgress', () => {
     expect(summarizeWeaveProgress({ technique: 'loom', cols: 3, rows: 2, beadTypeId: 'x' }, -1)).toBeNull()
   })
 
-  it('loom: unit is row, counts by row index', () => {
+  it('loom: counts by row index', () => {
     const config = { technique: 'loom' as const, cols: 3, rows: 2, beadTypeId: 'x' }
     expect(summarizeWeaveProgress(config, 0)).toEqual({
-      unit: 'row',
       unitIndex: 0,
       unitCount: 2,
       percent: 17,
       isFringe: false,
+      grouped: false,
     })
     // Last cell (row 1, col 2) — final index of 6 total.
     expect(summarizeWeaveProgress(config, 5)).toEqual({
-      unit: 'row',
       unitIndex: 1,
       unitCount: 2,
       percent: 100,
       isFringe: false,
+      grouped: false,
     })
   })
 
-  it('peyote: unit is column, follows the boustrophedon traversal order', () => {
+  it('peyote: the foundation pass (rows 1-2) is one grouped step, counted as row 2', () => {
     const config = { technique: 'peyote' as const, cols: 2, rows: 3, beadTypeId: 'x' }
-    // order: (0,0) (1,0) (2,0) (2,1) (1,1) (0,1) — index 3 is (2,1), column 1.
-    expect(summarizeWeaveProgress(config, 3)).toEqual({
-      unit: 'column',
+    // order[0] = foundation pass (4 beads, unit 1), order[1..2] = row 2 (index 2, "fila 3").
+    expect(summarizeWeaveProgress(config, 0)).toEqual({
       unitIndex: 1,
-      unitCount: 2,
-      percent: 67,
+      unitCount: 3,
+      percent: 67, // 4 of 6 total beads strung
       isFringe: false,
+      grouped: true,
+    })
+    expect(summarizeWeaveProgress(config, 2)).toEqual({
+      unitIndex: 2,
+      unitCount: 3,
+      percent: 100,
+      isFringe: false,
+      grouped: false,
     })
   })
 
   it('clamps an out-of-range index to the last cell instead of throwing', () => {
     const config = { technique: 'loom' as const, cols: 3, rows: 2, beadTypeId: 'x' }
     expect(summarizeWeaveProgress(config, 999)).toEqual({
-      unit: 'row',
       unitIndex: 1,
       unitCount: 2,
       percent: 100,
       isFringe: false,
+      grouped: false,
     })
   })
 
@@ -62,7 +69,7 @@ describe('summarizeWeaveProgress', () => {
       const config = { technique: 'brick' as const, cols: 2, rows: 2, beadTypeId: 'x' }
       const fringe: FringeData = { lengths: [2, 0], turnBeads: [false, false] }
       const summary = summarizeWeaveProgress(config, 4, fringe) // index 4 = first fringe bead
-      expect(summary).toEqual({ unit: 'row', unitIndex: 1, unitCount: 2, percent: 83, isFringe: true })
+      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, grouped: false })
     })
   })
 

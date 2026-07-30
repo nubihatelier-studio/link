@@ -261,3 +261,65 @@ describe('WeavePage — indicador de wake lock (Endurecimiento 4)', () => {
     )
   })
 })
+
+describe('WeavePage — progreso guardado invalidado por cambio de orden de tejido (Tarea 4, Ronda J)', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderWeaveFor(pattern: PatternDoc) {
+    usePatternsStore.setState({
+      patterns: { [pattern.id]: pattern },
+      order: [pattern.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${pattern.id}/weave`]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('un índice guardado sin orderVersion (de antes de esta corrección) se reinicia para brick, con aviso explícito', async () => {
+    await fakeAdapter.setWeaveProgress({ patternId: PATTERN_WITH_FRINGE.id, currentIndex: 10, updatedAt: 1 })
+    await renderWeaveFor(PATTERN_WITH_FRINGE)
+
+    await waitFor(() => expect(useWeaveStore.getState().getIndex(PATTERN_WITH_FRINGE.id)).toBe(-1))
+    expect(
+      screen.getByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
+    ).toBeInTheDocument()
+  })
+
+  it('loom nunca invalida progreso guardado — su orden nunca cambió', async () => {
+    const loomPattern: PatternDoc = {
+      id: 'p_loom',
+      name: 'Telar',
+      config: { technique: 'loom', cols: 4, rows: 4, beadTypeId: 'miyuki-delica-11' },
+      cells: {},
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    await fakeAdapter.setWeaveProgress({ patternId: loomPattern.id, currentIndex: 5, updatedAt: 1 })
+    await renderWeaveFor(loomPattern)
+
+    await waitFor(() => expect(useWeaveStore.getState().getIndex(loomPattern.id)).toBe(5))
+    expect(
+      screen.queryByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('un índice guardado ya con el orderVersion actual no se toca', async () => {
+    await fakeAdapter.setWeaveProgress({ patternId: PATTERN_WITH_FRINGE.id, currentIndex: 10, orderVersion: 2, updatedAt: 1 })
+    await renderWeaveFor(PATTERN_WITH_FRINGE)
+
+    await waitFor(() => expect(useWeaveStore.getState().getIndex(PATTERN_WITH_FRINGE.id)).toBe(10))
+    expect(
+      screen.queryByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
+    ).not.toBeInTheDocument()
+  })
+})

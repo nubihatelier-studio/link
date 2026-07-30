@@ -8,8 +8,8 @@ function letterForHex(hex: string): string {
   return hex === '#111111' ? A : B
 }
 
-describe('buildWordChart', () => {
-  it('loom/brick: one line per row, run-length encoded left to right', () => {
+describe('buildWordChart — loom (unchanged)', () => {
+  it('one line per row, run-length encoded left to right', () => {
     const cells: ColorMap = {
       '0,0': '#111111',
       '0,1': '#111111',
@@ -25,23 +25,6 @@ describe('buildWordChart', () => {
     ])
   })
 
-  it('peyote: one line per column, following the boustrophedon (zigzag) thread direction', () => {
-    // 2 cols x 3 rows. Column 0 reads top->bottom, column 1 bottom->top (see buildWeaveOrder).
-    const cells: ColorMap = {
-      '0,0': '#111111',
-      '1,0': '#111111',
-      '2,0': '#222222',
-      '0,1': '#222222', // read last in col 1 (bottom-to-top)
-      '1,1': '#222222',
-      '2,1': '#111111', // read first in col 1
-    }
-    const lines = buildWordChart('peyote', 2, 3, cells, letterForHex)
-    expect(lines).toEqual([
-      { unitIndex: 0, text: '2A, 1B' },
-      { unitIndex: 1, text: '1A, 2B' },
-    ])
-  })
-
   it('collapses uncolored cells into the empty-slot token instead of dropping them', () => {
     const lines = buildWordChart('loom', 3, 1, {}, letterForHex)
     expect(lines).toEqual([{ unitIndex: 0, text: '3–' }])
@@ -54,10 +37,49 @@ describe('buildWordChart', () => {
   })
 })
 
+describe('buildWordChart — brick (Tarea 2: fila más ancha primero, serpentina, fila base)', () => {
+  it('the first line is the widest row (isBaseRow), read left to right; the next line (the tip) is read right to left', () => {
+    const cells: ColorMap = {
+      '0,0': '#111111',
+      '0,1': '#111111',
+      '0,2': '#111111',
+      '0,3': '#222222',
+      '1,0': '#222222',
+      '1,1': '#111111',
+    }
+    const lines = buildWordChart('brick', 4, 2, cells, letterForHex)
+    expect(lines).toEqual([
+      // row 1 (the widest, base row) — read col 0..3
+      { unitIndex: 1, text: '1B, 1A, 2–', isBaseRow: true },
+      // row 0 (the tip) — read col 3..0: B, A, A, A
+      { unitIndex: 0, text: '1B, 3A' },
+    ])
+  })
+})
+
+describe('buildWordChart — peyote (Tarea 3: primera pasada doble, luego serpentina)', () => {
+  it('the first line is the foundation pass (rows 1-2 together, alternating across the width), grouped', () => {
+    const cells: ColorMap = {
+      '0,0': '#111111',
+      '1,0': '#111111',
+      '0,1': '#222222',
+      '1,1': '#222222',
+      '2,0': '#111111',
+      '2,1': '#222222',
+    }
+    const lines = buildWordChart('peyote', 2, 3, cells, letterForHex)
+    expect(lines).toEqual([
+      { unitIndex: 1, text: '2A, 2B', grouped: true },
+      // row 2 (index 2, "fila 3") is the foundation's first turn — rtl: col 1 then col 0.
+      { unitIndex: 2, text: '1B, 1A' },
+    ])
+  })
+})
+
 describe('buildWordChart with a fringe', () => {
   it('leaves body lines untouched when no fringe is given', () => {
     const cells: ColorMap = { '0,0': '#111111', '0,1': '#111111' }
-    expect(buildWordChart('brick', 2, 1, cells, letterForHex)).toEqual([{ unitIndex: 0, text: '2A' }])
+    expect(buildWordChart('brick', 2, 1, cells, letterForHex)).toEqual([{ unitIndex: 0, text: '2A', isBaseRow: true }])
   })
 
   it('appends one fringe line per column with a fringe, after every body line', () => {
@@ -71,7 +93,7 @@ describe('buildWordChart with a fringe', () => {
     const fringe: FringeData = { lengths: [2, 0], turnBeads: [true, false] }
     const lines = buildWordChart('brick', 2, 1, cells, letterForHex, fringe)
     expect(lines).toEqual([
-      { unitIndex: 0, text: '2A' },
+      { unitIndex: 0, text: '2A', isBaseRow: true },
       { unitIndex: 0, text: '1A, 1B, giro', isFringe: true },
     ])
   })
@@ -102,7 +124,7 @@ describe('buildWordChart with a fringe', () => {
 
 describe('buildWordChart with a shaped (rowShape) body', () => {
   it('a narrower row produces a shorter line, not a padded/dropped one', () => {
-    // 3-col, 2-row triangle: row 0 has 1 col (centered), row 1 is full width.
+    // 3-col, 2-row triangle: row 0 has 1 col (centered), row 1 (the widest/base) is full width.
     const rowShape = [
       { offset: 1, length: 1 },
       { offset: 0, length: 3 },
@@ -110,8 +132,8 @@ describe('buildWordChart with a shaped (rowShape) body', () => {
     const cells: ColorMap = { '0,1': '#111111', '1,0': '#111111', '1,1': '#222222', '1,2': '#111111' }
     const lines = buildWordChart('brick', 3, 2, cells, letterForHex, undefined, rowShape)
     expect(lines).toEqual([
+      { unitIndex: 1, text: '1A, 1B, 1A', isBaseRow: true },
       { unitIndex: 0, text: '1A' },
-      { unitIndex: 1, text: '1A, 1B, 1A' },
     ])
   })
 

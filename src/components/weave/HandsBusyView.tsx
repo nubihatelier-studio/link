@@ -9,6 +9,10 @@ interface HandsBusyViewProps {
   onAdvance: () => void
   tapAnywhere: boolean
   canAdvance: boolean
+  /** False for a step that doesn't belong to a single row/count (peyote's foundation pass) — hides the "X / Y" count, showing just `unitLabel`. Defaults true. */
+  showCount?: boolean
+  /** Extra instruction shown under the label — used for the foundation pass ("Ensarta estas N mostacillas de una vez"). */
+  hint?: string
 }
 
 /**
@@ -26,6 +30,8 @@ export function HandsBusyView({
   onAdvance,
   tapAnywhere,
   canAdvance,
+  showCount = true,
+  hint,
 }: HandsBusyViewProps) {
   const active = tapAnywhere && canAdvance
   const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
@@ -68,8 +74,15 @@ export function HandsBusyView({
       aria-label={tapAnywhere ? unitLabel : undefined}
     >
       <p className="text-lg font-semibold uppercase tracking-wide text-text-muted md:text-2xl lg:text-3xl">
-        {unitLabel} {unitIndex + 1} <span className="text-text-muted">/ {unitCount}</span>
+        {showCount ? (
+          <>
+            {unitLabel} {unitIndex + 1} <span className="text-text-muted">/ {unitCount}</span>
+          </>
+        ) : (
+          unitLabel
+        )}
       </p>
+      {hint && <p className="text-sm text-text-muted md:text-base">{hint}</p>}
       <p className="max-w-5xl text-4xl font-bold leading-snug tracking-wide sm:text-5xl md:text-7xl lg:text-8xl">
         {lineText}
       </p>

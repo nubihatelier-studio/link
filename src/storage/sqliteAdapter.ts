@@ -49,9 +49,17 @@ export class SqliteAdapter implements StorageAdapter {
       CREATE TABLE IF NOT EXISTS weave_progress (
         pattern_id TEXT PRIMARY KEY,
         current_index INTEGER NOT NULL,
+        order_version INTEGER,
         updated_at INTEGER NOT NULL
       );
     `)
+    // weave_progress predates `order_version` — add it for installs upgrading from an older
+    // version of the table; ignore the error on a fresh install where the column already exists.
+    try {
+      await this.connection.execute('ALTER TABLE weave_progress ADD COLUMN order_version INTEGER')
+    } catch {
+      // Column already exists — nothing to do.
+    }
   }
 
   private async db(): Promise<SQLiteDBConnection> {
@@ -108,25 +116,21 @@ export class SqliteAdapter implements StorageAdapter {
     const db = await this.db()
     const res = await db.query('SELECT * FROM weave_progress WHERE pattern_id = ?', [patternId])
     const row = res.values?.[0]
-    return row ? { patternId: row.pattern_id, currentIndex: row.current_index, updatedAt: row.updated_at } : undefined
+    return row ? rowToWeaveProgress(row) : undefined
   }
 
   async listWeaveProgress(): Promise<WeaveProgressRecord[]> {
     const db = await this.db()
     const res = await db.query('SELECT * FROM weave_progress')
-    return (res.values ?? []).map((row) => ({
-      patternId: row.pattern_id,
-      currentIndex: row.current_index,
-      updatedAt: row.updated_at,
-    }))
+    return (res.values ?? []).map(rowToWeaveProgress)
   }
 
   async setWeaveProgress(record: WeaveProgressRecord): Promise<void> {
     const db = await this.db()
     await db.run(
-      `INSERT INTO weave_progress (pattern_id, current_index, updated_at) VALUES (?, ?, ?)
-       ON CONFLICT(pattern_id) DO UPDATE SET current_index = excluded.current_index, updated_at = excluded.updated_at`,
-      [record.patternId, record.currentIndex, record.updatedAt],
+      `INSERT INTO weave_progress (pattern_id, current_index, order_version, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(pattern_id) DO UPDATE SET current_index = excluded.current_index, order_version = excluded.order_version, updated_at = excluded.updated_at`,
+      [record.patternId, record.currentIndex, record.orderVersion ?? null, record.updatedAt],
     )
   }
 
@@ -148,6 +152,15 @@ function rowToPattern(row: Record<string, unknown>): PatternDoc {
     },
     cells: JSON.parse(row.cells_json as string),
     createdAt: row.created_at as number,
+    updatedAt: row.updated_at as number,
+  }
+}
+
+function rowToWeaveProgress(row: Record<string, unknown>): WeaveProgressRecord {
+  return {
+    patternId: row.pattern_id as string,
+    currentIndex: row.current_index as number,
+    orderVersion: (row.order_version as number | null) ?? undefined,
     updatedAt: row.updated_at as number,
   }
 }

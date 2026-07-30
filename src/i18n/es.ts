@@ -195,22 +195,29 @@ export const t = {
   weave: {
     title: 'Modo tejido',
     row: 'Fila',
-    column: 'Columna',
     of: 'de',
     jumpToRow: 'Ir a fila',
-    jumpToColumn: 'Ir a columna',
-    /** Used instead of jumpToRow/jumpToColumn once the selector also offers fringe columns — "Ir a fila" would misdescribe an option like "Fleco · Columna 5". */
+    /** Used instead of jumpToRow once the selector also offers fringe columns — "Ir a fila" would misdescribe an option like "Fleco · Columna 5". */
     jumpTo: 'Ir a',
     markRowDone: 'Marcar fila hecha',
-    markColumnDone: 'Marcar columna hecha',
     markFringeDone: 'Marcar fleco hecho',
     fringeUnitLabel: 'Fleco',
     fringeColumnHeader: (n: number) => `Fleco · Columna ${n}`,
+    /** Brick's very first row of the traversal — the widest one, adjacent to the fringe, that the whole body is built up from. */
+    baseRow: 'Fila base',
+    /** Peyote's foundation pass — rows 1 and 2 strung together as a single instruction. */
+    foundationPass: 'Primera pasada',
+    foundationPassHint: (n: number) => `Ensarta estas ${n} mostacillas de una vez`,
+    markFoundationDone: 'Marcar primera pasada hecha',
     back: 'Retroceder',
     next: 'Siguiente',
     beadsWoven: 'mostacillas tejidas',
     reset: 'Reiniciar',
     resetDone: 'Se reinició el progreso de tejido.',
+    /** Shown once, non-dismissable-by-undo, when a saved progress index no longer matches the current (corrected) weaving order for this technique. */
+    progressInvalidated: 'Corregimos el orden de tejido de esta técnica. Tu progreso guardado ya no calzaba con la mostacilla correcta, así que se reinició.',
+    directionLtr: 'Tejiendo de izquierda a derecha',
+    directionRtl: 'Tejiendo de derecha a izquierda',
     handsBusyMode: 'Modo manos ocupadas',
     tapToAdvance: 'Tocar el patrón para avanzar',
     wakeLockActive: 'Pantalla siempre encendida',

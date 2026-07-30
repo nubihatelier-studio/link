@@ -6,6 +6,7 @@ import { useEditorStore, type Tool } from '@/store/editorStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
+import { WEAVE_ORDER_VERSION } from '@/engine/weaveOrder'
 import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
 import { isShapeCapable } from '@/engine/shape'
 import { exportPatternToPdf } from '@/lib/pdfExport'
@@ -190,7 +191,7 @@ export function EditorPage() {
   function undoWeaveReset() {
     if (weaveResetPending === null) return
     undo()
-    if (patternId) useWeaveStore.getState().setIndex(patternId, weaveResetPending)
+    if (patternId) useWeaveStore.getState().setIndex(patternId, weaveResetPending, WEAVE_ORDER_VERSION[technique])
     clearWeaveResetPending()
   }
 

@@ -6,6 +6,8 @@ export const SCHEMA_VERSION = 1
 export interface WeaveProgressRecord {
   patternId: string
   currentIndex: number
+  /** Which `WEAVE_ORDER_VERSION` (see `engine/weaveOrder.ts`) this index was saved under — absent on records saved before that versioning existed, treated as version 1. */
+  orderVersion?: number
   updatedAt: number
 }
 

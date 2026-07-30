@@ -5,6 +5,8 @@ import { migrateFromLocalStorage } from '@/storage/migration'
 interface WeaveProgress {
   /** index into the technique's traversal order (see engine/weaveOrder.ts); -1 = not started */
   currentIndex: number
+  /** Which `WEAVE_ORDER_VERSION` this index was saved under — absent on records saved before that versioning existed, treated as version 1 by `getOrderVersion`. */
+  orderVersion?: number
   updatedAt: number
 }
 
@@ -19,7 +21,9 @@ interface WeaveState {
   /** Pulls every pattern's progress in one go — call from the home screen to power "continue weaving" and per-card progress. */
   loadAllProgress: () => Promise<void>
   getIndex: (patternId: string) => number
-  setIndex: (patternId: string, index: number) => void
+  /** Which order version a pattern's saved index was recorded under — 1 (the original, pre-versioning order) if never stamped. See `engine/weaveOrder.ts#WEAVE_ORDER_VERSION`. */
+  getOrderVersion: (patternId: string) => number
+  setIndex: (patternId: string, index: number, orderVersion: number) => void
   reset: (patternId: string) => void
 }
 
@@ -51,7 +55,10 @@ export const useWeaveStore = create<WeaveState>()((set, get) => ({
     set((s) => ({
       loaded: { ...s.loaded, [patternId]: true },
       progress: record
-        ? { ...s.progress, [patternId]: { currentIndex: record.currentIndex, updatedAt: record.updatedAt } }
+        ? {
+            ...s.progress,
+            [patternId]: { currentIndex: record.currentIndex, orderVersion: record.orderVersion, updatedAt: record.updatedAt },
+          }
         : s.progress,
     }))
   },
@@ -65,7 +72,11 @@ export const useWeaveStore = create<WeaveState>()((set, get) => ({
       const progress = { ...s.progress }
       const loaded = { ...s.loaded }
       for (const record of records) {
-        progress[record.patternId] = { currentIndex: record.currentIndex, updatedAt: record.updatedAt }
+        progress[record.patternId] = {
+          currentIndex: record.currentIndex,
+          orderVersion: record.orderVersion,
+          updatedAt: record.updatedAt,
+        }
         loaded[record.patternId] = true
       }
       return { progress, loaded, allLoaded: true }
@@ -73,9 +84,10 @@ export const useWeaveStore = create<WeaveState>()((set, get) => ({
   },
 
   getIndex: (patternId) => get().progress[patternId]?.currentIndex ?? -1,
+  getOrderVersion: (patternId) => get().progress[patternId]?.orderVersion ?? 1,
 
-  setIndex: (patternId, index) => {
-    const p: WeaveProgress = { currentIndex: index, updatedAt: Date.now() }
+  setIndex: (patternId, index, orderVersion) => {
+    const p: WeaveProgress = { currentIndex: index, orderVersion, updatedAt: Date.now() }
     set((s) => ({ progress: { ...s.progress, [patternId]: p } }))
     persistProgress(patternId, p)
   },

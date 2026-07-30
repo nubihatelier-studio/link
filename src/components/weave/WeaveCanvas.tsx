@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { Cell, ColorMap, FringeData, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
-import { directionAtStep } from '@/engine/weaveOrder'
+import { directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
 import { TAP_SLOP_PX } from './tapGesture'
 
 interface WeaveCanvasProps {
@@ -12,7 +12,7 @@ interface WeaveCanvasProps {
   rows: number
   cells: ColorMap
   fringe: FringeData
-  order: Cell[]
+  order: WeaveOrder
   currentIndex: number
   onTapNext: () => void
   staggerPhase?: 0 | 1
@@ -41,11 +41,14 @@ export function WeaveCanvas({
 
   const indexByCell = useMemo(() => {
     const m = new Map<string, number>()
-    order.forEach((c, i) => m.set(cellKey(c.row, c.col), i))
+    order.forEach((step, i) => step.cells.forEach((c) => m.set(cellKey(c.row, c.col), i)))
     return m
   }, [order])
 
-  const nextCell = order[currentIndex + 1]
+  // "Next bead" ring/arrow always target the upcoming step's first cell — for a grouped step
+  // (peyote's foundation pass) that's as precise as a single ring can be; the full set of beads
+  // it covers is what the word chart/hands-busy instruction spells out.
+  const nextCell = order[currentIndex + 1]?.cells[0]
   const direction = useMemo(
     () => directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase),
     [technique, order, currentIndex, rows, staggerPhase],
