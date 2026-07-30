@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -77,13 +77,14 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
 
     await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
 
-    // brick 13x7 cuerpo en trapecio (triangle preset: crece 1 mostacilla por
-    // fila hasta los 13 en la última fila) + fleco en V (largo máx. 10) bajo
-    // la punta de la última fila — misma fórmula pura que usa el componente.
-    const rowShape = createShapedRowShape('triangle', 13, 7)
-    const bodyTotal = beadCount('brick', 13, 7, rowShape)
-    const rectangleTotal = beadCount('brick', 13, 7) // what it would be WITHOUT shape — the regression guard
-    const fringeLengths = createFringeLengthsForShape('v', 13, 10, rowShape[6])
+    // brick 13x13 cuerpo en trapecio (triangle preset: crece 1 mostacilla por
+    // fila hasta los 13 en la última fila; filas parte igualadas a columnas —
+    // ver Corrección 3) + fleco en V (largo máx. 10) bajo la punta de la
+    // última fila — misma fórmula pura que usa el componente.
+    const rowShape = createShapedRowShape('triangle', 13, 13)
+    const bodyTotal = beadCount('brick', 13, 13, rowShape)
+    const rectangleTotal = beadCount('brick', 13, 13) // what it would be WITHOUT shape — the regression guard
+    const fringeLengths = createFringeLengthsForShape('v', 13, 10, rowShape[12])
     const fringeTotal = totalFringeBeadCount({ lengths: fringeLengths, turnBeads: [] })
     const expectedTotal = bodyTotal + fringeTotal
 
@@ -198,5 +199,76 @@ describe('ConfiguratorPage — forma del cuerpo', () => {
     const user = await renderOnBrick()
     await user.click(screen.getByRole('button', { name: new RegExp(`${t.configurator.bodyShape.rectangle}$`) }))
     expect(rowsInput()).toHaveValue(16)
+  })
+})
+
+describe('ConfiguratorPage — "Aro con flecos": filas siguen a columnas (Corrección 3)', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], hydrated: true, migrationResult: null })
+  })
+
+  /** Columns is always the first spinbutton, rows the second (see the "forma del cuerpo" describe block above). */
+  function colsInput() {
+    return screen.getAllByRole('spinbutton')[0]
+  }
+  function rowsInput() {
+    return screen.getAllByRole('spinbutton')[1]
+  }
+
+  async function renderAndSelectAroFlecos() {
+    const user = userEvent.setup()
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
+    return user
+  }
+
+  it('al elegir la plantilla, las filas parten iguales a las columnas (13)', async () => {
+    await renderAndSelectAroFlecos()
+    expect(colsInput()).toHaveValue(13)
+    expect(rowsInput()).toHaveValue(13)
+  })
+
+  it('mover las columnas mantiene las filas iguales, incluso varias veces seguidas', async () => {
+    await renderAndSelectAroFlecos()
+    fireEvent.change(colsInput(), { target: { value: '20' } })
+    expect(rowsInput()).toHaveValue(20)
+    fireEvent.change(colsInput(), { target: { value: '7' } })
+    expect(rowsInput()).toHaveValue(7)
+  })
+
+  it('editar las filas a mano respeta el valor elegido y deja de seguir a las columnas', async () => {
+    await renderAndSelectAroFlecos()
+    fireEvent.change(rowsInput(), { target: { value: '10' } })
+    expect(rowsInput()).toHaveValue(10)
+
+    // Columns keep moving — rows must NOT follow any more.
+    fireEvent.change(colsInput(), { target: { value: '20' } })
+    expect(rowsInput()).toHaveValue(10)
+  })
+
+  it('elegir otra plantilla o técnica no arrastra el seguimiento de filas', async () => {
+    const user = await renderAndSelectAroFlecos()
+    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.loom) }))
+    // Now on loom, rows must stay put even if columns change.
+    fireEvent.change(colsInput(), { target: { value: '5' } })
+    expect(rowsInput()).not.toHaveValue(5)
+  })
+
+  it('no afecta otras plantillas: "Personalizado" no iguala filas a columnas', async () => {
+    const user = userEvent.setup()
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.personalizado) }))
+    fireEvent.change(colsInput(), { target: { value: '20' } })
+    expect(rowsInput()).toHaveValue(16) // Personalizado's own rows value, untouched
   })
 })

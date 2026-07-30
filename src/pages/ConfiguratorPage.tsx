@@ -118,6 +118,15 @@ export function ConfiguratorPage() {
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
   const [bodyShape, setBodyShape] = useState<BodyShapePreset>('rectangle')
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  /**
+   * "Aro con flecos" starts from rows = columns — that's what gives its
+   * trapezoid body + V fringe a well-proportioned, symmetric silhouette —
+   * and keeps rows mirroring columns as they're adjusted, until the weaver
+   * edits rows directly (see `updateRows`/`updateFinalHeight`), at which
+   * point their choice sticks and rows stop following. Only this template
+   * behaves this way; picking any other template or technique turns it off.
+   */
+  const [rowsFollowCols, setRowsFollowCols] = useState(false)
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
@@ -142,10 +151,13 @@ export function ConfiguratorPage() {
     (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
 
   function applyTemplate(template: TemplatePreset) {
+    const followRows = template.id === 'aroFlecos'
     setSelectedTemplate(template.id)
     setTechnique(template.technique)
     setCols(template.cols)
-    setRows(template.rows)
+    // aroFlecos ignores its own template.rows — rows always starts equal to columns for this one.
+    setRows(followRows ? template.cols : template.rows)
+    setRowsFollowCols(followRows)
     setMode('count')
     setFringeEnabled(template.fringeEnabled)
     setFringeMaxLength(template.fringeMaxLength)
@@ -154,23 +166,27 @@ export function ConfiguratorPage() {
   }
 
   function updateCols(next: number) {
-    setCols(Math.max(MIN_DIM, Math.min(MAX_DIM, next)))
+    const clamped = Math.max(MIN_DIM, Math.min(MAX_DIM, next))
+    setCols(clamped)
+    if (rowsFollowCols) setRows(clamped)
   }
 
+  /** A direct edit to rows — always respected, and (per aroFlecos's own rule) stops rows from following columns from here on. */
   function updateRows(next: number) {
+    setRowsFollowCols(false)
     setRows(Math.max(MIN_DIM, Math.min(MAX_DIM, next)))
   }
 
   function updateFinalWidth(valueInUnit: number) {
     const widthMm = toMm(valueInUnit, unit)
     const { cols: newCols } = gridFromPhysicalSizeMm(technique, widthMm, size.heightMm, bead.widthMm, bead.heightMm)
-    setCols(Math.max(MIN_DIM, Math.min(MAX_DIM, newCols)))
+    updateCols(newCols)
   }
 
   function updateFinalHeight(valueInUnit: number) {
     const heightMm = toMm(valueInUnit, unit)
     const { rows: newRows } = gridFromPhysicalSizeMm(technique, size.widthMm, heightMm, bead.widthMm, bead.heightMm)
-    setRows(Math.max(MIN_DIM, Math.min(MAX_DIM, newRows)))
+    updateRows(newRows)
   }
 
   function handleCreate() {
@@ -216,6 +232,7 @@ export function ConfiguratorPage() {
               onClick={() => {
                 setTechnique(tech)
                 setSelectedTemplate(null)
+                setRowsFollowCols(false)
               }}
               className="flex flex-col items-center gap-2 py-5 text-center"
             >
