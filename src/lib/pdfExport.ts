@@ -40,7 +40,7 @@ export interface ExportPatternOptions {
  * shrinks below it only when needed so the whole chart (body + fringe)
  * always renders on a single page.
  */
-function chartCellMm(technique: Technique): { w: number; h: number } {
+export function chartCellMm(technique: Technique): { w: number; h: number } {
   if (technique === 'peyote') return { w: 3.2, h: 3.9 }
   if (technique === 'brick') return { w: 3.9, h: 3.2 }
   return { w: 3.5, h: 3.5 }
@@ -49,6 +49,66 @@ function chartCellMm(technique: Technique): { w: number; h: number } {
 const MAX_LETTER_FONT_SIZE = 5.5
 /** Below this cell size, a materials-list letter wouldn't be legible anyway — hidden regardless of the `showLetters` toggle. */
 const MIN_LEGIBLE_CELL_MM = 2.2
+
+/**
+ * Minimum on-page distance (mm) between two consecutive ruler numbers
+ * before they start reading as one smudge instead of two digits — the
+ * labels are single/double-digit numbers at a small fixed 6pt font
+ * (~2.1mm cap height), so ~4mm of pitch leaves a legible gap between them
+ * even at two digits wide.
+ */
+const MIN_LABEL_GAP_MM = 4
+
+/**
+ * The row/column interval to draw ruler numbers at, given how many units
+ * there are and the on-page size (mm) of one unit ("cell") along that axis.
+ * Row and column intervals must be computed independently — a narrow, tall
+ * pattern (say 6 columns × 37 rows) can have plenty of room to number every
+ * column while its rows, at the same cell height, still need a much coarser
+ * interval. The previous version derived a single interval from the column
+ * count alone and reused it for rows too, which numbered every row of a
+ * tall pattern and produced overlapping labels.
+ *
+ * Always resolves to a round number (1, 5, 10, 25, 50, …) — never an
+ * arbitrary interval like "7" — picking the coarsest one that still keeps
+ * consecutive labels at least `MIN_LABEL_GAP_MM` apart.
+ */
+export function rulerLabelStep(count: number, cellSizeMm: number): number {
+  if (count <= 0 || cellSizeMm <= 0) return 1
+  const minStep = MIN_LABEL_GAP_MM / cellSizeMm
+  const roundSteps = [1, 5, 10, 25, 50, 100, 250, 500, 1000]
+  for (const candidate of roundSteps) {
+    if (candidate >= minStep) return candidate
+  }
+  return roundSteps[roundSteps.length - 1]
+}
+
+/**
+ * The actual 0-based indices to draw a ruler number at: every `step`-th one
+ * (see `rulerLabelStep`), always including the very first (0) and very last
+ * (`count - 1`) — a weaver should always be able to see exactly where a row
+ * or column starts and ends, even when it doesn't fall on a round number.
+ *
+ * When `count - 1` doesn't land on a round step, the last regular label can
+ * end up closer to it than `MIN_LABEL_GAP_MM` allows (e.g. step 10 over 37
+ * units labels 0, 10, 20, 30, then forcing 36 too would put two labels only
+ * 6 units apart) — in that case the next-to-last regular label is dropped
+ * so the "always show the last index" guarantee never itself creates the
+ * crowding this function exists to prevent. The one exception is index 0
+ * itself, which is never dropped — showing the first and last index always
+ * wins over the spacing minimum on a range so small that even they can't be
+ * `MIN_LABEL_GAP_MM` apart (e.g. 4 units at a tiny cell size).
+ */
+export function rulerLabelIndices(count: number, cellSizeMm: number): number[] {
+  if (count <= 0) return []
+  const step = rulerLabelStep(count, cellSizeMm)
+  const indices: number[] = []
+  for (let i = 0; i < count - 1; i += step) indices.push(i)
+  const minGapUnits = cellSizeMm > 0 ? MIN_LABEL_GAP_MM / cellSizeMm : 0
+  if (indices.length > 1 && count - 1 - indices[indices.length - 1] < minGapUnits) indices.pop()
+  indices.push(count - 1)
+  return indices
+}
 
 /**
  * Shrinks `base` (keeping its per-technique aspect ratio) just enough that
@@ -88,19 +148,22 @@ function drawChart(
   const { technique, cells, cols, rows, fringe, rowShape, staggerPhase = 0 } = opts
   const origin = cellPosition(technique, 0, 0, rows, staggerPhase)
 
-  const step = cols > 60 ? 10 : cols > 30 ? 5 : 1
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   doc.setTextColor(120)
-  for (let c = 0; c < cols; c++) {
-    if (c % step !== 0 && c !== cols - 1) continue
+  for (const c of rulerLabelIndices(cols, cellW)) {
     const pos = cellPosition(technique, 0, c, rows, staggerPhase)
     doc.text(String(c + 1), originX + (pos.x - origin.x) * cellW + cellW / 2, originY - 2, { align: 'center' })
   }
-  for (let r = 0; r < totalRows; r++) {
-    if (r % step !== 0 && r !== totalRows - 1) continue
+  for (const r of rulerLabelIndices(totalRows, cellH)) {
     const pos = cellPosition(technique, r, 0, rows, staggerPhase)
-    doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2 + 1, { align: 'right' })
+    // baseline: 'middle' derives the vertical centering from the font's own metrics — a fixed
+    // mm offset (the previous approach) doesn't scale with cell size and visibly drifts off the
+    // row at small cell sizes (a 1mm constant is half a bead at a ~2mm cell).
+    doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2, {
+      align: 'right',
+      baseline: 'middle',
+    })
   }
 
   const minCell = Math.min(cellW, cellH)

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData } from '@/engine/types'
+import { chartCellMm, fitChartCellToOnePage, rulerLabelIndices, rulerLabelStep } from './pdfExport'
 
 // Route the native (Capacitor) export path instead of doc.save()'s browser download,
 // which jsdom doesn't implement — this still exercises the full document build.
@@ -38,6 +39,105 @@ function fillCells(cols: number, rows: number): ColorMap {
   }
   return cells
 }
+
+describe('rulerLabelStep / rulerLabelIndices — intervalo de numeración (Corrección 1)', () => {
+  it('resolves to a round number (1, 5, 10, 25, 50…), never an arbitrary interval', () => {
+    const roundNumbers = new Set([1, 5, 10, 25, 50, 100, 250, 500, 1000])
+    for (const cellSizeMm of [0.3, 0.8, 1.5, 3.2, 5]) {
+      for (const count of [4, 12, 37, 50, 100, 200]) {
+        expect(roundNumbers.has(rulerLabelStep(count, cellSizeMm))).toBe(true)
+      }
+    }
+  })
+
+  it('never places two labels closer than the legible minimum', () => {
+    for (const cellSizeMm of [0.3, 0.8, 1.5, 3.2, 5]) {
+      for (const count of [4, 12, 37, 50, 100, 200]) {
+        const step = rulerLabelStep(count, cellSizeMm)
+        expect(step * cellSizeMm).toBeGreaterThanOrEqual(4) // MIN_LABEL_GAP_MM
+      }
+    }
+  })
+
+  it('always includes the first (0) and last (count - 1) index', () => {
+    for (const cellSizeMm of [0.3, 3.2]) {
+      for (const count of [4, 12, 37, 200]) {
+        const indices = rulerLabelIndices(count, cellSizeMm)
+        expect(indices[0]).toBe(0)
+        expect(indices[indices.length - 1]).toBe(count - 1)
+      }
+    }
+  })
+
+  it('a tiny cell size (large shrunk pattern) still never packs labels tighter than legible', () => {
+    const indices = rulerLabelIndices(200, 0.3)
+    for (let i = 1; i < indices.length; i++) {
+      const gapMm = (indices[i] - indices[i - 1]) * 0.3
+      expect(gapMm).toBeGreaterThanOrEqual(4 - 1e-9)
+    }
+  })
+
+  it('columns and rows resolve independently, each from its own axis size — not one interval reused for both', () => {
+    // A pattern with a much wider column cell than row cell (e.g. brick) must not use the
+    // same step for both axes — the previous logic derived one `step` from the column count
+    // alone and reused it for rows, which is exactly the bug this correction fixes.
+    const wideCellW = 10 // plenty of room — every column could be labeled
+    const tinyCellH = 0.4 // cramped — needs a much coarser interval
+    const colIndices = rulerLabelIndices(20, wideCellW)
+    const rowIndices = rulerLabelIndices(20, tinyCellH)
+    expect(rulerLabelStep(20, wideCellW)).toBeLessThan(rulerLabelStep(20, tinyCellH))
+    expect(colIndices.length).toBeGreaterThan(rowIndices.length)
+    expect(rowIndices[0]).toBe(0)
+    expect(rowIndices[rowIndices.length - 1]).toBe(19)
+  })
+
+  it('a 6x37 peyote pattern (the reported case) numbers columns more densely than rows, first/last always present, never crowded', () => {
+    // Base cell {w:3.2, h:3.9} comfortably fits this pattern at full size (see
+    // fitChartCellToOnePage tests below), so both axes use their own *base* cell size directly.
+    const base = chartCellMm('peyote')
+    const { w: cellW, h: cellH } = fitChartCellToOnePage(base, 6, 37, 180, 260)
+    const colIndices = rulerLabelIndices(6, cellW)
+    const rowIndices = rulerLabelIndices(37, cellH)
+    // The reported bug: with the old cols-only interval, all 37 rows were labeled and
+    // overlapped. Now rows use their own (coarser, since cellH alone doesn't clear the
+    // legible gap at every single row) interval — far fewer than 37 labels.
+    expect(rowIndices.length).toBeLessThan(37)
+    expect(rowIndices[0]).toBe(0)
+    expect(rowIndices[rowIndices.length - 1]).toBe(36)
+    expect(colIndices[0]).toBe(0)
+    expect(colIndices[colIndices.length - 1]).toBe(5)
+  })
+
+  describe('los cuatro patrones exigidos: 6×37, 50×50, 100×200, 12×12', () => {
+    const configs: { name: string; cols: number; rows: number }[] = [
+      { name: '6x37', cols: 6, rows: 37 },
+      { name: '50x50', cols: 50, rows: 50 },
+      { name: '100x200', cols: 100, rows: 200 },
+      { name: '12x12', cols: 12, rows: 12 },
+    ]
+
+    it.each(configs)('$name: ninguna etiqueta a menos del mínimo legible, siempre primera y última', ({ cols, rows }) => {
+      const base = chartCellMm('loom')
+      // Mirrors exportPatternToPdf's own paginated-chart geometry: a single A4 page, minus margins.
+      const { w: cellW, h: cellH } = fitChartCellToOnePage(base, cols, rows, 210 - 28, 297 - 40)
+
+      const colIndices = rulerLabelIndices(cols, cellW)
+      const rowIndices = rulerLabelIndices(rows, cellH)
+
+      expect(colIndices[0]).toBe(0)
+      expect(colIndices[colIndices.length - 1]).toBe(cols - 1)
+      expect(rowIndices[0]).toBe(0)
+      expect(rowIndices[rowIndices.length - 1]).toBe(rows - 1)
+
+      for (let i = 1; i < colIndices.length; i++) {
+        expect((colIndices[i] - colIndices[i - 1]) * cellW).toBeGreaterThanOrEqual(4 - 1e-9)
+      }
+      for (let i = 1; i < rowIndices.length; i++) {
+        expect((rowIndices[i] - rowIndices[i - 1]) * cellH).toBeGreaterThanOrEqual(4 - 1e-9)
+      }
+    })
+  })
+})
 
 describe('exportPatternToPdf', () => {
   const bead = getBeadType('miyuki-delica-11')
