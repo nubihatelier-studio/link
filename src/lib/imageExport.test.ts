@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
-import type { ColorMap, FringeData } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData } from '@/engine/types'
 import {
   composeInstagramCard,
   computeExportCellPx,
@@ -89,6 +89,69 @@ describe('renderPatternCanvas', () => {
       ),
     ).not.toThrow()
   })
+
+  // Tarea 3 — argolla de enganche. `targetLongSidePx` normalizes the *absolute* canvas
+  // size (a taller pattern just gets smaller cells), so the observable effect of the loop
+  // is on the canvas *proportions*: it reserves extra room above the body, making the
+  // canvas taller relative to its width. Comparing the ratio also cancels out the
+  // MIN/MAX_CELL_PX clamping, which would otherwise make raw pixel heights misleading.
+  const ratio = (c: HTMLCanvasElement) => c.height / c.width
+
+  it('reserves room above the body for a woven loop, making the canvas proportionally taller', () => {
+    const cells = fillCells(10, 10)
+    const base = { name: 'x', technique: 'brick' as const, cols: 10, rows: 10, cells, beadType: bead }
+    const loop: LoopData = { variant: 'woven', beadCount: 12, color: '#c9a227' }
+
+    const withoutLoop = renderPatternCanvas(base, '#fff', 400)
+    const withLoop = renderPatternCanvas({ ...base, loop }, '#fff', 400)
+
+    expect(ratio(withLoop)).toBeGreaterThan(ratio(withoutLoop))
+  })
+
+  it('reserves more room for a bigger woven loop', () => {
+    const cells = fillCells(10, 10)
+    const base = { name: 'x', technique: 'brick' as const, cols: 10, rows: 10, cells, beadType: bead }
+
+    const small = renderPatternCanvas({ ...base, loop: { variant: 'woven', beadCount: 6, color: '#c9a227' } }, '#fff', 400)
+    const big = renderPatternCanvas({ ...base, loop: { variant: 'woven', beadCount: 24, color: '#c9a227' } }, '#fff', 400)
+
+    expect(ratio(big)).toBeGreaterThan(ratio(small))
+  })
+
+  it('reserves only the small fixed indicator allowance for a metal loop', () => {
+    const cells = fillCells(10, 10)
+    const base = { name: 'x', technique: 'brick' as const, cols: 10, rows: 10, cells, beadType: bead }
+
+    const withoutLoop = renderPatternCanvas(base, '#fff', 400)
+    const metal = renderPatternCanvas({ ...base, loop: { variant: 'metal', beadCount: 0, color: '#c9a227' } }, '#fff', 400)
+    const woven = renderPatternCanvas({ ...base, loop: { variant: 'woven', beadCount: 12, color: '#c9a227' } }, '#fff', 400)
+
+    // A discreet ring still needs *some* room, but far less than a 12-bead arch.
+    expect(ratio(metal)).toBeGreaterThan(ratio(withoutLoop))
+    expect(ratio(metal)).toBeLessThan(ratio(woven))
+  })
+
+  it('does not throw with a woven loop over a shaped body, with or without a fringe', () => {
+    // Triangle: row 0 is a 1-bead tip — the loop anchors to *its* center, not the full width's.
+    const rowShape = [
+      { offset: 1, length: 1 },
+      { offset: 0, length: 3 },
+    ]
+    const cells = fillCells(3, 2)
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    expect(() =>
+      renderPatternCanvas({ name: 'x', technique: 'brick', cols: 3, rows: 2, cells, rowShape, loop, beadType: bead }, '#fff', 400),
+    ).not.toThrow()
+
+    const fringe: FringeData = { lengths: [2, 2, 2], turnBeads: [true, true, true] }
+    expect(() =>
+      renderPatternCanvas(
+        { name: 'x', technique: 'brick', cols: 3, rows: 2, cells, rowShape, fringe, loop, beadType: bead },
+        '#fff',
+        400,
+      ),
+    ).not.toThrow()
+  })
 })
 
 describe('composeInstagramCard', () => {
@@ -120,4 +183,17 @@ describe('composeInstagramCard', () => {
       composeInstagramCard({ name: 'Vacío', technique: 'loom', cols: 8, rows: 8, cells: {}, beadType: bead }),
     ).resolves.toBeInstanceOf(HTMLCanvasElement)
   }, 10000)
+
+  it('keeps the fixed card size with either loop variant (Tarea 3)', async () => {
+    const cells: ColorMap = { '0,0': '#c9a227', '1,1': '#2f5b66' }
+    const base = { name: 'Aro', technique: 'brick' as const, cols: 10, rows: 10, cells, beadType: bead }
+
+    const woven = await composeInstagramCard({ ...base, loop: { variant: 'woven', beadCount: 8, color: '#c9a227' } })
+    expect(woven.width).toBe(INSTAGRAM_CARD_WIDTH)
+    expect(woven.height).toBe(INSTAGRAM_CARD_HEIGHT)
+
+    const metal = await composeInstagramCard({ ...base, loop: { variant: 'metal', beadCount: 8, color: '#c9a227' } })
+    expect(metal.width).toBe(INSTAGRAM_CARD_WIDTH)
+    expect(metal.height).toBe(INSTAGRAM_CARD_HEIGHT)
+  }, 15000)
 })

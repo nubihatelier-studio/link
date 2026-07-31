@@ -18,6 +18,7 @@ import {
 import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
 import { normalizeFringe } from '@/engine/fringe'
 import { normalizeRowShape } from '@/engine/shape'
+import { loopBeadCount, normalizeLoop } from '@/engine/loop'
 import { paletteFromCells, letterForIndex } from '@/lib/palette'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
@@ -33,6 +34,14 @@ import { InfoScreen } from '@/components/shared/InfoScreen'
 function encodeJumpValue(target: JumpTarget): string {
   return `${target.kind}:${target.index}`
 }
+
+/**
+ * Sentinel selector value for the woven loop's step. It isn't a real JumpTarget
+ * — the loop is always the last step, so there's nothing to jump *to*; this only
+ * exists so the "Ir a" select has a matching option while the loop is current
+ * instead of falsely showing whichever row shares its unit index.
+ */
+const LOOP_JUMP_VALUE = 'loop:0'
 
 /** Inverse of encodeJumpValue — parses the selector's raw string value back into a JumpTarget. */
 function decodeJumpValue(value: string): JumpTarget {
@@ -69,12 +78,20 @@ export function WeavePage() {
     () => (pattern?.rowShape ? normalizeRowShape(pattern.rowShape, pattern.config.cols, pattern.config.rows) : undefined),
     [pattern?.rowShape, pattern?.config.cols, pattern?.config.rows],
   )
+  const loop = useMemo(() => normalizeLoop(pattern?.loop), [pattern?.loop])
   const order = useMemo(
     () =>
       pattern
-        ? buildWeaveOrder(pattern.config.technique, pattern.config.cols, pattern.config.rows, fringe, rowShape)
+        ? buildWeaveOrder(
+            pattern.config.technique,
+            pattern.config.cols,
+            pattern.config.rows,
+            fringe,
+            rowShape,
+            loopBeadCount(loop),
+          )
         : [],
-    [pattern, fringe, rowShape],
+    [pattern, fringe, rowShape, loop],
   )
   const technique = pattern?.config.technique ?? 'loom'
   const orderVersion = WEAVE_ORDER_VERSION[technique]
@@ -85,7 +102,10 @@ export function WeavePage() {
   const beadsWoven = beadsThrough(order, currentIndex)
   const currentStep = order[currentIndex]
   const onFringe = currentStep ? isFringeStep(currentStep) : false
-  const onFoundation = currentStep?.grouped ?? false
+  // The woven loop's step is `grouped` too (it's strung in one go), so it has to
+  // be ruled out before anything treats it as peyote's foundation pass.
+  const onLoop = currentStep?.isLoop === true
+  const onFoundation = (currentStep?.grouped ?? false) && !onLoop
   const currentUnitIndex = currentStep ? currentStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
 
@@ -101,7 +121,10 @@ export function WeavePage() {
 
   const wordChartLines = useMemo(() => {
     if (!pattern) return []
-    const palette = paletteFromCells(pattern.cells)
+    const palette = paletteFromCells(
+      pattern.cells,
+      loop?.variant === 'woven' ? { color: loop.color, count: loop.beadCount } : undefined,
+    )
     const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
     return buildWordChart(
       technique,
@@ -111,13 +134,16 @@ export function WeavePage() {
       (hex) => letterForHex.get(hex) ?? '?',
       fringe,
       rowShape,
+      loop,
     )
-  }, [pattern, technique, fringe, rowShape])
-  const currentLine = onFringe
-    ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.unit)
-    : onFoundation
-      ? wordChartLines.find((l) => l.grouped)
-      : wordChartLines.find((l) => !l.isFringe && !l.grouped && l.unitIndex === currentUnitIndex)
+  }, [pattern, technique, fringe, rowShape, loop])
+  const currentLine = onLoop
+    ? wordChartLines.find((l) => l.isLoop)
+    : onFringe
+      ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.unit)
+      : onFoundation
+        ? wordChartLines.find((l) => l.grouped)
+        : wordChartLines.find((l) => !l.isFringe && !l.grouped && !l.isLoop && l.unitIndex === currentUnitIndex)
   const currentLineText = formatWordChartLineForDisplay(currentLine?.text ?? '')
 
   useEffect(() => {
@@ -152,6 +178,11 @@ export function WeavePage() {
     setIndex(id!, Math.max(-1, currentIndex - 1), orderVersion)
   }
   function markUnitDone() {
+    // The loop is the very last step — "done" can only mean the end of the piece.
+    if (onLoop) {
+      setIndex(id!, total - 1, orderVersion)
+      return
+    }
     const nextStart = onFringe
       ? firstIndexOfNextFringeColumn(order, currentStep!.unit)
       : firstIndexOfNextBodyRow(order, currentIndex)
@@ -182,15 +213,17 @@ export function WeavePage() {
       : t.weave.wakeLockRetrying
   const WakeLockIcon = !wakeLock.isSupported ? Moon : wakeLock.isActive ? Sun : RefreshCw
 
-  const currentRowLabel = onFringe
-    ? t.weave.fringeColumnHeader(currentStep!.unit + 1)
-    : onFoundation
-      ? t.weave.foundationPass
-      : currentStep?.isBaseRow
-        ? t.weave.baseRow
-        : `${t.weave.row} ${currentUnitIndex + 1}`
+  const currentRowLabel = onLoop
+    ? t.weave.loopStepLabel
+    : onFringe
+      ? t.weave.fringeColumnHeader(currentStep!.unit + 1)
+      : onFoundation
+        ? t.weave.foundationPass
+        : currentStep?.isBaseRow
+          ? t.weave.baseRow
+          : `${t.weave.row} ${currentUnitIndex + 1}`
   // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
-  const directionArrow = !onFringe && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
+  const directionArrow = !onFringe && !onLoop && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
 
   // "Ir a" selector: peyote's foundation pass collapses rows 1-2 into one option; brick's
@@ -209,11 +242,15 @@ export function WeavePage() {
           label: technique === 'brick' && i === rows - 1 ? t.weave.baseRow : `${t.weave.row} ${i + 1}`,
         }))
 
-  const currentJumpValue = onFringe
-    ? encodeJumpValue({ kind: 'fringe', index: currentStep!.unit })
-    : onFoundation
-      ? encodeJumpValue({ kind: 'foundation', index: 0 })
-      : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
+  // The loop has no "Ir a" entry of its own (it's always the last step, one tap
+  // from the end) — while it's current the selector just shows the loop option.
+  const currentJumpValue = onLoop
+    ? LOOP_JUMP_VALUE
+    : onFringe
+      ? encodeJumpValue({ kind: 'fringe', index: currentStep!.unit })
+      : onFoundation
+        ? encodeJumpValue({ kind: 'foundation', index: 0 })
+        : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
 
   return (
     <div
@@ -269,11 +306,25 @@ export function WeavePage() {
       <div className="relative min-h-0 flex-1">
         {handsBusyMode ? (
           <HandsBusyView
-            unitLabel={onFringe ? t.weave.fringeUnitLabel : onFoundation ? t.weave.foundationPass : t.weave.row}
+            unitLabel={
+              onLoop
+                ? t.weave.loopStepLabel
+                : onFringe
+                  ? t.weave.fringeUnitLabel
+                  : onFoundation
+                    ? t.weave.foundationPass
+                    : t.weave.row
+            }
             unitIndex={onFringe ? currentStep!.unit : currentUnitIndex}
             unitCount={onFringe ? pattern.config.cols : rows}
-            showCount={!onFoundation}
-            hint={onFoundation ? t.weave.foundationPassHint(currentStep!.cells.length) : undefined}
+            showCount={!onFoundation && !onLoop}
+            hint={
+              onLoop
+                ? t.weave.loopStepHint(currentStep!.cells.length)
+                : onFoundation
+                  ? t.weave.foundationPassHint(currentStep!.cells.length)
+                  : undefined
+            }
             lineText={currentLineText}
             onAdvance={advance}
             tapAnywhere={tapAnywhereToAdvance}
@@ -290,6 +341,8 @@ export function WeavePage() {
             currentIndex={currentIndex}
             onTapNext={advance}
             staggerPhase={pattern.config.staggerPhase ?? 0}
+            rowShape={rowShape}
+            loop={loop}
           />
         )}
       </div>
@@ -300,7 +353,7 @@ export function WeavePage() {
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
             value={currentJumpValue}
-            onChange={(e) => jumpTo(decodeJumpValue(e.target.value))}
+            onChange={(e) => e.target.value !== LOOP_JUMP_VALUE && jumpTo(decodeJumpValue(e.target.value))}
           >
             {rowJumpOptions.map(({ target, label }) => (
               <option key={encodeJumpValue(target)} value={encodeJumpValue(target)}>
@@ -312,9 +365,16 @@ export function WeavePage() {
                 {t.weave.fringeColumnHeader(col + 1)}
               </option>
             ))}
+            {onLoop && <option value={LOOP_JUMP_VALUE}>{t.weave.loopStepLabel}</option>}
           </select>
           <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
-            {onFringe ? t.weave.markFringeDone : onFoundation ? t.weave.markFoundationDone : t.weave.markRowDone}
+            {onLoop
+              ? t.weave.markLoopDone
+              : onFringe
+                ? t.weave.markFringeDone
+                : onFoundation
+                  ? t.weave.markFoundationDone
+                  : t.weave.markRowDone}
           </button>
           {handsBusyMode && (
             <button
@@ -327,6 +387,11 @@ export function WeavePage() {
             </button>
           )}
         </div>
+        {loop?.variant === 'metal' && (
+          // A metal loop is a bought finding, so it produces no weave step at
+          // all — just this closing reminder, visible for the whole session.
+          <p className="text-center text-xs text-text-muted">{t.weave.metalLoopNote}</p>
+        )}
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"

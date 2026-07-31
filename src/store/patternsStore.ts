@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 import { requestPersistentStorageOnce } from '@/storage/persistence'
@@ -25,7 +25,13 @@ interface PatternsState {
   /** Re-lists patterns from the storage adapter without re-running migration — use after an import. */
   refresh: () => Promise<void>
 
-  createPattern: (config: PatternConfig, name?: string, fringe?: FringeData, rowShape?: RowShape[]) => string
+  createPattern: (
+    config: PatternConfig,
+    name?: string,
+    fringe?: FringeData,
+    rowShape?: RowShape[],
+    loop?: LoopData,
+  ) => string
   createPatternWithCells: (config: PatternConfig, cells: ColorMap, name?: string) => string
   renamePattern: (id: string, name: string) => void
   deletePattern: (id: string) => void
@@ -40,6 +46,7 @@ interface PatternsState {
     changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: 0 | 1 },
   ) => void
   setNote: (id: string, note: string) => void
+  setLoop: (id: string, loop: LoopData | undefined) => void
   getPattern: (id: string) => PatternDoc | undefined
 }
 
@@ -123,7 +130,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     set({ patterns, order })
   },
 
-  createPattern: (config, name, fringe, rowShape) => {
+  createPattern: (config, name, fringe, rowShape, loop) => {
     const id = makeId()
     const doc: PatternDoc = {
       id,
@@ -132,6 +139,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       cells: {},
       ...(fringe ? { fringe } : {}),
       ...(rowShape ? { rowShape } : {}),
+      ...(loop ? { loop } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -271,6 +279,17 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       const doc = s.patterns[id]
       if (!doc) return s
       updated = { ...doc, note, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setLoop: (id, loop) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, loop, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

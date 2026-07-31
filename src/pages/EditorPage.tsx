@@ -9,6 +9,7 @@ import { beadCount } from '@/engine/geometry'
 import { WEAVE_ORDER_VERSION } from '@/engine/weaveOrder'
 import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
 import { isShapeCapable } from '@/engine/shape'
+import { loopBeadCount } from '@/engine/loop'
 import { exportPatternToPdf } from '@/lib/pdfExport'
 import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
@@ -18,6 +19,7 @@ import { ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
+import { LoopPanel } from '@/components/editor/LoopPanel'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -54,6 +56,7 @@ export function EditorPage() {
     cells,
     fringe,
     rowShape,
+    loop,
     note,
     setNote,
     zoom,
@@ -69,6 +72,7 @@ export function EditorPage() {
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
   const [shapeDrawerOpen, setShapeDrawerOpen] = useState(false)
+  const [loopDrawerOpen, setLoopDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
@@ -117,6 +121,15 @@ export function EditorPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [shapeDrawerOpen])
+
+  useEffect(() => {
+    if (!loopDrawerOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLoopDrawerOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [loopDrawerOpen])
 
   useEffect(() => {
     if (!shortcutsOpen) return
@@ -181,7 +194,7 @@ export function EditorPage() {
   }
 
   const bead = getBeadType(beadTypeId)
-  const total = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe)
+  const total = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe) + loopBeadCount(loop)
 
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
@@ -198,7 +211,7 @@ export function EditorPage() {
   async function handleExport() {
     setExporting(true)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, loop, beadType: bead, showLetters })
     } finally {
       setExporting(false)
     }
@@ -208,7 +221,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, beadType: bead, showLetters })
+      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }
@@ -218,7 +231,7 @@ export function EditorPage() {
     setImageMenuOpen(false)
     setExportingImage(true)
     try {
-      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, beadType: bead, showLetters })
+      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
     } finally {
       setExportingImage(false)
     }
@@ -346,6 +359,9 @@ export function EditorPage() {
               <FringePanel />
             </div>
           )}
+          <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
+            <LoopPanel />
+          </div>
           <div className="min-h-0 flex-1">
             <ColorPanel />
           </div>
@@ -377,6 +393,12 @@ export function EditorPage() {
                 🪶 {t.editor.fringe.shortTitle}
               </button>
             )}
+            <button
+              onClick={() => setLoopDrawerOpen(true)}
+              className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+            >
+              🔗 {t.editor.loop.shortTitle}
+            </button>
           </div>
           <button
             onClick={() => navigate(`/editor/${id}/weave`)}
@@ -428,6 +450,20 @@ export function EditorPage() {
               <div className="h-1 w-10 rounded-full bg-surface-3" />
             </div>
             <ShapePanel />
+          </div>
+        </div>
+      )}
+
+      {loopDrawerOpen && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setLoopDrawerOpen(false)}>
+          <div
+            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center py-2">
+              <div className="h-1 w-10 rounded-full bg-surface-3" />
+            </div>
+            <LoopPanel />
           </div>
         </div>
       )}

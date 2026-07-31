@@ -7,6 +7,7 @@ import type { StorageAdapter } from '@/storage/types'
 import { beadCount } from '@/engine/geometry'
 import { totalFringeBeadCount } from '@/engine/fringe'
 import { createShapedRowShape } from '@/engine/shape'
+import { DEFAULT_LOOP_BEAD_COUNT } from '@/engine/loop'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 
@@ -86,7 +87,8 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
     const rectangleTotal = beadCount('brick', 7, 7) // what it would be WITHOUT shape — the regression guard
     const fringeLengths = [4, 6, 8, 9, 8, 6, 4]
     const fringeTotal = totalFringeBeadCount({ lengths: fringeLengths, turnBeads: [] })
-    const expectedTotal = bodyTotal + fringeTotal
+    // …y la argolla tejida con la que esta plantilla parte activada (Tarea 3).
+    const expectedTotal = bodyTotal + fringeTotal + DEFAULT_LOOP_BEAD_COUNT
 
     expect(fringeTotal).toBeGreaterThan(0) // guard: si esto es 0, el test no prueba nada
     expect(bodyTotal).toBeLessThan(rectangleTotal) // guard: si esto falla, el rombo no está achicando nada

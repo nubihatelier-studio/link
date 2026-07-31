@@ -21,6 +21,30 @@ describe('paletteFromCells', () => {
       { hex: '#222', count: 1 },
     ])
   })
+
+  describe('with a woven loop\'s beads (Tarea 3)', () => {
+    it('adds a new entry when the loop uses a color not otherwise on the grid', () => {
+      const cells: ColorMap = { '0,0': '#111', '0,1': '#111' }
+      expect(paletteFromCells(cells, { color: '#333', count: 8 })).toEqual([
+        { hex: '#333', count: 8 },
+        { hex: '#111', count: 2 },
+      ])
+    })
+
+    it('merges into the existing entry when the loop reuses a color already in the pattern', () => {
+      const cells: ColorMap = { '0,0': '#111', '0,1': '#222' }
+      expect(paletteFromCells(cells, { color: '#222', count: 5 })).toEqual([
+        { hex: '#222', count: 6 },
+        { hex: '#111', count: 1 },
+      ])
+    })
+
+    it('a metal loop (count 0) or no loop at all leaves the palette identical', () => {
+      const cells: ColorMap = { '0,0': '#111' }
+      expect(paletteFromCells(cells, { color: '#222', count: 0 })).toEqual(paletteFromCells(cells))
+      expect(paletteFromCells(cells, undefined)).toEqual(paletteFromCells(cells))
+    })
+  })
 })
 
 describe('replaceColorInCells', () => {

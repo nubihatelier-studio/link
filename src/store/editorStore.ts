@@ -1,9 +1,10 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, PatternDoc, RowShape, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
+import { normalizeLoop } from '@/engine/loop'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
@@ -39,11 +40,12 @@ interface Clipboard {
 
 /**
  * One undo/redo step. Almost always only `cells` actually changes (every
- * paint/fill/gradient/etc. commit carries the *same* rows/rowShape/fringe
+ * paint/fill/gradient/etc. commit carries the *same* rows/rowShape/fringe/loop
  * forward from whatever was current) — but `addRowAtTop`/`removeRowAtTop`
- * change all four together, and folding them into this same snapshot type
+ * change several together, and folding them into this same snapshot type
  * (rather than a second, parallel undo stack) is what makes "agregar fila
- * arriba" a single, ordinary undo step alongside every color edit.
+ * arriba" (or "cambiar la argolla" — see `setLoop`) a single, ordinary undo
+ * step alongside every color edit.
  */
 interface EditorSnapshot {
   cells: ColorMap
@@ -51,6 +53,7 @@ interface EditorSnapshot {
   rowShape: RowShape[]
   fringe: FringeData
   staggerPhase: 0 | 1
+  loop: LoopData | undefined
 }
 
 interface EditorState {
@@ -160,6 +163,15 @@ interface EditorState {
   /** Free-text note, shown on the PDF's ficha page — see `engine/types.ts#PatternDoc.note`. */
   note: string
   setNote: (note: string) => void
+
+  /**
+   * Hanging loop at the top tip — see `engine/types.ts#LoopData`. Unlike
+   * `note` (autosaved but not undoable), a loop change goes through the same
+   * `history`/`future` undo stack as everything else, per its own explicit
+   * "con deshacer" requirement — see the `loop` field on `EditorSnapshot`.
+   */
+  loop: LoopData | undefined
+  setLoop: (loop: LoopData | undefined) => void
 
   history: EditorSnapshot[]
   future: EditorSnapshot[]
@@ -412,9 +424,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
   },
   fringeSculptEnd: () => {
-    const { fringeSculptBase, cells, history, rows, rowShape, fringe, staggerPhase, patternId } = get()
+    const { fringeSculptBase, cells, history, rows, rowShape, fringe, staggerPhase, loop, patternId } = get()
     if (fringeSculptBase && fringeSculptBase !== cells) {
-      set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe, staggerPhase }].slice(-100), future: [] })
+      set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe, staggerPhase, loop }].slice(-100), future: [] })
     }
     set({ fringeSculptBase: null })
     if (patternId) usePatternsStore.getState().setFringe(patternId, fringe)
@@ -537,6 +549,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (id) scheduleNoteAutosave(id, note)
   },
 
+  loop: undefined,
+  setLoop: (loop) => {
+    const { cells, rows, rowShape, fringe, staggerPhase, loop: prevLoop, history } = get()
+    set({ loop, history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop: prevLoop }].slice(-100), future: [] })
+    const id = get().patternId
+    if (id) usePatternsStore.getState().setLoop(id, loop)
+  },
+
   history: [],
   future: [],
   weaveResetPending: null,
@@ -609,6 +629,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
       staggerPhase: doc.config.staggerPhase ?? 0,
       note: doc.note ?? '',
+      loop: normalizeLoop(doc.loop),
       history: [],
       future: [],
       weaveResetPending: null,
@@ -647,20 +668,20 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   commit: (next) => {
-    const { cells, rows, rowShape, fringe, staggerPhase, history } = get()
-    set({ cells: next, history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100), future: [] })
+    const { cells, rows, rowShape, fringe, staggerPhase, loop, history } = get()
+    set({ cells: next, history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100), future: [] })
     const id = get().patternId
     if (id) scheduleAutosave(id, next)
   },
 
   commitShapeChange: (next) => {
-    const { cells, rows, rowShape, fringe, staggerPhase, history, patternId } = get()
+    const { cells, rows, rowShape, fringe, staggerPhase, loop, history, patternId } = get()
     set({
       cells: next.cells,
       rows: next.rows,
       rowShape: next.rowShape,
       staggerPhase: next.staggerPhase,
-      history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100),
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100),
       future: [],
     })
     if (!patternId) return
@@ -786,13 +807,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   strokeEnd: () => {
-    const { strokeBase, cells, rows, rowShape, fringe, staggerPhase, history } = get()
+    const { strokeBase, cells, rows, rowShape, fringe, staggerPhase, loop, history } = get()
     if (!strokeBase || strokeBase === cells) {
       set({ strokeBase: null })
       return
     }
     set({
-      history: [...history, { cells: strokeBase, rows, rowShape, fringe, staggerPhase }].slice(-100),
+      history: [...history, { cells: strokeBase, rows, rowShape, fringe, staggerPhase, loop }].slice(-100),
       future: [],
       strokeBase: null,
     })
@@ -878,7 +899,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   undo: () => {
-    const { history, cells, rows, rowShape, fringe, staggerPhase, future } = get()
+    const { history, cells, rows, rowShape, fringe, staggerPhase, loop, future } = get()
     if (history.length === 0) return
     const prev = history[history.length - 1]
     set({
@@ -887,15 +908,22 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rowShape: prev.rowShape,
       fringe: prev.fringe,
       staggerPhase: prev.staggerPhase,
+      loop: prev.loop,
       history: history.slice(0, -1),
-      future: [{ cells, rows, rowShape, fringe, staggerPhase }, ...future].slice(0, 100),
+      future: [{ cells, rows, rowShape, fringe, staggerPhase, loop }, ...future].slice(0, 100),
     })
     const id = get().patternId
-    if (id) usePatternsStore.getState().setShapeStructure(id, prev)
+    if (id) {
+      usePatternsStore.getState().setShapeStructure(id, prev)
+      // Not folded into setShapeStructure (that call predates the loop and only
+      // covers rows/rowShape/cells/fringe) — undoing a `setLoop` change needs its
+      // own persist, same reasoning as any other field this restores.
+      usePatternsStore.getState().setLoop(id, prev.loop)
+    }
   },
 
   redo: () => {
-    const { future, cells, rows, rowShape, fringe, staggerPhase, history } = get()
+    const { future, cells, rows, rowShape, fringe, staggerPhase, loop, history } = get()
     if (future.length === 0) return
     const next = future[0]
     set({
@@ -904,10 +932,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       rowShape: next.rowShape,
       fringe: next.fringe,
       staggerPhase: next.staggerPhase,
+      loop: next.loop,
       future: future.slice(1),
-      history: [...history, { cells, rows, rowShape, fringe, staggerPhase }].slice(-100),
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100),
     })
     const id = get().patternId
-    if (id) usePatternsStore.getState().setShapeStructure(id, next)
+    if (id) {
+      usePatternsStore.getState().setShapeStructure(id, next)
+      usePatternsStore.getState().setLoop(id, next.loop)
+    }
   },
 }))

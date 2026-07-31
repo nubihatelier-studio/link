@@ -1,5 +1,6 @@
-import type { ColorMap, FringeData, RowShape, Technique } from './types'
+import type { ColorMap, FringeData, LoopData, RowShape, Technique } from './types'
 import { cellKey } from './cellKey'
+import { loopBeadCount } from './loop'
 import { buildWeaveOrder } from './weaveOrder'
 
 /** Placeholder token for an empty (uncolored) bead slot in the word chart. */
@@ -21,6 +22,8 @@ export interface WordChartLine {
   grouped?: true
   /** Set only on brick's very first line — the widest row the whole body is built up from, see `weaveOrder.ts#buildBrickOrder`. */
   isBaseRow?: true
+  /** Set only on the final line — a woven hanging loop's ring, see `weaveOrder.ts#appendLoopStep`. */
+  isLoop?: true
 }
 
 /**
@@ -47,12 +50,13 @@ export function buildWordChart(
   letterForHex: (hex: string) => string,
   fringe?: FringeData,
   rowShape?: RowShape[],
+  loop?: LoopData,
 ): WordChartLine[] {
-  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape)
+  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop))
   const lines: WordChartLine[] = []
 
   let currentKey: string | null = null
-  let lineMeta: { unitIndex: number; isFringe?: true; grouped?: true; isBaseRow?: true } | null = null
+  let lineMeta: { unitIndex: number; isFringe?: true; grouped?: true; isBaseRow?: true; isLoop?: true } | null = null
   let endsOnTurnBead = false
   let tokens: string[] = []
   let runLetter: string | null = null
@@ -74,7 +78,7 @@ export function buildWordChart(
   }
 
   for (const step of order) {
-    const key = step.isFringe ? `fringe:${step.unit}` : step.grouped ? 'grouped' : `body:${step.unit}`
+    const key = step.isLoop ? 'loop' : step.isFringe ? `fringe:${step.unit}` : step.grouped ? 'grouped' : `body:${step.unit}`
     if (key !== currentKey) {
       flushLine()
       currentKey = key
@@ -83,11 +87,14 @@ export function buildWordChart(
         ...(step.isFringe ? { isFringe: true as const } : {}),
         ...(step.grouped ? { grouped: true as const } : {}),
         ...(step.isBaseRow ? { isBaseRow: true as const } : {}),
+        ...(step.isLoop ? { isLoop: true as const } : {}),
       }
     }
     endsOnTurnBead = step.isTurnBead === true
     for (const cell of step.cells) {
-      const hex = cells[cellKey(cell.row, cell.col)]
+      // A loop bead isn't in the `cells` grid at all (see `weaveOrder.ts#appendLoopStep`) —
+      // every bead in the ring shares the loop's own single color instead.
+      const hex = step.isLoop ? loop?.color : cells[cellKey(cell.row, cell.col)]
       const letter = hex ? letterForHex(hex) : EMPTY_TOKEN
       if (letter === runLetter) {
         runCount++

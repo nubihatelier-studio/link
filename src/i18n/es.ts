@@ -194,6 +194,21 @@ export const t = {
       removeRowTop: 'Quitar fila',
       weaveResetNotice: 'Se reinició el progreso de tejido guardado — el orden de tejido cambió.',
     },
+    loop: {
+      title: 'Argolla de enganche 🔗',
+      shortTitle: 'Argolla',
+      add: '+ Agregar argolla',
+      remove: 'Quitar argolla',
+      variant: 'Tipo',
+      variantWoven: 'Arandela tejida',
+      variantMetal: 'Argolla metálica',
+      wovenHint: 'Un pequeño aro de mostacillas, todas del mismo color, tejido sobre la punta superior del cuerpo.',
+      metalHint: 'Un hallazgo metálico comprado (argolla, broche…) — sin mostacillas que tejer, solo un insumo en los materiales y una nota de armado.',
+      beadCount: 'Cantidad de mostacillas',
+      color: 'Color',
+      colorHint: 'Elige uno de los colores ya usados en este patrón.',
+      noColorsYet: 'Pinta al menos una mostacilla primero para poder elegir el color de la argolla.',
+    },
   },
   weave: {
     title: 'Modo tejido',
@@ -212,6 +227,12 @@ export const t = {
     foundationPass: 'Primera pasada',
     foundationPassHint: (n: number) => `Ensarta estas ${n} mostacillas de una vez`,
     markFoundationDone: 'Marcar primera pasada hecha',
+    /** Woven loop's own final weave-mode step — see `engine/weaveOrder.ts#appendLoopStep`. */
+    loopStepLabel: 'Arandela',
+    loopStepHint: (n: number) => `Ensarta estas ${n} mostacillas formando el aro`,
+    markLoopDone: 'Marcar argolla hecha',
+    /** Shown instead of a weave step for a metal (unwoven) loop — see `engine/types.ts#LoopData`. */
+    metalLoopNote: 'Este patrón lleva una argolla metálica — engánchala al terminar de tejer.',
     back: 'Retroceder',
     next: 'Siguiente',
     beadsWoven: 'mostacillas tejidas',
@@ -245,6 +266,8 @@ export const t = {
     threadEstimate: 'Hilo estimado',
     needle: 'Aguja sugerida',
     notes: 'Notas',
+    /** Metal (unwoven) loop's own materials-list line — see `engine/types.ts#LoopData`. */
+    metalLoopMaterial: '1 argolla metálica',
   },
   advancedColor: {
     title: 'Editor de color avanzado',

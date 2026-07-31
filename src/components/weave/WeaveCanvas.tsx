@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { ColorMap, FringeData, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
+import { cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
+import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
 import { TAP_SLOP_PX } from './tapGesture'
 
@@ -16,6 +17,10 @@ interface WeaveCanvasProps {
   currentIndex: number
   onTapNext: () => void
   staggerPhase?: 0 | 1
+  /** Absent/undefined is treated as a full rectangle — only used to anchor the loop. */
+  rowShape?: RowShape[]
+  /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
+  loop?: LoopData
 }
 
 const CELL_PX = 24
@@ -31,13 +36,18 @@ export function WeaveCanvas({
   currentIndex,
   onTapNext,
   staggerPhase = 0,
+  rowShape,
+  loop,
 }: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
   const pointerCancelled = useRef(false)
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  // The loop's ring sits above row 0, so it pushes the body down instead of
+  // widening the grid — `MARGIN` stays the X origin, `originY` is the Y one.
+  const originY = MARGIN + loopReserveUnits(loop) * CELL_PX
   const width = bounds.width * CELL_PX + MARGIN
-  const height = bounds.height * CELL_PX + MARGIN
+  const height = bounds.height * CELL_PX + originY
 
   const indexByCell = useMemo(() => {
     const m = new Map<string, number>()
@@ -48,7 +58,21 @@ export function WeaveCanvas({
   // "Next bead" ring/arrow always target the upcoming step's first cell — for a grouped step
   // (peyote's foundation pass) that's as precise as a single ring can be; the full set of beads
   // it covers is what the word chart/hands-busy instruction spells out.
-  const nextCell = order[currentIndex + 1]?.cells[0]
+  // The loop is its own final step and isn't part of the grid (its synthetic
+  // cells carry row -1 purely as a counting key), so the "next bead" ring and
+  // the tap target follow the drawn arch instead of a cell position.
+  const nextStep = order[currentIndex + 1]
+  const nextIsLoop = nextStep?.isLoop === true
+  const nextCell = nextIsLoop ? undefined : nextStep?.cells[0]
+  const loopStepIndex = useMemo(() => order.findIndex((step) => step.isLoop), [order])
+  const loopDone = loopStepIndex >= 0 && loopStepIndex <= currentIndex
+
+  /** Canvas point the loop hangs from: the horizontal center of the body's top row, on its top edge. */
+  const loopAnchor = useMemo(() => {
+    const anchorXUnits = loopAnchorX(technique, cols, rowShape, staggerPhase)
+    const gridOrigin = cellPosition(technique, 0, 0, rows, staggerPhase)
+    return { x: MARGIN + (anchorXUnits - gridOrigin.x) * CELL_PX, y: originY }
+  }, [technique, cols, rows, rowShape, staggerPhase, originY])
   const direction = useMemo(
     () => directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase),
     [technique, order, currentIndex, rows, staggerPhase],
@@ -74,7 +98,7 @@ export function WeaveCanvas({
       for (let col = 0; col < cols; col++) {
         const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
-        const y = MARGIN + pos.y * CELL_PX + inset
+        const y = originY + pos.y * CELL_PX + inset
         const w = CELL_PX - inset * 2
         const h = CELL_PX - inset * 2
         const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
@@ -98,7 +122,7 @@ export function WeaveCanvas({
         const row = rows + depth
         const pos = cellPosition(technique, row, col, rows, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
-        const y = MARGIN + pos.y * CELL_PX + inset
+        const y = originY + pos.y * CELL_PX + inset
         const w = CELL_PX - inset * 2
         const h = CELL_PX - inset * 2
         const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
@@ -114,10 +138,42 @@ export function WeaveCanvas({
       }
     }
 
+    // Hanging loop — drawn like the body/fringe (dimmed until its step is
+    // reached), but as a ring above the top tip rather than as grid cells.
+    if (loop) {
+      const { x: anchorX, y: anchorY } = loopAnchor
+      ctx.globalAlpha = loopDone ? 1 : 0.25
+      if (loop.variant === 'woven') {
+        for (const { dx, dy } of loopBeadOffsets(loopBeadCount(loop))) {
+          ctx.beginPath()
+          ctx.arc(anchorX + dx * CELL_PX, anchorY + dy * CELL_PX, CELL_PX * 0.42, 0, Math.PI * 2)
+          ctx.fillStyle = loop.color
+          ctx.fill()
+        }
+      } else {
+        const outer = (METAL_LOOP_INDICATOR_UNITS / 2) * CELL_PX
+        ctx.beginPath()
+        ctx.arc(anchorX, anchorY - outer, outer * 0.78, 0, Math.PI * 2)
+        ctx.strokeStyle = '#a3a0a8'
+        ctx.lineWidth = Math.max(1, CELL_PX * 0.14)
+        ctx.stroke()
+      }
+      ctx.globalAlpha = 1
+
+      if (nextIsLoop) {
+        const reach = loopReserveUnits(loop) * CELL_PX
+        ctx.strokeStyle = '#c9a227'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(anchorX, anchorY - reach / 2, reach + CELL_PX * 0.5, Math.PI, 0)
+        ctx.stroke()
+      }
+    }
+
     if (nextCell) {
       const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
       const x = MARGIN + pos.x * CELL_PX
-      const y = MARGIN + pos.y * CELL_PX
+      const y = originY + pos.y * CELL_PX
       ctx.strokeStyle = '#c9a227'
       ctx.lineWidth = 3
       ctx.beginPath()
@@ -142,24 +198,32 @@ export function WeaveCanvas({
     const step = cols > 40 ? 10 : cols > 20 ? 5 : 1
     for (let c = 0; c < cols; c += step) {
       const pos = cellPosition(technique, 0, c, undefined, staggerPhase)
+      // In the canvas's own top band, above any loop reserve — see CanvasGrid.
       ctx.fillText(String(c + 1), MARGIN + pos.x * CELL_PX + CELL_PX / 2, MARGIN / 2)
     }
     ctx.textAlign = 'right'
     for (let r = 0; r < rows; r += step) {
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
-      ctx.fillText(String(r + 1), MARGIN - 6, MARGIN + pos.y * CELL_PX + CELL_PX / 2 + 3)
+      ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY])
 
   function isNearNextCell(clientX: number, clientY: number): boolean {
     const canvas = canvasRef.current
-    if (!canvas || !nextCell) return false
+    if (!canvas) return false
     const rect = canvas.getBoundingClientRect()
     const x = clientX - rect.left
     const y = clientY - rect.top
+    if (nextIsLoop && loop) {
+      // Tapping anywhere inside the loop's reserved band counts — the arch is
+      // thin, so a cell-sized target would be needlessly fussy.
+      const reach = loopReserveUnits(loop) * CELL_PX + CELL_PX
+      return Math.hypot(x - loopAnchor.x, y - (loopAnchor.y - reach / 2)) < reach
+    }
+    if (!nextCell) return false
     const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
     const cx = MARGIN + pos.x * CELL_PX + CELL_PX / 2
-    const cy = MARGIN + pos.y * CELL_PX + CELL_PX / 2
+    const cy = originY + pos.y * CELL_PX + CELL_PX / 2
     return Math.hypot(x - cx, y - cy) < CELL_PX * 1.5
   }
 

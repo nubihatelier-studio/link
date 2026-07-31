@@ -9,11 +9,13 @@ import {
   fringeAnchorX,
   gridBoundsUnits,
   gridFromPhysicalSizeMm,
+  loopAnchorX,
   physicalSizeMm,
   rowPitch,
 } from './geometry'
 import { createShapedRowShape } from './shape'
 import { isPaintableCell } from './fringe'
+import { loopHeightUnits } from './loop'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
 const DELICA_W = 1.6
@@ -66,6 +68,36 @@ describe('physicalSizeMm', () => {
       expect(doubleRows.heightMm).toBeCloseTo(a.heightMm * 2, 4)
       expect(doubleRows.widthMm).toBeCloseTo(a.widthMm, 4)
     }
+  })
+
+  it('a woven loop adds its own height on top of body+fringe (Tarea 3)', () => {
+    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
+    const withLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 0, 8)
+    const verticalMm = DELICA_H // brick's vertical axis
+    expect(withLoop.heightMm).toBeCloseTo(withoutLoop.heightMm + loopHeightUnits(8) * verticalMm, 6)
+    expect(withLoop.widthMm).toBeCloseTo(withoutLoop.widthMm, 6) // loop never affects width
+  })
+
+  it('a loop with 0 beads (metal loop, or none at all) adds nothing', () => {
+    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
+    const withZeroLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 0, 0)
+    expect(withZeroLoop).toEqual(withoutLoop)
+  })
+})
+
+describe('loopAnchorX', () => {
+  it('for a plain rectangle (no rowShape), anchors at the horizontal center of the whole row', () => {
+    // 6 columns 0..5, center of column indices 0 and 5's cell spans.
+    const x = loopAnchorX('loom', 6, undefined)
+    expect(x).toBeCloseTo((beadCenterX('loom', 0, 0) + beadCenterX('loom', 0, 5) + 1) / 2, 10)
+  })
+
+  it('for a shaped top row (e.g. a triangle\'s narrow tip), anchors at that row\'s own center, not the full grid width', () => {
+    // A 7-wide triangle's row 0 is a single bead — created via the real shape generator.
+    const rowShape = createShapedRowShape('triangle', 7, 7)
+    expect(rowShape[0]).toEqual({ offset: 3, length: 1 })
+    const x = loopAnchorX('brick', 7, rowShape)
+    expect(x).toBeCloseTo(beadCenterX('brick', 0, 3) + 0.5, 10)
   })
 })
 

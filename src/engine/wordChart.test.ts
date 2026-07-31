@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ColorMap, FringeData } from './types'
+import type { ColorMap, FringeData, LoopData } from './types'
 import { buildWordChart, formatWordChartLineForDisplay } from './wordChart'
 
 const A = 'A'
@@ -154,6 +154,33 @@ describe('buildWordChart with a shaped (rowShape) body', () => {
     expect(buildWordChart('loom', 2, 1, cells, letterForHex)).toEqual(
       buildWordChart('loom', 2, 1, cells, letterForHex, undefined, undefined),
     )
+  })
+})
+
+describe('buildWordChart with a woven loop (Tarea 3)', () => {
+  const cells: ColorMap = { '0,0': '#111111', '0,1': '#222222', '1,0': '#111111', '1,1': '#222222' }
+
+  it('appends its own line at the very end, all beads the loop\'s uniform color (not looked up from `cells`)', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#222222' }
+    const lines = buildWordChart('loom', 2, 2, cells, letterForHex, undefined, undefined, loop)
+    expect(lines[lines.length - 1]).toEqual({ unitIndex: 0, text: '8B', grouped: true, isLoop: true })
+  })
+
+  it('no loop line at all for a metal loop, or when there\'s no loop', () => {
+    const metalLoop: LoopData = { variant: 'metal', beadCount: 0, color: '#111111' }
+    const withMetal = buildWordChart('loom', 2, 2, cells, letterForHex, undefined, undefined, metalLoop)
+    const withNone = buildWordChart('loom', 2, 2, cells, letterForHex)
+    expect(withMetal.some((l) => l.isLoop)).toBe(false)
+    expect(withMetal).toEqual(withNone)
+  })
+
+  it('comes after the fringe lines, still its own separate line', () => {
+    const fringe: FringeData = { lengths: [1, 1], turnBeads: [false, false] }
+    const loop: LoopData = { variant: 'woven', beadCount: 5, color: '#111111' }
+    const lines = buildWordChart('loom', 2, 2, cells, letterForHex, fringe, undefined, loop)
+    const loopLineIndex = lines.findIndex((l) => l.isLoop)
+    expect(loopLineIndex).toBe(lines.length - 1)
+    expect(lines[loopLineIndex - 1].isFringe).toBe(true)
   })
 })
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
 import { createRectangleRowShape, createShapedRowShape, preferredRowsFor } from '@/engine/shape'
-import type { FringeData, PatternDoc, RowShape } from '@/engine/types'
+import type { FringeData, LoopData, PatternDoc, RowShape } from '@/engine/types'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { useEditorStore } from './editorStore'
@@ -13,6 +13,7 @@ function resetStore(
     rowShape?: RowShape[]
     patternId?: string | null
     staggerPhase?: 0 | 1
+    loop?: LoopData
   } = {},
 ) {
   useEditorStore.setState({
@@ -26,6 +27,7 @@ function resetStore(
     rowShape: overrides.rowShape ?? createRectangleRowShape(10, 10),
     staggerPhase: overrides.staggerPhase ?? 0,
     note: '',
+    loop: overrides.loop,
     tool: 'pencil',
     selection: null,
     colorSelectionMask: null,
@@ -643,6 +645,78 @@ describe('editorStore — reinicio explícito del progreso de tejido al cambiar 
     useEditorStore.getState().clearWeaveResetPending()
     expect(useEditorStore.getState().weaveResetPending).toBeNull()
     expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1)
+  })
+})
+
+describe('editorStore — argolla de enganche (Tarea 3): activar/desactivar, con deshacer', () => {
+  const patternId = 'p_test_loop'
+
+  beforeEach(() => {
+    resetStore({ patternId })
+    const doc: PatternDoc = {
+      id: patternId,
+      name: 'Test',
+      config: { technique: 'brick', cols: 10, rows: 10, beadTypeId: 'miyuki-delica-11' },
+      cells: {},
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    usePatternsStore.setState({ patterns: { [patternId]: doc }, order: [patternId] })
+  })
+
+  it('setLoop actualiza el estado y persiste el cambio en el patrón', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    useEditorStore.getState().setLoop(loop)
+    expect(useEditorStore.getState().loop).toEqual(loop)
+    expect(usePatternsStore.getState().getPattern(patternId)?.loop).toEqual(loop)
+  })
+
+  it('undo() revierte la argolla (con deshacer, como pide la tarea) y también lo persiste', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    useEditorStore.getState().setLoop(loop)
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().loop).toBeUndefined()
+    expect(usePatternsStore.getState().getPattern(patternId)?.loop).toBeUndefined()
+  })
+
+  it('redo() vuelve a aplicar la argolla deshecha', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    useEditorStore.getState().setLoop(loop)
+    useEditorStore.getState().undo()
+    useEditorStore.getState().redo()
+    expect(useEditorStore.getState().loop).toEqual(loop)
+    expect(usePatternsStore.getState().getPattern(patternId)?.loop).toEqual(loop)
+  })
+
+  it('desactivar la argolla (setLoop(undefined)) también es un paso de undo independiente', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    useEditorStore.getState().setLoop(loop)
+    useEditorStore.getState().setLoop(undefined)
+    expect(useEditorStore.getState().loop).toBeUndefined()
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().loop).toEqual(loop) // vuelve a la argolla, no la borra de un salto
+  })
+
+  it('pintar una celda no toca la argolla, y deshacer esa pintura no la afecta tampoco', () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+    useEditorStore.getState().setLoop(loop)
+    // (5,5) is empty in resetStore's default cells — a genuinely new color, so this actually commits.
+    useEditorStore.getState().paintCell(5, 5, '#333333')
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().loop).toEqual(loop)
+  })
+
+  it('loadPattern sin argolla (patrón previo a esta funcionalidad) carga sin argolla — sin cambios de aspecto (e)', () => {
+    const legacyDoc: PatternDoc = {
+      id: 'p_legacy',
+      name: 'Legacy',
+      config: { technique: 'loom', cols: 5, rows: 5, beadTypeId: 'miyuki-delica-11' },
+      cells: { '0,0': '#111111' },
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    useEditorStore.getState().loadPattern(legacyDoc)
+    expect(useEditorStore.getState().loop).toBeUndefined()
   })
 })
 

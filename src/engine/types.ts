@@ -66,6 +66,33 @@ export interface RowShape {
   length: number
 }
 
+export type LoopVariant = 'woven' | 'metal'
+
+/**
+ * The hanging loop at the body's top tip — how the finished piece attaches
+ * to an earring hook, keychain ring, etc. Two variants:
+ *
+ * - `'woven'`: a small ring of `beadCount` beads, all one color, woven onto
+ *   the top tip — counted in the pattern's total, listed in materials by its
+ *   own DB code, and added to the physical size (see
+ *   `engine/loop.ts#loopHeightUnits`). NOT part of the `cells` grid (a ring
+ *   isn't addressable by row/col the way the body and fringe are) — its
+ *   beads share one uniform color rather than being individually painted.
+ * - `'metal'`: a purchased finding (jump ring, clasp…) — no beads to weave
+ *   or count, just a materials-list line and an assembly note.
+ *
+ * Absent/`undefined` = no loop — every pattern created before this feature
+ * existed, and any pattern where the weaver hasn't added one, loads and
+ * behaves exactly as it did before (see `engine/loop.ts#normalizeLoop`).
+ */
+export interface LoopData {
+  variant: LoopVariant
+  /** Bead count forming the ring — only meaningful for `'woven'`, ignored for `'metal'`. */
+  beadCount: number
+  /** Hex color for the ring's beads, picked from the pattern's own palette — only meaningful for `'woven'`. */
+  color: string
+}
+
 export interface PatternDoc {
   id: string
   name: string
@@ -83,6 +110,8 @@ export interface PatternDoc {
   rowShape?: RowShape[]
   /** Free-text note (materials, gift recipient, gauge tweaks…) — shown on the PDF's ficha page. Absent/empty means no note. */
   note?: string
+  /** Hanging loop at the top tip — see `LoopData`. Absent = no loop (default for every pattern). */
+  loop?: LoopData
   createdAt: number
   updatedAt: number
 }

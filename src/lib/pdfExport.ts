@@ -1,9 +1,10 @@
-import type { ColorMap, FringeData, RowShape, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, physicalSizeMm, beadCount } from '@/engine/geometry'
+import { cellPosition, physicalSizeMm, beadCount, loopAnchorX } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
+import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
@@ -24,6 +25,8 @@ export interface ExportPatternOptions {
   staggerPhase?: 0 | 1
   /** Free-text note — printed in the ficha page's notes area instead of blank handwriting lines when present. */
   note?: string
+  /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
+  loop?: LoopData
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
   showLetters?: boolean
 }
@@ -260,6 +263,61 @@ function drawChart(
   doc.setTextColor(0)
 }
 
+/**
+ * Draws a woven hanging loop's ring above the body's top tip — circles
+ * rather than squares, so it reads as a distinct "ring" instead of another
+ * row of the chart, but otherwise the same per-technique anchor
+ * (`loopAnchorX`, shared with the editor canvas/PNG/Instagram card) and
+ * letter-for-contrast treatment as every body/fringe cell.
+ */
+function drawLoop(
+  doc: JsPDF,
+  opts: ExportPatternOptions,
+  loop: LoopData,
+  letterForHex: Map<string, string>,
+  showLetters: boolean,
+  originX: number,
+  bodyTopY: number,
+  cellW: number,
+  cellH: number,
+): void {
+  const anchorXUnits = loopAnchorX(opts.technique, opts.cols, opts.rowShape, opts.staggerPhase ?? 0)
+  const origin = cellPosition(opts.technique, 0, 0, opts.rows, opts.staggerPhase ?? 0)
+  const anchorX = originX + (anchorXUnits - origin.x) * cellW
+
+  const minCell = Math.min(cellW, cellH)
+  const radius = minCell * 0.42
+  const lettersVisible = showLetters && minCell >= MIN_LEGIBLE_CELL_MM
+  const letterFontSize = Math.min(MAX_LETTER_FONT_SIZE, minCell * 1.6)
+
+  // Metal: no beads at all, just a discreet open ring standing in for the
+  // bought finding (it's listed in the materials column either way).
+  if (loop.variant === 'metal') {
+    const outer = (METAL_LOOP_INDICATOR_UNITS / 2) * cellH
+    doc.setDrawColor(150)
+    doc.setLineWidth(Math.max(0.2, minCell * 0.12))
+    doc.circle(anchorX, bodyTopY - outer, outer * 0.78, 'S')
+    doc.setLineWidth(0.2)
+    doc.setDrawColor(0)
+    return
+  }
+
+  doc.setDrawColor(200)
+  for (const { dx, dy } of loopBeadOffsets(loop.beadCount)) {
+    const cx = anchorX + dx * cellW
+    const cy = bodyTopY + dy * cellH
+    doc.setFillColor(loop.color)
+    doc.circle(cx, cy, radius, 'FD')
+    if (lettersVisible) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(letterFontSize)
+      doc.setTextColor(contrastTextColor(loop.color))
+      doc.text(letterForHex.get(loop.color) ?? '?', cx, cy, { align: 'center', baseline: 'middle' })
+    }
+  }
+  doc.setTextColor(0)
+}
+
 /** "Creado con Nubih Creator · @nubih.atelier" on every page — PDFs get shared, so the brand should travel with them. */
 function stampFooterOnAllPages(doc: JsPDF, pageWidth: number, pageHeight: number) {
   const pageCount = doc.getNumberOfPages()
@@ -295,8 +353,12 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
     opts.beadType.widthMm,
     opts.beadType.heightMm,
     maxFringeLength(opts.fringe),
+    loopBeadCount(opts.loop),
   )
-  const total = beadCount(opts.technique, opts.cols, opts.rows, opts.rowShape) + totalFringeBeadCount(opts.fringe)
+  const total =
+    beadCount(opts.technique, opts.cols, opts.rows, opts.rowShape) +
+    totalFringeBeadCount(opts.fringe) +
+    loopBeadCount(opts.loop)
   const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
   doc.text(
     `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${size.widthMm.toFixed(1)} × ${size.heightMm.toFixed(1)} mm · Total: ${total} mostacillas`,
@@ -322,7 +384,11 @@ function drawMaterialsColumn(
   width: number,
   height: number,
 ) {
-  const palette = paletteFromCells(opts.cells)
+  const isMetalLoop = opts.loop?.variant === 'metal'
+  const palette = paletteFromCells(
+    opts.cells,
+    opts.loop?.variant === 'woven' ? { color: opts.loop.color, count: opts.loop.beadCount } : undefined,
+  )
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
@@ -334,9 +400,13 @@ function drawMaterialsColumn(
   const extrasHeight = 34
   const extrasY = y + height - extrasHeight
 
+  // A metal loop adds one more legend-style row (no color swatch, no DB code — just
+  // "1 argolla metálica") — folded into the same row-count sizing as the color palette
+  // so it doesn't crowd or get crowded out.
+  const legendRowCount = palette.length + (isMetalLoop ? 1 : 0)
   const legendTop = y + 5
   const legendAvailH = extrasY - 4 - legendTop
-  const rowH = Math.max(3, Math.min(5.5, legendAvailH / Math.max(1, palette.length)))
+  const rowH = Math.max(3, Math.min(5.5, legendAvailH / Math.max(1, legendRowCount)))
   const fontSize = rowH > 4.6 ? 8 : rowH > 3.6 ? 7 : 5.5
   const boxSize = Math.min(3.6, rowH - 0.8)
 
@@ -357,6 +427,13 @@ function drawMaterialsColumn(
       x + boxSize + 3,
       ly,
     )
+    ly += rowH
+  }
+  if (isMetalLoop) {
+    doc.setDrawColor(120)
+    doc.rect(x, ly - boxSize, boxSize, boxSize, 'S')
+    doc.setTextColor(0)
+    doc.text(t.pdf.metalLoopMaterial, x + boxSize + 3, ly)
     ly += rowH
   }
 
@@ -442,7 +519,12 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const margin = 14
   const showLetters = opts.showLetters ?? true
   const base = chartCellMm(opts.technique)
-  const totalRows = opts.rows + maxFringeLength(opts.fringe)
+  const bodyRows = opts.rows + maxFringeLength(opts.fringe)
+  const loopRows = loopReserveUnits(opts.loop)
+  // Includes the loop's own reserved height so the one-page/paginated layout
+  // decision and cell-fit both leave room for it — `drawChart` itself is
+  // still only ever given `bodyRows` (the loop isn't part of its grid).
+  const totalRows = bodyRows + loopRows
   const onePage = chooseOnePageLayout(base, opts.cols, totalRows, margin)
 
   // Lazy-loaded: jsPDF is only needed the first time someone actually exports.
@@ -451,7 +533,10 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  const palette = paletteFromCells(opts.cells)
+  const palette = paletteFromCells(
+    opts.cells,
+    opts.loop?.variant === 'woven' ? { color: opts.loop.color, count: opts.loop.beadCount } : undefined,
+  )
   const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
 
   if (onePage) {
@@ -459,7 +544,9 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
     const columnTop = HEADER_BOTTOM_MM
     const columnHeight = pageHeight - margin - columnTop
     const columnWidth = (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2
-    drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, columnTop, onePage.cellW, onePage.cellH)
+    const bodyTop = columnTop + loopRows * onePage.cellH
+    drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
+    if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
     drawMaterialsColumn(
       doc,
       opts,
@@ -477,13 +564,15 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
     const availW = pageWidth - margin * 2
     const availH = pageHeight - chartTop - margin - 6
     const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
+    const bodyTop = chartTop + loopRows * cellH
 
     doc.addPage()
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.setTextColor(0)
     doc.text(opts.name || 'Patrón Nubih', margin, 10)
-    drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, chartTop, cellW, cellH)
+    drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
+    if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
   }
 
   stampFooterOnAllPages(doc, pageWidth, pageHeight)

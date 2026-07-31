@@ -1,7 +1,8 @@
-import type { BeadTypeDef, ColorMap, FringeData, RowShape, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits, physicalSizeMm } from '@/engine/geometry'
+import type { BeadTypeDef, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
+import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
+import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { paletteFromCells, letterForIndex } from './palette'
 import { contrastTextColor } from './color'
 import { t } from '@/i18n/es'
@@ -19,6 +20,8 @@ export interface ExportImageOptions {
   /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1
   beadType: BeadTypeDef
+  /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
+  loop?: LoopData
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true. */
   showLetters?: boolean
 }
@@ -47,6 +50,30 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 /**
+ * The `'metal'` loop's stand-in: a thin open ring sitting in the reserved space
+ * above the body's top tip, drawn in a neutral gray so it reads as hardware
+ * rather than as beadwork. `anchorX`/`bodyTopY` are the same anchor point the
+ * woven ring's beads are laid out around.
+ */
+function drawMetalLoopIndicator(
+  ctx: CanvasRenderingContext2D,
+  anchorX: number,
+  bodyTopY: number,
+  cellPx: number,
+  strokeStyle = '#9a9aa0',
+) {
+  const outer = (METAL_LOOP_INDICATOR_UNITS / 2) * cellPx
+  const cy = bodyTopY - outer
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(anchorX, cy, outer * 0.78, 0, Math.PI * 2)
+  ctx.strokeStyle = strokeStyle
+  ctx.lineWidth = Math.max(1, cellPx * 0.14)
+  ctx.stroke()
+  ctx.restore()
+}
+
+/**
  * Renders the pattern (body + fringe, letters for contrast) onto a fresh
  * offscreen canvas — the shared drawing core for both the plain high-res
  * export and the Instagram card composition. Only painted cells are drawn
@@ -65,12 +92,16 @@ export function renderPatternCanvas(
   backgroundHex: string,
   targetLongSidePx: number,
 ): HTMLCanvasElement {
-  const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0 } = opts
+  const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0, loop } = opts
+  const loopBeads = loopBeadCount(loop)
+  const loopRows = loopReserveUnits(loop)
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
-  const cellPx = computeExportCellPx(bounds.width, bounds.height, targetLongSidePx)
+  const cellPx = computeExportCellPx(bounds.width, bounds.height + loopRows, targetLongSidePx)
   const margin = cellPx * 0.6
+  // Extra room reserved above the body for the loop's ring — X stays plain `margin`.
+  const topMargin = margin + loopRows * cellPx
   const width = Math.ceil(bounds.width * cellPx + margin * 2)
-  const height = Math.ceil(bounds.height * cellPx + margin * 2)
+  const height = Math.ceil(bounds.height * cellPx + topMargin + margin)
 
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, width)
@@ -80,7 +111,7 @@ export function renderPatternCanvas(
   ctx.fillStyle = backgroundHex
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const palette = paletteFromCells(cells)
+  const palette = paletteFromCells(cells, loop?.variant === 'woven' ? { color: loop.color, count: loop.beadCount } : undefined)
   const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
@@ -102,7 +133,7 @@ export function renderPatternCanvas(
     if (!hex) return
     const pos = cellPosition(technique, row, col, rows, staggerPhase)
     const x = margin + pos.x * cellPx + inset
-    const y = margin + pos.y * cellPx + inset
+    const y = topMargin + pos.y * cellPx + inset
     const w = cellPx - inset * 2
     const h = cellPx - inset * 2
 
@@ -126,6 +157,37 @@ export function renderPatternCanvas(
   for (let col = 0; col < cols; col++) {
     const length = fringe?.lengths[col] ?? 0
     for (let depth = 0; depth < length; depth++) drawCell(ctx, rows + depth, col)
+  }
+
+  // Hanging loop, over the body's top tip. Woven: real beads, drawn as circles
+  // (not squares) so the ring reads as a ring, with the same `loopAnchorX` anchor
+  // and letter-for-contrast treatment as every body/fringe cell. Metal: no beads
+  // at all — just a discreet outlined ring standing in for the bought finding.
+  if (loop) {
+    const anchorXUnits = loopAnchorX(technique, cols, rowShape, staggerPhase)
+    const origin = cellPosition(technique, 0, 0, rows, staggerPhase)
+    const anchorX = margin + (anchorXUnits - origin.x) * cellPx
+
+    if (loop.variant === 'woven' && loopBeads > 0) {
+      const beadRadius = cellPx * 0.42
+      for (const { dx, dy } of loopBeadOffsets(loopBeads)) {
+        const cx = anchorX + dx * cellPx
+        const cy = topMargin + dy * cellPx
+        ctx.beginPath()
+        ctx.arc(cx, cy, beadRadius, 0, Math.PI * 2)
+        ctx.fillStyle = loop.color
+        ctx.fill()
+        if (showLetters) {
+          const letter = letterForHex.get(loop.color)
+          if (letter) {
+            ctx.fillStyle = contrastTextColor(loop.color)
+            ctx.fillText(letter, cx, cy + 0.5)
+          }
+        }
+      }
+    } else if (loop.variant === 'metal') {
+      drawMetalLoopIndicator(ctx, anchorX, topMargin, cellPx)
+    }
   }
 
   return canvas
@@ -186,6 +248,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
     opts.beadType.widthMm,
     opts.beadType.heightMm,
     maxFringeLength(opts.fringe),
+    loopBeadCount(opts.loop),
   )
   ctx.font = '400 30px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(245,244,246,0.8)'

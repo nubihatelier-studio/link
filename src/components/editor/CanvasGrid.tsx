@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
-import { cellAtPositionWithFringe, cellPosition, gridBoundsUnits } from '@/engine/geometry'
+import { cellAtPositionWithFringe, cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
+import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { lineCells } from '@/engine/line'
 import { contrastTextColor } from '@/lib/color'
 import { t } from '@/i18n/es'
@@ -47,6 +48,7 @@ export function CanvasGrid() {
     cells,
     fringe,
     rowShape,
+    loop,
     tool,
     slots,
     activeSlot,
@@ -82,8 +84,14 @@ export function CanvasGrid() {
   const cellPx = BASE_CELL_PX * (zoom / 100)
   const bodyBounds = gridBoundsUnits(technique, cols, rows)
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  // The hanging loop sits *above* row 0, so it can't just widen the grid: it
+  // pushes the whole body down instead. `MARGIN` stays the X origin, while
+  // every Y coordinate — drawing and hit-testing alike — goes through
+  // `originY`, so the two can never drift apart.
+  const loopReservePx = loopReserveUnits(loop) * cellPx
+  const originY = MARGIN + loopReservePx
   const canvasWidth = bounds.width * cellPx + MARGIN
-  const canvasHeight = bounds.height * cellPx + MARGIN
+  const canvasHeight = bounds.height * cellPx + originY
   const activeColor = slots[activeSlot]
 
   // Leaving the line tool (or switching patterns) abandons any pending
@@ -100,7 +108,7 @@ export function CanvasGrid() {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
     const x = (clientX - rect.left - MARGIN) / cellPx
-    const y = (clientY - rect.top - MARGIN) / cellPx
+    const y = (clientY - rect.top - originY) / cellPx
     return { x, y }
   }
 
@@ -157,12 +165,14 @@ export function CanvasGrid() {
     const colStep = cellPx < 10 ? 10 : cellPx < 16 ? 5 : 1
     for (let c = 0; c < cols; c += colStep) {
       const pos = cellPosition(technique, 0, c, undefined, staggerPhase)
+      // Stays in the canvas's own top band (`MARGIN / 2`), above any loop reserve —
+      // otherwise a loop's ring is drawn right over the middle column's number.
       ctx.fillText(String(c + 1), MARGIN + pos.x * cellPx + cellPx / 2, MARGIN / 2)
     }
     ctx.textAlign = 'right'
     for (let r = 0; r < rows; r += colStep) {
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
-      ctx.fillText(String(r + 1), MARGIN - 6, MARGIN + pos.y * cellPx + cellPx / 2)
+      ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * cellPx + cellPx / 2)
     }
 
     const radius = Math.max(1.5, cellPx * 0.12)
@@ -187,7 +197,7 @@ export function CanvasGrid() {
         if (!isPaintableCell(row, col, cols, rows, undefined, rowShape)) continue
         const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * cellPx + inset
-        const y = MARGIN + pos.y * cellPx + inset
+        const y = originY + pos.y * cellPx + inset
         const w = cellPx - inset * 2
         const h = cellPx - inset * 2
         const hex = cells[cellKey(row, col)]
@@ -237,7 +247,7 @@ export function CanvasGrid() {
           const row = rows + depth
           const pos = cellPosition(technique, row, col, rows, staggerPhase)
           const x = MARGIN + pos.x * cellPx + inset
-          const y = MARGIN + pos.y * cellPx + inset
+          const y = originY + pos.y * cellPx + inset
           const w = cellPx - inset * 2
           const h = cellPx - inset * 2
           const hex = cells[cellKey(row, col)]
@@ -270,7 +280,7 @@ export function CanvasGrid() {
         // themes without competing with the beads themselves — 0.75 alpha
         // keeps it a hair short of full saturation (gold at 100% opacity
         // on a dark canvas background reads as oversaturated/glowing).
-        const dividerY = MARGIN + bodyBounds.height * cellPx
+        const dividerY = originY + bodyBounds.height * cellPx
         ctx.setLineDash([4, 3])
         // A gold-on-gold bead would otherwise make the dash disappear
         // entirely (same color drawn over itself) — a thin halo in the
@@ -295,6 +305,48 @@ export function CanvasGrid() {
       }
     }
 
+    // Hanging loop, in the space reserved above row 0. Its beads are a ring,
+    // not grid cells — they live in `loop`, never in `cells`, so they're drawn
+    // here rather than in the loops above and aren't paintable or hit-testable.
+    // Same geometry as the PDF/PNG exports (loopAnchorX + loopBeadOffsets), so
+    // what the editor shows is what gets exported.
+    if (loop) {
+      const anchorXUnits = loopAnchorX(technique, cols, rowShape, staggerPhase)
+      const gridOrigin = cellPosition(technique, 0, 0, rows, staggerPhase)
+      const anchorX = MARGIN + (anchorXUnits - gridOrigin.x) * cellPx
+
+      if (loop.variant === 'woven') {
+        const beadRadius = cellPx * 0.42
+        for (const { dx, dy } of loopBeadOffsets(loopBeadCount(loop))) {
+          const cx = anchorX + dx * cellPx
+          const cy = originY + dy * cellPx
+          ctx.beginPath()
+          ctx.arc(cx, cy, beadRadius, 0, Math.PI * 2)
+          ctx.fillStyle = loop.color
+          ctx.fill()
+          ctx.strokeStyle = borderColor
+          ctx.lineWidth = 1
+          ctx.stroke()
+          if (showLetters) {
+            const letter = colorLetters[loop.color]
+            if (letter) {
+              ctx.fillStyle = contrastTextColor(loop.color)
+              ctx.fillText(letter, cx, cy + 0.5)
+            }
+          }
+        }
+      } else {
+        // Metal: a bought finding, so no beads — just a discreet open ring.
+        const outer = (METAL_LOOP_INDICATOR_UNITS / 2) * cellPx
+        ctx.beginPath()
+        ctx.arc(anchorX, originY - outer, outer * 0.78, 0, Math.PI * 2)
+        ctx.strokeStyle = textColor
+        ctx.lineWidth = Math.max(1, cellPx * 0.14)
+        ctx.stroke()
+        ctx.lineWidth = 1
+      }
+    }
+
     // paste ghost preview — shows exactly where the clipboard will land
     // (including per-cell colors and the current flip) before you commit
     // with a click, instead of pasting blind.
@@ -313,7 +365,7 @@ export function CanvasGrid() {
         roundRect(
           ctx,
           MARGIN + pos.x * cellPx + inset,
-          MARGIN + pos.y * cellPx + inset,
+          originY + pos.y * cellPx + inset,
           cellPx - inset * 2,
           cellPx - inset * 2,
           radius,
@@ -328,7 +380,7 @@ export function CanvasGrid() {
       ctx.setLineDash([5, 3])
       ctx.strokeRect(
         MARGIN + origin.x * cellPx,
-        MARGIN + origin.y * cellPx,
+        originY + origin.y * cellPx,
         clipboard.width * cellPx,
         clipboard.height * cellPx,
       )
@@ -338,7 +390,7 @@ export function CanvasGrid() {
       // targeting a specific bead on a dense grid stays easy on touch and mouse
       const pos = cellPosition(technique, hoverCell.row, hoverCell.col, rows, staggerPhase)
       const x = MARGIN + pos.x * cellPx
-      const y = MARGIN + pos.y * cellPx
+      const y = originY + pos.y * cellPx
       ctx.fillStyle = 'rgba(201, 162, 39, 0.18)'
       ctx.fillRect(x, y, cellPx, cellPx)
       ctx.strokeStyle = accent
@@ -357,7 +409,7 @@ export function CanvasGrid() {
         for (const key of colorSelectionMask) {
           const { row, col } = parseCellKey(key)
           const pos = cellPosition(technique, row, col, rows, staggerPhase)
-          ctx.fillRect(MARGIN + pos.x * cellPx, MARGIN + pos.y * cellPx, cellPx, cellPx)
+          ctx.fillRect(MARGIN + pos.x * cellPx, originY + pos.y * cellPx, cellPx, cellPx)
         }
         ctx.globalAlpha = 1
       }
@@ -365,7 +417,7 @@ export function CanvasGrid() {
       const p0 = cellPosition(technique, selection.r0, selection.c0, rows, staggerPhase)
       const p1 = cellPosition(technique, selection.r1, selection.c1, rows, staggerPhase)
       const x0 = MARGIN + Math.min(p0.x, p1.x) * cellPx
-      const y0 = MARGIN + Math.min(p0.y, p1.y) * cellPx
+      const y0 = originY + Math.min(p0.y, p1.y) * cellPx
       const w = (Math.max(p0.x, p1.x) - Math.min(p0.x, p1.x) + 1) * cellPx
       const h = (Math.max(p0.y, p1.y) - Math.min(p0.y, p1.y) + 1) * cellPx
       ctx.strokeStyle = accent
@@ -382,7 +434,7 @@ export function CanvasGrid() {
         const pos = cellPosition(technique, c.row, c.col, rows, staggerPhase)
         ctx.globalAlpha = 0.55
         ctx.beginPath()
-        roundRect(ctx, MARGIN + pos.x * cellPx + inset, MARGIN + pos.y * cellPx + inset, cellPx - inset * 2, cellPx - inset * 2, radius)
+        roundRect(ctx, MARGIN + pos.x * cellPx + inset, originY + pos.y * cellPx + inset, cellPx - inset * 2, cellPx - inset * 2, radius)
         ctx.fillStyle = activeColor
         ctx.fill()
         ctx.globalAlpha = 1
@@ -394,7 +446,7 @@ export function CanvasGrid() {
       const pos = cellPosition(technique, focusCell.row, focusCell.col, rows, staggerPhase)
       ctx.strokeStyle = accent
       ctx.lineWidth = 1.5
-      ctx.strokeRect(MARGIN + pos.x * cellPx, MARGIN + pos.y * cellPx, cellPx, cellPx)
+      ctx.strokeRect(MARGIN + pos.x * cellPx, originY + pos.y * cellPx, cellPx, cellPx)
     }
   }, [
     technique,
@@ -404,7 +456,9 @@ export function CanvasGrid() {
     cells,
     fringe,
     rowShape,
+    loop,
     zoom,
+    originY,
     showFringeDivider,
     selection,
     colorSelectionMask,

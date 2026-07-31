@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
-import type { ColorMap, FringeData } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData } from '@/engine/types'
+import { beadCount, physicalSizeMm } from '@/engine/geometry'
+import { loopBeadCount, loopHeightUnits } from '@/engine/loop'
 import { chartCellMm, chooseOnePageLayout, fitChartCellToOnePage, rulerLabelIndices, rulerLabelStep } from './pdfExport'
 
 // Route the native (Capacitor) export path instead of doc.save()'s browser download,
@@ -340,6 +342,76 @@ describe('exportPatternToPdf', () => {
           fringe,
         }),
       ).resolves.not.toThrow()
+    })
+  })
+
+  describe('with a hanging loop (Tarea 3)', () => {
+    // The header/materials total itself (beadCount + fringe + loop beads) and physical size
+    // (physicalSizeMm with loopBeads) are exercised directly in geometry.test.ts/palette.test.ts —
+    // these integration tests confirm exportPatternToPdf actually threads `loop` through end to
+    // end, drawing the ring and its materials line, without throwing.
+    it('does not throw with a woven loop, on a small pattern that still fits one page', async () => {
+      const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+      const { exportPatternToPdf } = await import('./pdfExport')
+      await expect(
+        exportPatternToPdf({
+          name: 'Con argolla tejida',
+          technique: 'brick',
+          cols: 6,
+          rows: 6,
+          cells: fillCells(6, 6),
+          beadType: bead,
+          loop,
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('does not throw with a metal loop (no beads, materials line only)', async () => {
+      const loop: LoopData = { variant: 'metal', beadCount: 0, color: '#000000' }
+      const { exportPatternToPdf } = await import('./pdfExport')
+      await expect(
+        exportPatternToPdf({
+          name: 'Con argolla metálica',
+          technique: 'loom',
+          cols: 6,
+          rows: 6,
+          cells: fillCells(6, 6),
+          beadType: bead,
+          loop,
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('a large woven loop can push a pattern that would otherwise fit one page into the paginated fallback', async () => {
+      // 65 rows alone still fits one page (227.5mm of 243mm column height) — a 30-bead loop's
+      // own ~9.5 extra rows tips it over (260.9mm), same total-height reasoning
+      // exportPatternToPdf itself uses (body+fringe rows + the loop's own height).
+      const bigLoop: LoopData = { variant: 'woven', beadCount: 30, color: '#c9a227' }
+      const base = chartCellMm('loom')
+      expect(chooseOnePageLayout(base, 6, 65, 14)).not.toBeNull() // fits without the loop
+      const totalRowsWithLoop = 65 + loopHeightUnits(bigLoop.beadCount)
+      expect(chooseOnePageLayout(base, 6, totalRowsWithLoop, 14)).toBeNull() // falls back to paginated with it
+
+      const { exportPatternToPdf } = await import('./pdfExport')
+      await expect(
+        exportPatternToPdf({
+          name: 'Con argolla grande',
+          technique: 'loom',
+          cols: 6,
+          rows: 65,
+          cells: fillCells(6, 65),
+          beadType: bead,
+          loop: bigLoop,
+        }),
+      ).resolves.not.toThrow()
+    })
+
+    it('same total/size formula the header prints is what geometry.ts itself computes (consistency, Corrección e)', () => {
+      const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
+      const total = beadCount('brick', 6, 6) + loopBeadCount(loop)
+      const size = physicalSizeMm('brick', 6, 6, bead.widthMm, bead.heightMm, 0, loopBeadCount(loop))
+      expect(total).toBeGreaterThan(beadCount('brick', 6, 6)) // guard: loop beads actually added
+      expect(size.heightMm).toBeGreaterThan(physicalSizeMm('brick', 6, 6, bead.widthMm, bead.heightMm).heightMm)
     })
   })
 })

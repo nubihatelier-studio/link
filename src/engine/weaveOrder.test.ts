@@ -450,3 +450,45 @@ describe('Tests exigidos — verificación literal de la tarea', () => {
     expect(totalBeadCount(buildWeaveOrder('loom', 6, 4))).toBe(6 * 4)
   })
 })
+
+describe('buildWeaveOrder — woven loop (Tarea 3): worked last, as its own grouped step', () => {
+  it('no loop step at all when loopBeadCount is 0 (metal loop, or none) — same order as without the param', () => {
+    const withoutParam = buildWeaveOrder('brick', 5, 5)
+    const withZero = buildWeaveOrder('brick', 5, 5, undefined, undefined, 0)
+    expect(withZero).toEqual(withoutParam)
+    expect(withZero.some((s) => s.isLoop)).toBe(false)
+  })
+
+  it('appends exactly one grouped step after everything else, for every technique', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const order = buildWeaveOrder(technique, 6, 6, undefined, undefined, 8)
+      const last = order[order.length - 1]
+      expect(last.isLoop).toBe(true)
+      expect(last.grouped).toBe(true)
+      expect(last.cells).toHaveLength(8)
+      expect(order.filter((s) => s.isLoop)).toHaveLength(1)
+    }
+  })
+
+  it('comes after the fringe, not before it', () => {
+    const fringe: FringeData = { lengths: [2, 2, 2], turnBeads: [false, false, false] }
+    const order = buildWeaveOrder('brick', 3, 3, fringe, undefined, 5)
+    const loopIndex = order.findIndex((s) => s.isLoop)
+    const lastFringeIndex = order.findLastIndex((s) => isFringeStep(s))
+    expect(loopIndex).toBeGreaterThan(lastFringeIndex)
+    expect(loopIndex).toBe(order.length - 1)
+  })
+
+  it('adds exactly its own bead count to the pattern-wide total', () => {
+    const without = totalBeadCount(buildWeaveOrder('loom', 6, 4))
+    const withLoop = totalBeadCount(buildWeaveOrder('loom', 6, 4, undefined, undefined, 8))
+    expect(withLoop).toBe(without + 8)
+  })
+
+  it('jumpTargetToIndex("foundation") still finds peyote\'s real foundation pass, not the loop, when both exist', () => {
+    const order = buildWeaveOrder('peyote', 6, 6, undefined, undefined, 8)
+    const foundationIndex = jumpTargetToIndex(order, { kind: 'foundation', index: 0 })
+    expect(order[foundationIndex].isLoop).toBeUndefined()
+    expect(order[foundationIndex].grouped).toBe(true)
+  })
+})

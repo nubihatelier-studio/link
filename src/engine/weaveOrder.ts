@@ -27,6 +27,16 @@ export interface WeaveStep {
   isTurnBead?: true
   /** True only for brick's very first step — the widest row, adjacent to the fringe, that the whole body is built up from. See `buildBrickOrder`. */
   isBaseRow?: true
+  /**
+   * True only for the final step — a woven hanging loop's ring, bundled
+   * into one `grouped` step the same way peyote's foundation pass is (see
+   * `buildWeaveOrder`'s `loopBeadCount` param). Its `cells` use `row: -1`
+   * (never a real body/fringe row) purely as a distinct bookkeeping key —
+   * a ring isn't addressable by row/col, so these coordinates are never fed
+   * to `cellPosition`/the `cells` color map, only counted and (in
+   * `wordChart.ts`) matched to the loop's own uniform color.
+   */
+  isLoop?: true
 }
 
 export type WeaveOrder = WeaveStep[]
@@ -227,20 +237,35 @@ function buildPeyoteOrder(cols: number, rows: number): WeaveOrder {
   return order
 }
 
+/**
+ * A woven hanging loop is worked last of all, once the body and fringe are
+ * both done — its own final step, bundling every ring bead into one
+ * `grouped` step the same way peyote's foundation pass bundles its first two
+ * rows (see `buildPeyoteOrder`). `loopBeadCount` is 0 for a metal loop or no
+ * loop at all, in which case nothing is appended (a metal loop has no beads
+ * to weave — see `engine/loop.ts`).
+ */
+function appendLoopStep(order: WeaveOrder, loopBeadCount: number): WeaveOrder {
+  if (loopBeadCount <= 0) return order
+  const cells: Cell[] = Array.from({ length: loopBeadCount }, (_, i) => ({ row: -1, col: i }))
+  return [...order, { cells, unit: 0, direction: 'ltr', grouped: true, isLoop: true }]
+}
+
 export function buildWeaveOrder(
   technique: Technique,
   cols: number,
   rows: number,
   fringe?: FringeData,
   rowShape?: RowShape[],
+  loopBeadCount = 0,
 ): WeaveOrder {
   switch (technique) {
     case 'loom':
-      return buildLoomOrder(cols, rows, fringe)
+      return appendLoopStep(buildLoomOrder(cols, rows, fringe), loopBeadCount)
     case 'brick':
-      return buildBrickOrder(cols, rows, fringe, rowShape)
+      return appendLoopStep(buildBrickOrder(cols, rows, fringe, rowShape), loopBeadCount)
     case 'peyote':
-      return buildPeyoteOrder(cols, rows)
+      return appendLoopStep(buildPeyoteOrder(cols, rows), loopBeadCount)
   }
 }
 
@@ -333,7 +358,10 @@ export interface JumpTarget {
  * as the underlying searches.
  */
 export function jumpTargetToIndex(order: WeaveOrder, target: JumpTarget): number {
-  if (target.kind === 'foundation') return order.findIndex((step) => step.grouped)
+  // `grouped` alone isn't unique to peyote's foundation pass any more — a woven loop's
+  // step is grouped too (see `appendLoopStep`) — so this excludes it explicitly rather
+  // than relying on the loop always sorting after the one real foundation pass.
+  if (target.kind === 'foundation') return order.findIndex((step) => step.grouped && !step.isLoop)
   return target.kind === 'fringe'
     ? order.findIndex((step) => step.isFringe && step.unit === target.index)
     : firstIndexOfUnit(order, target.index)

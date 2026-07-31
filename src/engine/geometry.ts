@@ -1,4 +1,5 @@
 import type { Technique, CellPosition, RowShape } from './types'
+import { loopHeightUnits } from './loop'
 
 /**
  * Geometry model for the three supported weaving techniques.
@@ -204,6 +205,29 @@ export function fringeAnchorX(technique: Technique, col: number, bodyRows: numbe
 }
 
 /**
+ * The single source of truth for where a hanging loop attaches: the
+ * horizontal center (bead units) of the body's own top row (row 0) — the
+ * opposite end from the fringe, which hangs off the LAST row instead.
+ * `rowShape`'s own first entry (a shaped body's top row can be narrower than
+ * `cols`, e.g. a triangle's tapered tip) gates which columns row 0 actually
+ * reaches; every loop renderer (editor canvas, PNG, Instagram card, PDF)
+ * routes through this so the ring is always centered on the same point.
+ */
+export function loopAnchorX(
+  technique: Technique,
+  cols: number,
+  rowShape: RowShape[] | undefined,
+  staggerPhase: 0 | 1 = 0,
+): number {
+  const topRow = rowShape?.[0]
+  const offset = topRow?.offset ?? 0
+  const length = topRow?.length ?? cols
+  const leftX = beadCenterX(technique, 0, offset, staggerPhase)
+  const rightX = beadCenterX(technique, 0, offset + length - 1, staggerPhase)
+  return (leftX + rightX) / 2 + 0.5
+}
+
+/**
  * Total bounding size, in bead units, for a cols x rows grid of a technique.
  *
  * `maxFringeBeads` (the longest fringe among all columns, see
@@ -260,6 +284,11 @@ export function beadCount(_technique: Technique, cols: number, rows: number, row
  * `maxFringeBeads` folds the longest fringe into the total height, at the
  * same per-row pitch as the body, so the configurator/PDF header always
  * show the finished piece's real size, fringe included.
+ *
+ * `loopBeads` (see `engine/loop.ts#loopBeadCount`) adds a woven hanging
+ * loop's own height on top — a ring, not a row, so it uses
+ * `loopHeightUnits`'s own estimate instead of the row pitch (a metal loop
+ * or no loop at all contributes 0 either way).
  */
 export function physicalSizeMm(
   technique: Technique,
@@ -268,13 +297,14 @@ export function physicalSizeMm(
   beadWidthMm: number,
   beadHeightMm: number,
   maxFringeBeads = 0,
+  loopBeads = 0,
 ) {
   const horizontalMm = beadAxisMm(technique, 'horizontal', beadWidthMm, beadHeightMm)
   const verticalMm = beadAxisMm(technique, 'vertical', beadWidthMm, beadHeightMm)
   const rowMm = physicalRowPitch(technique) * verticalMm
   return {
     widthMm: cols * horizontalMm,
-    heightMm: (rows + maxFringeBeads) * rowMm,
+    heightMm: (rows + maxFringeBeads) * rowMm + loopHeightUnits(loopBeads) * verticalMm,
   }
 }
 

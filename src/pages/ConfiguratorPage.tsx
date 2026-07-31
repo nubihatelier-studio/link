@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { FringeData, MeasurementUnit, Technique } from '@/engine/types'
+import type { FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
 import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
 import {
   createFringeLengths,
@@ -11,6 +11,7 @@ import {
   type FringeShape,
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
+import { DEFAULT_LOOP_BEAD_COUNT, DEFAULT_LOOP_COLOR, loopBeadCount } from '@/engine/loop'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -52,6 +53,12 @@ interface TemplatePreset {
    * on (cols, fringe length/shape, technique, body shape).
    */
   fringeLengths?: number[]
+  /**
+   * Templates for pieces that hang (the "Aro con flecos") start with a woven
+   * hanging loop already on. Everything else starts with none — the loop is
+   * always editable afterward in the editor's own panel.
+   */
+  loop?: LoopData
 }
 
 const BODY_SHAPE_PRESETS: BodyShapePreset[] = ['rectangle', 'triangle', 'triangleInverted', 'rhombus']
@@ -103,6 +110,7 @@ const TEMPLATES: TemplatePreset[] = [
     // measured cascade, kept here as data. See `TemplatePreset.fringeLengths`.
     fringeLengths: [4, 6, 8, 9, 8, 6, 4],
     bodyShape: 'triangle',
+    loop: { variant: 'woven', beadCount: DEFAULT_LOOP_BEAD_COUNT, color: DEFAULT_LOOP_COLOR },
   },
   {
     id: 'personalizado',
@@ -133,6 +141,8 @@ export function ConfiguratorPage() {
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
   const [bodyShape, setBodyShape] = useState<BodyShapePreset>('rectangle')
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null)
+  /** The hanging loop the chosen template starts with, if any — see `TemplatePreset.loop`. */
+  const [loop, setLoop] = useState<LoopData | undefined>(undefined)
   /**
    * "Aro con flecos" starts from rows = columns — that's what gives its
    * trapezoid body + V fringe a well-proportioned, symmetric silhouette —
@@ -159,8 +169,17 @@ export function ConfiguratorPage() {
   const fringeActive = isFringeCapable(technique) && fringeEnabled
   const shapeActive = isShapeCapable(technique) && bodyShape !== 'rectangle'
   const size = useMemo(
-    () => physicalSizeMm(technique, cols, rows, bead.widthMm, bead.heightMm, fringeActive ? fringeMaxLength : 0),
-    [technique, cols, rows, bead, fringeActive, fringeMaxLength],
+    () =>
+      physicalSizeMm(
+        technique,
+        cols,
+        rows,
+        bead.widthMm,
+        bead.heightMm,
+        fringeActive ? fringeMaxLength : 0,
+        loopBeadCount(loop),
+      ),
+    [technique, cols, rows, bead, fringeActive, fringeMaxLength, loop],
   )
   const rowShapePreview = useMemo(
     () => (shapeActive ? createShapedRowShape(bodyShape, cols, rows) : null),
@@ -174,9 +193,12 @@ export function ConfiguratorPage() {
       ? createFringeLengthsForShape(fringeShape, cols, fringeMaxLength, lastRowShape)
       : createFringeLengths(fringeShape, cols, fringeMaxLength)
   }, [fringeActive, fringeShape, cols, fringeMaxLength, rowShapePreview, rows, templateFringeLengths])
+  // Body + fringe + the loop's own ring, so this preview matches the count the
+  // editor shows the moment the pattern is created.
   const total =
     beadCount(technique, cols, rows, rowShapePreview ?? undefined) +
-    (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
+    (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0) +
+    loopBeadCount(loop)
 
   function applyTemplate(template: TemplatePreset) {
     const followRows = template.id === 'aroFlecos'
@@ -192,6 +214,7 @@ export function ConfiguratorPage() {
     setFringeShape(template.fringeShape)
     setTemplateFringeLengths(template.fringeLengths ?? null)
     setBodyShape(template.bodyShape)
+    setLoop(template.loop)
   }
 
   function updateCols(next: number) {
@@ -224,7 +247,7 @@ export function ConfiguratorPage() {
     const fringe: FringeData | undefined = fringePreviewLengths
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
       : undefined
-    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined)
+    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined, loop)
     // "Aro con flecos" starts from a symmetric shape (rhombus body + V
     // fringe) — defaulting the length-symmetry toggle on too means a manual
     // tweak keeps that symmetry instead of silently drifting lopsided.

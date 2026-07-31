@@ -6,11 +6,23 @@ export interface PaletteEntry {
   count: number
 }
 
-export function paletteFromCells(cells: ColorMap): PaletteEntry[] {
+/**
+ * `loopBeads` (see `engine/loop.ts`) folds a woven hanging loop's beads into
+ * the materials count — merged into an existing entry if the loop reuses one
+ * of the pattern's own colors, or its own new entry otherwise — so the
+ * materials list, its DB-code letters, and the pattern's total always
+ * account for the loop the same way they already do for the fringe (whose
+ * bead colors live directly in `cells` and so are counted for free). Absent
+ * or a metal loop (0 beads) leaves this identical to the cells-only count.
+ */
+export function paletteFromCells(cells: ColorMap, loopBeads?: { color: string; count: number }): PaletteEntry[] {
   const counts = new Map<string, number>()
   for (const hex of Object.values(cells)) {
     if (!hex) continue
     counts.set(hex, (counts.get(hex) ?? 0) + 1)
+  }
+  if (loopBeads && loopBeads.count > 0) {
+    counts.set(loopBeads.color, (counts.get(loopBeads.color) ?? 0) + loopBeads.count)
   }
   return Array.from(counts.entries())
     .map(([hex, count]) => ({ hex, count }))
