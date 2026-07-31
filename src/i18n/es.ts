@@ -76,6 +76,7 @@ export const t = {
       shapeStraight: 'Recta',
       shapeV: 'En V',
       shapeCascade: 'Cascada',
+      shapeRounded: 'Redondeada',
     },
     bodyShape: {
       title: 'Forma del cuerpo',

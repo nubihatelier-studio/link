@@ -26,7 +26,7 @@ function centeredness(i: number, cols: number): number {
 }
 
 /** Initial shape offered at creation time — purely a starting point, every length stays editable afterward. */
-export type FringeShape = 'straight' | 'v' | 'cascade'
+export type FringeShape = 'straight' | 'v' | 'cascade' | 'rounded'
 
 /** Hard ceiling on a single fringe strand's length — 100 covers the long "pluma" style, still bounded for performance. */
 export const MAX_FRINGE_LENGTH = 100
@@ -143,6 +143,22 @@ export function createFringeLengths(shape: FringeShape, cols: number, maxLength:
       return Array.from({ length: cols }, (_, i) => {
         const fraction = ((i % STEPS) + 1) / STEPS
         return Math.max(1, Math.round(clampedMax * fraction))
+      })
+    }
+
+    case 'rounded': {
+      // The oval silhouette real "aro con flecos" pieces almost always use:
+      // same 1..max range and mirror symmetry as 'v', but eased along a
+      // quarter-ellipse instead of a straight line, so the length climbs
+      // FAST right next to the edges and flattens out near the center — an
+      // oval's own profile (steep tangent at its ends, flat at its top),
+      // the opposite feel of 'v''s constant-slope taper to a sharp point.
+      // Still built from `centeredness`, so it inherits the exact same
+      // mirror/centered-peak guarantee 'v' has (see that function's doc).
+      return Array.from({ length: cols }, (_, i) => {
+        const c = centeredness(i, cols)
+        const eased = Math.sqrt(1 - (1 - c) ** 2)
+        return Math.max(1, Math.round(1 + (clampedMax - 1) * eased))
       })
     }
   }

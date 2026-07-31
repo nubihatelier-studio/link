@@ -221,6 +221,40 @@ describe('createFringeLengths', () => {
       expect(lengths).toEqual([1, 2, 4, 5, 7, 8, 8, 7, 5, 4, 2, 1])
     })
   })
+
+  describe('rounded: oval silhouette — steep near the edges, flat near the center (Tarea 1)', () => {
+    it.each([6, 7, 8, 13])('N=%i: mirrors — length(col) === length(N-1-col)', (n) => {
+      const lengths = createFringeLengths('rounded', n, 10)
+      for (let i = 0; i < n; i++) expect(lengths[i]).toBe(lengths[n - 1 - i])
+    })
+
+    it.each([6, 7, 8, 13])('N=%i: monotonic from either edge toward the center — never a tooth or a step backward', (n) => {
+      const lengths = createFringeLengths('rounded', n, 10)
+      const half = Math.ceil(n / 2)
+      for (let i = 1; i < half; i++) expect(lengths[i]).toBeGreaterThanOrEqual(lengths[i - 1])
+    })
+
+    it.each([6, 7, 8, 13])('N=%i: respects the requested min (1) and max — 1 at the edges, exactly max at the center', (n) => {
+      const max = 10
+      const lengths = createFringeLengths('rounded', n, max)
+      expect(lengths[0]).toBe(1)
+      expect(lengths[n - 1]).toBe(1)
+      expect(Math.max(...lengths)).toBe(max)
+      // Even N shares the peak between its two center columns; odd N has one exact center column.
+      const centerIndices = n % 2 === 0 ? [n / 2 - 1, n / 2] : [(n - 1) / 2]
+      for (const i of centerIndices) expect(lengths[i]).toBe(max)
+    })
+
+    it('is a genuinely different curve from "v" (not an alias) — climbs faster near the edges', () => {
+      const rounded = createFringeLengths('rounded', 13, 10)
+      const straight = createFringeLengths('v', 13, 10)
+      // One column in from the edge, the oval has already climbed further
+      // than the straight-line "v" — that's the "grows fast at the
+      // extremes" shape the reference silhouette needs.
+      expect(rounded[1]).toBeGreaterThan(straight[1])
+      expect(rounded).not.toEqual(straight)
+    })
+  })
 })
 
 describe('createFringeLengthShape', () => {

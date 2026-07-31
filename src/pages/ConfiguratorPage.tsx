@@ -399,6 +399,7 @@ export function ConfiguratorPage() {
                     { value: 'straight', label: t.configurator.fringe.shapeStraight },
                     { value: 'v', label: t.configurator.fringe.shapeV },
                     { value: 'cascade', label: t.configurator.fringe.shapeCascade },
+                    { value: 'rounded', label: t.configurator.fringe.shapeRounded },
                   ]}
                 />
               </div>
