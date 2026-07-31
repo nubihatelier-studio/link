@@ -242,8 +242,6 @@ export const t = {
     threadEstimate: 'Hilo estimado',
     needle: 'Aguja sugerida',
     notes: 'Notas',
-    wordChartTitle: 'Secuencia de tejido',
-    fringeLabel: 'Fleco',
   },
   advancedColor: {
     title: 'Editor de color avanzado',

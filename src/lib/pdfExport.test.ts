@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData } from '@/engine/types'
-import { chartCellMm, fitChartCellToOnePage, rulerLabelIndices, rulerLabelStep } from './pdfExport'
+import { chartCellMm, chooseOnePageLayout, fitChartCellToOnePage, rulerLabelIndices, rulerLabelStep } from './pdfExport'
 
 // Route the native (Capacitor) export path instead of doc.save()'s browser download,
 // which jsdom doesn't implement — this still exercises the full document build.
@@ -139,6 +139,43 @@ describe('rulerLabelStep / rulerLabelIndices — intervalo de numeración (Corre
   })
 })
 
+describe('chooseOnePageLayout — selector de una hoja vs. paginado (Corrección 2)', () => {
+  const margin = 14
+
+  it('un patrón chico (12×12) resuelve a una hoja, con el gráfico a su tamaño legible completo', () => {
+    const layout = chooseOnePageLayout(chartCellMm('loom'), 12, 12, margin)
+    expect(layout).not.toBeNull()
+    const base = chartCellMm('loom')
+    expect(layout!.cellW).toBe(base.w)
+    expect(layout!.cellH).toBe(base.h)
+  })
+
+  it('un patrón angosto y alto (6×37) también resuelve a una hoja, sin achicar la celda', () => {
+    const layout = chooseOnePageLayout(chartCellMm('peyote'), 6, 37, margin)
+    expect(layout).not.toBeNull()
+    const base = chartCellMm('peyote')
+    expect(layout!.cellW).toBe(base.w)
+    expect(layout!.cellH).toBe(base.h)
+  })
+
+  it('un patrón grande (50×50) cae al modo paginado', () => {
+    expect(chooseOnePageLayout(chartCellMm('loom'), 50, 50, margin)).toBeNull()
+  })
+
+  it('un patrón grande (100×200) cae al modo paginado', () => {
+    expect(chooseOnePageLayout(chartCellMm('loom'), 100, 200, margin)).toBeNull()
+  })
+
+  it('prefiere retrato, pero usa horizontal cuando un patrón ancho y bajo no cabe en una columna vertical', () => {
+    // 30 columns at loom's 3.5mm base (105mm) won't fit a portrait column
+    // (~86mm wide), but comfortably fits a landscape one (~129.5mm wide) at
+    // only 4 rows tall.
+    const layout = chooseOnePageLayout(chartCellMm('loom'), 30, 4, margin)
+    expect(layout).not.toBeNull()
+    expect(layout!.orientation).toBe('landscape')
+  })
+})
+
 describe('exportPatternToPdf', () => {
   const bead = getBeadType('miyuki-delica-11')
 
@@ -146,7 +183,7 @@ describe('exportPatternToPdf', () => {
     lastDoc = undefined
   })
 
-  it('builds a small, fully-colored pattern without splitting the chart across pages', async () => {
+  it('builds a small, fully-colored pattern as a single sheet — chart and materials side by side', async () => {
     const { exportPatternToPdf } = await import('./pdfExport')
     await exportPatternToPdf({
       name: 'Prueba chica',
@@ -158,12 +195,10 @@ describe('exportPatternToPdf', () => {
     })
 
     expect(lastDoc).toBeDefined()
-    // ficha + a single chart page + at least one word-chart page.
-    expect(lastDoc!.getNumberOfPages()).toBeGreaterThanOrEqual(3)
-    expect(lastDoc!.getNumberOfPages()).toBeLessThanOrEqual(5)
+    expect(lastDoc!.getNumberOfPages()).toBe(1)
   })
 
-  it('keeps the chart on a single page even for a very large pattern (only the word chart grows)', async () => {
+  it('falls back to the paginated layout for a very large pattern (ficha+materials page, then a single chart page)', async () => {
     const { exportPatternToPdf } = await import('./pdfExport')
     await exportPatternToPdf({
       name: 'Prueba grande',
@@ -175,8 +210,7 @@ describe('exportPatternToPdf', () => {
     })
 
     expect(lastDoc).toBeDefined()
-    // ficha (1) + chart (1) + many word-chart pages for a 150x150 pattern.
-    expect(lastDoc!.getNumberOfPages()).toBeGreaterThan(10)
+    expect(lastDoc!.getNumberOfPages()).toBe(2)
   })
 
   it('does not throw with showLetters disabled', async () => {
@@ -240,31 +274,30 @@ describe('exportPatternToPdf', () => {
       ).resolves.not.toThrow()
     })
 
-    it('keeps the chart on a single page even once the fringe pushes the total height well past one page at full size', async () => {
+    it('a long fringe that pushes the pattern past one-page size falls back to the paginated layout, still a single chart page', async () => {
       const { exportPatternToPdf } = await import('./pdfExport')
       const cols = 10
       const rows = 60
       const cells = fillCells(cols, rows)
 
       await exportPatternToPdf({ name: 'Sin fleco', technique: 'loom', cols, rows, cells, beadType: bead })
-      const pagesWithoutFringe = lastDoc!.getNumberOfPages()
+      // Small enough on its own to fit the one-page layout.
+      expect(lastDoc!.getNumberOfPages()).toBe(1)
 
       const fringe: FringeData = {
         lengths: Array.from({ length: cols }, () => 20),
         turnBeads: Array.from({ length: cols }, () => true),
       }
       await exportPatternToPdf({ name: 'Con fleco largo', technique: 'loom', cols, rows, cells, fringe, beadType: bead })
-      const pagesWithFringe = lastDoc!.getNumberOfPages()
-
-      // The fringe may add a line or two to the word-chart section (one extra line per column),
-      // but the chart itself must stay a single page regardless of fringe height — so the page
-      // count should barely move, not multiply the way the old section-splitting chart used to.
-      expect(pagesWithFringe - pagesWithoutFringe).toBeLessThanOrEqual(2)
+      // The fringe pushes totalRows past what a one-page column can hold — falls back to
+      // the paginated layout (ficha+materials page, then a single chart page), not a
+      // multi-page explosion.
+      expect(lastDoc!.getNumberOfPages()).toBe(2)
     })
   })
 
   describe('with a shaped (rowShape) body', () => {
-    it('does not throw exporting a shaped body, with the usual ficha + chart + word-chart pages', async () => {
+    it('does not throw exporting a shaped body — small enough to land on the usual one-page layout', async () => {
       const { exportPatternToPdf } = await import('./pdfExport')
       // 4-col, 2-row triangle: row 0 has 2 cols (centered), row 1 (last) is full width — 2 + 4 = 6, not 8.
       const rowShape = [
@@ -282,11 +315,10 @@ describe('exportPatternToPdf', () => {
       })
 
       expect(lastDoc).toBeDefined()
-      // The ficha total text itself (beadCount with rowShape summing the real 6 cells, not 4×2=8)
-      // is exercised directly in geometry.test.ts and materials.test.ts — this integration test
-      // just confirms exportPatternToPdf actually threads `rowShape` through end to end without
-      // throwing, producing the normal ficha + chart + word-chart page set.
-      expect(lastDoc!.getNumberOfPages()).toBeGreaterThanOrEqual(3)
+      // The bead total itself (beadCount with rowShape summing the real 6 cells, not 4×2=8) is
+      // exercised directly in geometry.test.ts and materials.test.ts — this integration test just
+      // confirms exportPatternToPdf actually threads `rowShape` through end to end without throwing.
+      expect(lastDoc!.getNumberOfPages()).toBe(1)
     })
 
     it('does not throw exporting a shaped body combined with a fringe under its narrow last row', async () => {

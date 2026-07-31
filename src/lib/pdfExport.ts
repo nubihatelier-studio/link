@@ -4,7 +4,6 @@ import type { jsPDF as JsPDF } from 'jspdf'
 import { cellPosition, physicalSizeMm, beadCount } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
-import { buildWordChart } from '@/engine/wordChart'
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
@@ -128,6 +127,65 @@ export function fitChartCellToOnePage(
   return { w: base.w * scale, h: base.h * scale }
 }
 
+const A4_WIDTH_MM = 210
+const A4_HEIGHT_MM = 297
+/** Gap between the chart and materials columns in the one-page layout. */
+const COLUMN_GUTTER_MM = 10
+/** Y position where content below the title + spec line starts — matches the fixed positions `drawHeaderBlock` draws at (16, 23), same convention the ficha page always used. */
+const HEADER_BOTTOM_MM = 30
+const FOOTER_RESERVE_MM = 10
+
+export interface OnePageLayout {
+  orientation: 'portrait' | 'landscape'
+  cellW: number
+  cellH: number
+}
+
+/**
+ * A one-page candidate for a given orientation, or null when the chart
+ * doesn't fit a single column at its full, legible base cell size (see
+ * `chartCellMm`). Deliberately never shrinks the cell to make it fit — a
+ * chart that already needs shrinking to fit a half-width column reads
+ * better spread across the whole page in the paginated fallback instead of
+ * squeezed even smaller next to the materials column.
+ */
+function onePageCandidate(
+  orientation: 'portrait' | 'landscape',
+  base: { w: number; h: number },
+  cols: number,
+  totalRows: number,
+  margin: number,
+): OnePageLayout | null {
+  const pageWidth = orientation === 'portrait' ? A4_WIDTH_MM : A4_HEIGHT_MM
+  const pageHeight = orientation === 'portrait' ? A4_HEIGHT_MM : A4_WIDTH_MM
+  const columnWidth = (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2
+  const columnHeight = pageHeight - margin - HEADER_BOTTOM_MM - FOOTER_RESERVE_MM
+  if (cols * base.w > columnWidth || totalRows * base.h > columnHeight) return null
+  return { orientation, cellW: base.w, cellH: base.h }
+}
+
+/**
+ * Picks the one-page (chart + materials side by side) layout when the chart
+ * fits a single column at full legible size — portrait preferred, falling
+ * back to landscape for patterns that are too wide for a portrait column
+ * but fit a landscape one (e.g. a wide, short loom piece). Returns null when
+ * neither orientation fits the chart at full size — the caller falls back
+ * to the paginated ficha + full-page-chart layout instead, which was always
+ * this app's layout before the one-page design existed, and which always
+ * has more room to shrink into than a half-width column ever would.
+ */
+export function chooseOnePageLayout(
+  base: { w: number; h: number },
+  cols: number,
+  totalRows: number,
+  margin: number,
+): OnePageLayout | null {
+  return (
+    onePageCandidate('portrait', base, cols, totalRows, margin) ??
+    onePageCandidate('landscape', base, cols, totalRows, margin)
+  )
+}
+
 /**
  * Draws the whole cols × totalRows chart (body + fringe) as PDF vector
  * primitives, with the materials-list letter inside every colored cell (when
@@ -215,17 +273,13 @@ function stampFooterOnAllPages(doc: JsPDF, pageWidth: number, pageHeight: number
   }
 }
 
-/** Cover/spec page: title, real finished size, materials legend, and the "ficha" extras (thread, needle, notes). */
-function drawFichaPage(
-  doc: JsPDF,
-  opts: ExportPatternOptions,
-  letterForHex: Map<string, string>,
-  margin: number,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  const palette = paletteFromCells(opts.cells)
-
+/**
+ * Title + spec line (technique, dimensions, bead type, physical finished
+ * size, total bead count) — shared by the one-page layout (drawn once,
+ * spanning the full page width above both columns) and the paginated
+ * fallback's ficha page (where it's always sat, unchanged).
+ */
+function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(0)
@@ -250,46 +304,66 @@ function drawFichaPage(
     23,
   )
   doc.setTextColor(0)
+}
+
+/**
+ * Materials legend (letra / código DB / cantidad) plus the "ficha" extras —
+ * estimated thread, suggested needle, and a notes area — laid out inside an
+ * arbitrary (x, y, width, height) box. Shared by the one-page layout's
+ * materials column and the paginated fallback's full-width ficha page; only
+ * the box they're given differs.
+ */
+function drawMaterialsColumn(
+  doc: JsPDF,
+  opts: ExportPatternOptions,
+  letterForHex: Map<string, string>,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const palette = paletteFromCells(opts.cells)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(0)
+  doc.text(t.pdf.materials, x, y)
 
   // Extras ("ficha") reserved at a fixed height at the bottom, so the materials legend above
   // always knows exactly how much room it has to squeeze into.
   const extrasHeight = 34
-  const extrasY = pageHeight - margin - extrasHeight
+  const extrasY = y + height - extrasHeight
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(t.pdf.materials, margin, 32)
-
-  const legendTop = 37
+  const legendTop = y + 5
   const legendAvailH = extrasY - 4 - legendTop
   const rowH = Math.max(3, Math.min(5.5, legendAvailH / Math.max(1, palette.length)))
   const fontSize = rowH > 4.6 ? 8 : rowH > 3.6 ? 7 : 5.5
   const boxSize = Math.min(3.6, rowH - 0.8)
 
-  let y = legendTop + rowH
+  let ly = legendTop + rowH
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(fontSize)
   for (const p of palette) {
     const match = catalogMatchForHex(p.hex)
     doc.setFillColor(p.hex)
     doc.setDrawColor(120)
-    doc.rect(margin, y - boxSize, boxSize, boxSize, 'FD')
+    doc.rect(x, ly - boxSize, boxSize, boxSize, 'FD')
     doc.setTextColor(0)
     doc.text(
       // '~' not '≈': jsPDF's standard helvetica font only supports the WinAnsi range and
       // silently corrupts the rest of the string when fed a glyph outside it (found via
       // visual QA — the U+2248 "almost equal" sign broke every legend row that used it).
       `${letterForHex.get(p.hex) ?? '?'} — ${match.exact ? '' : '~ '}${match.color.code} (${match.color.name}) ×${p.count}`,
-      margin + boxSize + 3,
-      y,
+      x + boxSize + 3,
+      ly,
     )
-    y += rowH
+    ly += rowH
   }
 
   // Ficha extras: estimated thread, suggested needle, notes space.
   doc.setDrawColor(210)
   doc.setLineWidth(0.2)
-  doc.line(margin, extrasY, pageWidth - margin, extrasY)
+  doc.line(x, extrasY, x + width, extrasY)
 
   const threadM = estimateThreadMeters(
     opts.technique,
@@ -304,20 +378,20 @@ function drawFichaPage(
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(0)
-  doc.text(`${t.pdf.threadEstimate}:`, margin, extrasY + 6)
+  doc.text(`${t.pdf.threadEstimate}:`, x, extrasY + 6)
   const threadLabelWidth = doc.getTextWidth(`${t.pdf.threadEstimate}: `)
   doc.setFont('helvetica', 'normal')
-  doc.text(`~ ${threadM.toFixed(1)} m`, margin + threadLabelWidth, extrasY + 6)
+  doc.text(`~ ${threadM.toFixed(1)} m`, x + threadLabelWidth, extrasY + 6)
 
   doc.setFont('helvetica', 'bold')
-  doc.text(`${t.pdf.needle}:`, margin, extrasY + 11)
+  doc.text(`${t.pdf.needle}:`, x, extrasY + 11)
   const needleLabelWidth = doc.getTextWidth(`${t.pdf.needle}: `)
   doc.setFont('helvetica', 'normal')
-  doc.text(needle, margin + needleLabelWidth, extrasY + 11)
+  doc.text(needle, x + needleLabelWidth, extrasY + 11)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.text(t.pdf.notes, margin, extrasY + 17)
+  doc.text(t.pdf.notes, x, extrasY + 17)
 
   const notesTop = extrasY + 19
   const note = opts.note?.trim()
@@ -327,134 +401,90 @@ function drawFichaPage(
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(60)
-    const wrapped: string[] = doc.splitTextToSize(note, pageWidth - margin * 2)
-    let ly = notesTop + 3
+    const wrapped: string[] = doc.splitTextToSize(note, width)
+    let noteLy = notesTop + 3
     for (const line of wrapped.slice(0, 4)) {
-      doc.text(line, margin, ly)
-      ly += 4.2
+      doc.text(line, x, noteLy)
+      noteLy += 4.2
     }
     doc.setTextColor(0)
   } else {
     doc.setDrawColor(220)
     for (let i = 1; i <= 3; i++) {
-      const ly = notesTop + i * 4.2
-      doc.line(margin, ly, pageWidth - margin, ly)
+      const noteLy = notesTop + i * 4.2
+      doc.line(x, noteLy, x + width, noteLy)
     }
   }
 }
 
 /**
- * Word-chart pages: the same bead-by-bead sequence as Weave Mode, as compact
- * run-length-encoded text. Long lines wrap (a wide pattern easily exceeds one
- * page's width) with continuation lines indented under the sequence — not
- * repeating "Columna N:" — using plain spaces, safe because Courier is
- * monospace so the indent lines up exactly with the prefix it replaces.
- */
-function drawWordChartPages(
-  doc: JsPDF,
-  opts: ExportPatternOptions,
-  letterForHex: Map<string, string>,
-  margin: number,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  const lines = buildWordChart(
-    opts.technique,
-    opts.cols,
-    opts.rows,
-    opts.cells,
-    (hex) => letterForHex.get(hex) ?? '?',
-    opts.fringe,
-    opts.rowShape,
-  )
-  const lineHeight = 4.6
-  const footerReserve = 10
-  const headerHeight = 16
-  const maxWidth = pageWidth - margin * 2
-
-  function drawPageHeader(): number {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.setTextColor(0)
-    doc.text(t.pdf.wordChartTitle, margin, margin + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(130)
-    doc.text(opts.name || 'Patrón Nubih', margin, margin + 9)
-    doc.setTextColor(0)
-    doc.setFont('courier', 'normal')
-    doc.setFontSize(8)
-    return margin + headerHeight
-  }
-
-  doc.addPage()
-  let y = drawPageHeader()
-
-  for (const line of lines) {
-    const prefix = line.isFringe
-      ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: `
-      : line.grouped
-        ? `${t.weave.foundationPass}: `
-        : line.isBaseRow
-          ? `${t.weave.baseRow}: `
-          : `${t.weave.row} ${line.unitIndex + 1}: `
-    const indent = ' '.repeat(prefix.length)
-    const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
-
-    wrapped.forEach((piece, i) => {
-      if (y > pageHeight - margin - footerReserve) {
-        doc.addPage()
-        y = drawPageHeader()
-      }
-      doc.text((i === 0 ? prefix : indent) + piece, margin, y)
-      y += lineHeight
-    })
-  }
-}
-
-/**
- * Exports the current pattern to a multi-page PDF:
- * 1. A "ficha" page — title, real finished size, materials legend (letra /
- *    código / cantidad), estimated thread length, suggested needle and a
- *    notes area.
- * 2. One chart page — vector-drawn, with the materials-list letter inside
- *    each bead for B/W-print legibility. The whole cols × totalRows grid
- *    (body + fringe) always fits this single page: it renders at the
- *    legible `chartCellMm` size when that already fits, and shrinks only as
- *    much as needed otherwise (see `fitChartCellToOnePage`).
- * 3. One or more word-chart pages — the same traversal Weave Mode uses,
- *    written out as compact per-row/column text.
+ * Exports the current pattern to a PDF, choosing one of two layouts:
+ *
+ * 1. One page (preferred): title + spec line across the top, the chart in
+ *    one column and the materials legend + ficha extras (thread, needle,
+ *    notes) in the other, side by side — whichever A4 orientation lets the
+ *    chart render at a larger cell size (see `chooseOnePageLayout`). Chosen
+ *    whenever that still keeps the chart at or above `MIN_LEGIBLE_CELL_MM`
+ *    in a single column, which most patterns (especially narrow-and-tall or
+ *    wide-and-short ones) clear easily.
+ * 2. Paginated fallback (large patterns only): a "ficha" page (title, spec
+ *    line, materials, thread/needle, notes) followed by a full-page chart
+ *    that shrinks only as much as needed to still fit one page (see
+ *    `fitChartCellToOnePage`) — this app's original layout, kept exactly
+ *    for the cases the one-page layout can't serve legibly.
+ *
+ * Neither layout includes the bead-by-bead word chart any more — Weave
+ * Mode is the one place that sequence is actually followed live; printing
+ * it out added pages without adding anything a weaver used on paper.
  * Every page gets the same footer stamp so the brand travels with shared PDFs.
  */
 export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<void> {
-  // Lazy-loaded: jsPDF is only needed the first time someone actually exports.
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 14
   const showLetters = opts.showLetters ?? true
+  const base = chartCellMm(opts.technique)
+  const totalRows = opts.rows + maxFringeLength(opts.fringe)
+  const onePage = chooseOnePageLayout(base, opts.cols, totalRows, margin)
+
+  // Lazy-loaded: jsPDF is only needed the first time someone actually exports.
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ orientation: onePage?.orientation ?? 'portrait', unit: 'mm', format: 'a4' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
 
   const palette = paletteFromCells(opts.cells)
   const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
 
-  drawFichaPage(doc, opts, letterForHex, margin, pageWidth, pageHeight)
+  if (onePage) {
+    drawHeaderBlock(doc, opts, margin)
+    const columnTop = HEADER_BOTTOM_MM
+    const columnHeight = pageHeight - margin - columnTop
+    const columnWidth = (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2
+    drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, columnTop, onePage.cellW, onePage.cellH)
+    drawMaterialsColumn(
+      doc,
+      opts,
+      letterForHex,
+      margin + columnWidth + COLUMN_GUTTER_MM,
+      columnTop,
+      columnWidth,
+      columnHeight,
+    )
+  } else {
+    drawHeaderBlock(doc, opts, margin)
+    drawMaterialsColumn(doc, opts, letterForHex, margin, HEADER_BOTTOM_MM, pageWidth - margin * 2, pageHeight - margin - HEADER_BOTTOM_MM)
 
-  const base = chartCellMm(opts.technique)
-  const chartTop = margin + 8
-  const availW = pageWidth - margin * 2
-  const availH = pageHeight - chartTop - margin - 6
-  const totalRows = opts.rows + maxFringeLength(opts.fringe)
-  const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
+    const chartTop = margin + 8
+    const availW = pageWidth - margin * 2
+    const availH = pageHeight - chartTop - margin - 6
+    const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
 
-  doc.addPage()
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(0)
-  doc.text(opts.name || 'Patrón Nubih', margin, 10)
-  drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, chartTop, cellW, cellH)
-
-  drawWordChartPages(doc, opts, letterForHex, margin, pageWidth, pageHeight)
+    doc.addPage()
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(0)
+    doc.text(opts.name || 'Patrón Nubih', margin, 10)
+    drawChart(doc, opts, totalRows, letterForHex, showLetters, margin, chartTop, cellW, cellH)
+  }
 
   stampFooterOnAllPages(doc, pageWidth, pageHeight)
 
