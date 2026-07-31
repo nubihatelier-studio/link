@@ -18,9 +18,11 @@ import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
 import { Card } from '@/components/shared/Card'
 import { SelectableCard } from '@/components/shared/SelectableCard'
+import { IconSelectableCard } from '@/components/shared/IconSelectableCard'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
+import { TemplateIcon, type TemplateId } from '@/components/configurator/TemplateIcon'
 
 const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
 type SizeMode = 'count' | 'finalSize'
@@ -29,8 +31,7 @@ const MIN_DIM = 4
 const MAX_DIM = 200
 
 interface TemplatePreset {
-  id: string
-  emoji: string
+  id: TemplateId
   label: string
   description: string
   technique: Technique
@@ -59,7 +60,6 @@ const BODY_SHAPE_ICON: Record<BodyShapePreset, string> = {
 const TEMPLATES: TemplatePreset[] = [
   {
     id: 'pulsera',
-    emoji: '📿',
     label: t.configurator.templates.pulsera,
     description: t.configurator.templates.pulseraDesc,
     technique: 'peyote',
@@ -72,7 +72,6 @@ const TEMPLATES: TemplatePreset[] = [
   },
   {
     id: 'aroFlecos',
-    emoji: '🪶',
     label: t.configurator.templates.aroFlecos,
     description: t.configurator.templates.aroFlecosDesc,
     technique: 'brick',
@@ -90,7 +89,6 @@ const TEMPLATES: TemplatePreset[] = [
   },
   {
     id: 'personalizado',
-    emoji: '🎨',
     label: t.configurator.templates.personalizado,
     description: t.configurator.templates.personalizadoDesc,
     technique: 'loom',
@@ -117,7 +115,7 @@ export function ConfiguratorPage() {
   const [fringeMaxLength, setFringeMaxLength] = useState(8)
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
   const [bodyShape, setBodyShape] = useState<BodyShapePreset>('rectangle')
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null)
   /**
    * "Aro con flecos" starts from rows = columns — that's what gives its
    * trapezoid body + V fringe a well-proportioned, symmetric silhouette —
@@ -206,27 +204,30 @@ export function ConfiguratorPage() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.templates.title}</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {TEMPLATES.map((template) => (
-            <SelectableCard
+            <IconSelectableCard
               key={template.id}
               selected={selectedTemplate === template.id}
               onClick={() => applyTemplate(template)}
-              className="flex flex-col items-center gap-1 py-4 text-center"
-            >
-              <span className="text-2xl">{template.emoji}</span>
-              <p className="font-semibold">{template.label}</p>
-              <p className="text-xs text-text-muted">{template.description}</p>
-            </SelectableCard>
+              icon={
+                <TemplateIcon
+                  templateId={template.id}
+                  className={selectedTemplate === template.id ? 'text-accent-500' : 'text-text-muted'}
+                />
+              }
+              label={template.label}
+              description={template.description}
+            />
           ))}
         </div>
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.technique}</h2>
+        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.techniqueStepTitle}</h2>
         <div className="grid grid-cols-3 gap-3">
           {TECHNIQUES.map((tech) => (
-            <SelectableCard
+            <IconSelectableCard
               key={tech}
               selected={technique === tech}
               onClick={() => {
@@ -234,14 +235,14 @@ export function ConfiguratorPage() {
                 setSelectedTemplate(null)
                 setRowsFollowCols(false)
               }}
-              className="flex flex-col items-center gap-2 py-5 text-center"
-            >
-              <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
-              <p className="font-semibold">{t.technique[tech]}</p>
-              <p className="text-xs text-text-muted">
-                {tech === 'loom' ? t.technique.loomDesc : tech === 'peyote' ? t.technique.peyoteDesc : t.technique.brickDesc}
-              </p>
-            </SelectableCard>
+              icon={
+                <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
+              }
+              label={t.technique[tech]}
+              description={
+                tech === 'loom' ? t.technique.loomDesc : tech === 'peyote' ? t.technique.peyoteDesc : t.technique.brickDesc
+              }
+            />
           ))}
         </div>
       </section>

@@ -40,6 +40,8 @@ export const t = {
   configurator: {
     title: 'Crear patrón',
     technique: 'Técnica',
+    /** Encabezado numerado del paso 2 en "Crear patrón" — deja explícito que la plantilla (paso 1) precarga la técnica, en vez de leerse como dos paneles que compiten por la misma decisión. */
+    techniqueStepTitle: '2 · Técnica',
     columns: 'Columnas',
     rows: 'Filas',
     beadSettings: 'Ajustes de mostacilla',
@@ -55,7 +57,7 @@ export const t = {
     photoToPatternDesc: 'Genera un patrón a partir de una foto',
     createButton: '+ Crear patrón',
     templates: {
-      title: 'Empezar desde una plantilla',
+      title: '1 · Empezar desde una plantilla',
       pulsera: 'Pulsera',
       pulseraDesc: 'Tira angosta y larga para la muñeca',
       aroFlecos: 'Aro con flecos',
