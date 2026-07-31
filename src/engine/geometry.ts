@@ -20,20 +20,103 @@ import type { Technique, CellPosition, RowShape } from './types'
  *   of alternating columns to keep a flat top/bottom edge (±1 bead per
  *   column) - we intentionally do NOT model that jagged edge in v1: every
  *   column has exactly `rows` beads, and the ±1 edge effect is left as a
- *   documented simplification. Because beads interlock vertically, the
- *   nominal bead height is compacted to ~75% per additional row
- *   (PEYOTE_ROW_COMPACTION), which is also reflected in the physical size
- *   estimate shown in the configurator.
+ *   documented simplification. On screen, the nominal bead height is
+ *   compacted to ~75% per additional row (PEYOTE_ROW_COMPACTION) purely so
+ *   the canvas render packs columns visually tight — that compaction is
+ *   NOT reused for the physical size estimate (see `physicalSizeMm`'s doc
+ *   comment): a real, measured piece showed that reusing it there
+ *   double-counts the same interlock the column offset already represents.
  *
  * - Brick: beads are threaded in horizontal rows; odd rows are offset right
  *   by half a column-pitch (classic brick-stitch masonry look). Same ±1
  *   simplification as Peyote applies at row edges (not modeled in v1).
  *   Rows nestle into each other vertically, compacted to ~85% per
- *   additional row (BRICK_ROW_COMPACTION).
+ *   additional row (BRICK_ROW_COMPACTION) — both on screen and, for now,
+ *   in the physical size estimate too (still just the original theoretical
+ *   guess there, not calibrated against a real brick piece — see
+ *   `WEAVE_THREAD_FACTOR`).
  */
 
 export const PEYOTE_ROW_COMPACTION = 0.75
 export const BRICK_ROW_COMPACTION = 0.85
+
+/**
+ * Which of the bead's own two physical dimensions (`BeadTypeDef.widthMm` /
+ * `.heightMm`) maps to the horizontal (across a row) vs. vertical (down a
+ * column, between rows) axis, per technique. This is NOT always
+ * width→horizontal — it depends on how the bead physically sits once
+ * threaded, so guessing "width" is always horizontal silently swapped the
+ * axes for peyote (see `physicalSizeMm`'s doc comment for the real-piece
+ * measurement that exposed this).
+ *
+ * - Loom: the bead sits flat in a square warp/weft grid, hole running the
+ *   same direction as the row — a column's width uses the bead's own width,
+ *   a row's height uses its height. The "natural" assumption carried over
+ *   from the original model; NOT calibrated against a physical loom sample
+ *   (see `WEAVE_THREAD_FACTOR`).
+ * - Peyote: the bead lies on its side with the hole HORIZONTAL, threaded in
+ *   vertical columns — so a column's width is the bead's short side
+ *   (`heightMm` on a Delica, its actual width when lying down) and the step
+ *   down a column is the bead's long side/diameter (`widthMm`). The exact
+ *   reverse of loom's mapping, because the bead itself is rotated 90° to
+ *   sit in a column instead of a row. Calibrated against a real measured
+ *   piece (peyote, Delica 11/0, 6×60 → 8×102mm) — see `WEAVE_THREAD_FACTOR`.
+ * - Brick: the bead also lies on its side (hole horizontal) but threaded in
+ *   HORIZONTAL rows instead of columns — so along a row it's the bead's
+ *   long side/diameter that repeats (`widthMm`), and the step between rows
+ *   is its short side (`heightMm`). Same mapping as loom, but by
+ *   coincidence of how brick rows are oriented, not because the bead sits
+ *   the same way as in loom. NOT calibrated against a physical brick
+ *   sample.
+ */
+const BEAD_AXIS_MAP: Record<Technique, { horizontal: 'width' | 'height'; vertical: 'width' | 'height' }> = {
+  loom: { horizontal: 'width', vertical: 'height' },
+  peyote: { horizontal: 'height', vertical: 'width' },
+  brick: { horizontal: 'width', vertical: 'height' },
+}
+
+function beadAxisMm(
+  technique: Technique,
+  axis: 'horizontal' | 'vertical',
+  beadWidthMm: number,
+  beadHeightMm: number,
+): number {
+  return BEAD_AXIS_MAP[technique][axis] === 'width' ? beadWidthMm : beadHeightMm
+}
+
+/**
+ * Row-to-row pitch used ONLY by the physical-size estimate
+ * (`physicalSizeMm`/`gridFromPhysicalSizeMm`) — deliberately separate from
+ * `rowPitch` below (used for on-screen/canvas layout: `cellPosition`,
+ * `gridBoundsUnits`, hit-testing). Reusing `rowPitch` here used to
+ * double-count peyote's interlock: peyote's column offset (half a bead, in
+ * `cellPosition`) *is* the physical representation of how columns nestle
+ * together sideways — it doesn't also shrink the vertical distance between
+ * two beads stacked in the SAME column, which is what this pitch measures.
+ * So peyote's physical pitch is 1 (a full bead), not
+ * `PEYOTE_ROW_COMPACTION` — that constant stays exactly as it was for
+ * rendering (see the split note on `PEYOTE_ROW_COMPACTION` above).
+ *
+ * Brick's masonry offset is a genuinely different effect: consecutive rows
+ * really do nestle vertically (each row's beads sit partly in the gaps of
+ * the row below), so its physical pitch keeps using
+ * `BRICK_ROW_COMPACTION` — but that number is still only the original
+ * theoretical guess, NOT calibrated against a real piece.
+ *
+ * Even with both fixes, this is still only the bead's own raw dimension —
+ * thread thickness and weaving tension nudge a real piece a bit further;
+ * see the thread/tension correction layered on top of this pitch.
+ */
+function physicalRowPitch(technique: Technique): number {
+  switch (technique) {
+    case 'loom':
+      return 1
+    case 'peyote':
+      return 1
+    case 'brick':
+      return BRICK_ROW_COMPACTION
+  }
+}
 
 export function isOddIndex(i: number): boolean {
   return i % 2 === 1
@@ -154,9 +237,29 @@ export function beadCount(_technique: Technique, cols: number, rows: number, row
 
 /**
  * Physical size estimate in mm for a cols x rows grid of a given bead's mm
- * dimensions. `maxFringeBeads` (see `gridBoundsUnits`) folds the longest
- * fringe into the total height so the configurator/PDF header always show
- * the finished piece's real size, fringe included.
+ * dimensions — the finished, real-world size of the piece, NOT the
+ * on-screen render size (see `gridBoundsUnits` for that; the two are
+ * intentionally independent, see `physicalRowPitch`'s doc comment).
+ *
+ * `beadWidthMm`/`beadHeightMm` are the bead's own two dimensions in
+ * whatever order `BeadTypeDef` stores them (width = diameter, height =
+ * short side, on a cylinder bead like Delica) — `beadAxisMm` decides which
+ * one is actually horizontal vs. vertical for this technique (see
+ * `BEAD_AXIS_MAP`). Passing them straight through as "width→horizontal,
+ * height→vertical" is exactly the bug a real measured piece exposed: a
+ * peyote bracelet (Miyuki Delica 11/0, 6 cols × 60 rows) measured 8.0 ×
+ * 102mm by hand, but the app reported 9.6 × 59.3mm — width +20% and height
+ * −42%, from the swapped axes plus double-counting `PEYOTE_ROW_COMPACTION`
+ * (see `physicalRowPitch`). Fixed, the same 6×60 grid computes 7.8mm wide
+ * (cols × the bead's short side, 2.5% off the real 8.0mm) and 96mm tall
+ * (rows × diameter, 6% off the real 102mm) — the residual height error is
+ * thread thickness and weaving tension, which no bead-only model can
+ * capture; see the calibrated thread/tension factor layered on top of this
+ * function.
+ *
+ * `maxFringeBeads` folds the longest fringe into the total height, at the
+ * same per-row pitch as the body, so the configurator/PDF header always
+ * show the finished piece's real size, fringe included.
  */
 export function physicalSizeMm(
   technique: Technique,
@@ -166,10 +269,12 @@ export function physicalSizeMm(
   beadHeightMm: number,
   maxFringeBeads = 0,
 ) {
-  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeBeads)
+  const horizontalMm = beadAxisMm(technique, 'horizontal', beadWidthMm, beadHeightMm)
+  const verticalMm = beadAxisMm(technique, 'vertical', beadWidthMm, beadHeightMm)
+  const rowMm = physicalRowPitch(technique) * verticalMm
   return {
-    widthMm: bounds.width * beadWidthMm,
-    heightMm: bounds.height * beadHeightMm,
+    widthMm: cols * horizontalMm,
+    heightMm: (rows + maxFringeBeads) * rowMm,
   }
 }
 
@@ -245,8 +350,11 @@ export function cellAtPositionWithFringe(
 }
 
 /**
- * Inverse of physicalSizeMm: given a desired finished size in mm, compute the
- * cols/rows needed for a given bead and technique ("crear desde tamaño final").
+ * Inverse of `physicalSizeMm`: given a desired finished size in mm, compute
+ * the cols/rows needed for a given bead and technique ("crear desde tamaño
+ * final"). Must use the exact same axis mapping and row pitch as
+ * `physicalSizeMm` so asking for a size and reading it back round-trips to
+ * the same cols/rows.
  */
 export function gridFromPhysicalSizeMm(
   technique: Technique,
@@ -255,15 +363,12 @@ export function gridFromPhysicalSizeMm(
   beadWidthMm: number,
   beadHeightMm: number,
 ) {
-  const pitch = rowPitch(technique)
-  const extraX = technique === 'brick' ? 0.5 : 0
-  const extraY = technique === 'peyote' ? pitch / 2 : 0
+  const horizontalMm = beadAxisMm(technique, 'horizontal', beadWidthMm, beadHeightMm)
+  const verticalMm = beadAxisMm(technique, 'vertical', beadWidthMm, beadHeightMm)
+  const rowMm = physicalRowPitch(technique) * verticalMm
 
-  const colsUnits = widthMm / beadWidthMm - extraX
-  const cols = Math.max(1, Math.round(colsUnits))
-
-  const rowsUnits = (heightMm / beadHeightMm - extraY - 1) / pitch + 1
-  const rows = Math.max(1, Math.round(rowsUnits))
+  const cols = Math.max(1, Math.round(widthMm / horizontalMm))
+  const rows = Math.max(1, Math.round(heightMm / rowMm))
 
   return { cols, rows }
 }

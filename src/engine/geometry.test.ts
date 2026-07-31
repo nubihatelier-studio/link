@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   beadCenterX,
   beadCount,
+  BRICK_ROW_COMPACTION,
   cellAtPosition,
   cellAtPositionWithFringe,
   cellPosition,
@@ -19,29 +20,51 @@ const DELICA_W = 1.6
 const DELICA_H = 1.3
 
 describe('physicalSizeMm', () => {
-  it('loom: a strict rectangle, rows/cols multiplied straight by bead size', () => {
+  it('loom: rows/cols multiplied straight by bead size (width→horizontal, height→vertical — unaffected by the peyote fix)', () => {
     const size = physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H)
     expect(size.widthMm).toBeCloseTo(9.6, 4)
     expect(size.heightMm).toBeCloseTo(20.8, 4)
   })
 
-  it('peyote: 16 rows of Delica comes out to ~16.4mm tall (the QA reference value)', () => {
+  it('peyote: axes are swapped vs. loom — a column uses the bead\'s short side, a row uses its diameter (Corrección 1)', () => {
     const size = physicalSizeMm('peyote', 6, 16, DELICA_W, DELICA_H)
-    expect(size.heightMm).toBeCloseTo(16.4, 1)
+    // Width uses the SHORT side (DELICA_H, 1.3mm) per column, not the diameter.
+    expect(size.widthMm).toBeCloseTo(6 * DELICA_H, 4)
+    // Height uses the diameter (DELICA_W, 1.6mm) per row, with NO extra
+    // compaction — PEYOTE_ROW_COMPACTION stays a render-only concern now
+    // (see `physicalRowPitch`'s doc comment); the theoretical bead-only
+    // estimate here is deliberately still ~6% short of a real piece (see
+    // the calibrated-fixture test below) — that gap is thread & tension,
+    // not something a bead-dimensions-only model can capture.
+    expect(size.heightMm).toBeCloseTo(16 * DELICA_W, 4)
   })
 
-  it('brick: compaction is looser than peyote, so it lands taller than peyote for the same row count', () => {
-    const peyote = physicalSizeMm('peyote', 6, 16, DELICA_W, DELICA_H)
+  it('brick: unaffected by the peyote fix — same axis mapping and compaction as before', () => {
     const brick = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
-    expect(brick.heightMm).toBeGreaterThan(peyote.heightMm)
-    expect(brick.heightMm).toBeLessThan(physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H).heightMm)
+    expect(brick.widthMm).toBeCloseTo(6 * DELICA_W, 4)
+    expect(brick.heightMm).toBeCloseTo(16 * BRICK_ROW_COMPACTION * DELICA_H, 4)
   })
 
-  it('a single row/column reduces to exactly one bead pitch, for every technique', () => {
+  it('a single row/column reduces to exactly one bead pitch on the relevant axis, for every technique', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {
       const size = physicalSizeMm(technique, 1, 1, DELICA_W, DELICA_H)
-      expect(size.widthMm).toBeCloseTo(technique === 'brick' ? DELICA_W * 1.5 : DELICA_W, 4)
-      expect(size.heightMm).toBeCloseTo(technique === 'peyote' ? DELICA_H * 1.375 : DELICA_H, 4)
+      const expectedWidth = technique === 'peyote' ? DELICA_H : DELICA_W
+      const expectedHeight =
+        technique === 'peyote' ? DELICA_W : technique === 'brick' ? BRICK_ROW_COMPACTION * DELICA_H : DELICA_H
+      expect(size.widthMm).toBeCloseTo(expectedWidth, 4)
+      expect(size.heightMm).toBeCloseTo(expectedHeight, 4)
+    }
+  })
+
+  it('width scales linearly with cols, height linearly with rows — no cross terms', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const a = physicalSizeMm(technique, 6, 16, DELICA_W, DELICA_H)
+      const doubleCols = physicalSizeMm(technique, 12, 16, DELICA_W, DELICA_H)
+      const doubleRows = physicalSizeMm(technique, 6, 32, DELICA_W, DELICA_H)
+      expect(doubleCols.widthMm).toBeCloseTo(a.widthMm * 2, 4)
+      expect(doubleCols.heightMm).toBeCloseTo(a.heightMm, 4)
+      expect(doubleRows.heightMm).toBeCloseTo(a.heightMm * 2, 4)
+      expect(doubleRows.widthMm).toBeCloseTo(a.widthMm, 4)
     }
   })
 })
