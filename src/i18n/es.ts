@@ -107,6 +107,9 @@ export const t = {
     shareImage: 'Compartir imagen',
     shareImageDownloadPng: 'Descargar imagen (PNG)',
     shareImageInstagram: 'Tarjeta para Instagram',
+    /** Shown when an export fails for any reason — a button that does nothing is the worst outcome. */
+    exportFailed: 'No se pudo generar el PDF. Inténtalo de nuevo.',
+    exportImageFailed: 'No se pudo generar la imagen. Inténtalo de nuevo.',
     noteTitle: 'Nota',
     notePlaceholder: 'Materiales, para quién es, ajustes de tensión…',
     tools: {

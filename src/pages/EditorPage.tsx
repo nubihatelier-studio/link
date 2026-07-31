@@ -24,6 +24,7 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { Toast } from '@/components/shared/Toast'
 
 const TOOL_SHORTCUTS: { key: string; tool: Tool; labelKey: keyof typeof t.editor.tools }[] = [
   { key: 'P', tool: 'pencil', labelKey: 'pencil' },
@@ -74,6 +75,8 @@ export function EditorPage() {
   const [shapeDrawerOpen, setShapeDrawerOpen] = useState(false)
   const [loopDrawerOpen, setLoopDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  /** Non-null while an export failure toast is showing — see `handleExport`. */
+  const [exportError, setExportError] = useState<string | null>(null)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
@@ -210,8 +213,14 @@ export function EditorPage() {
 
   async function handleExport() {
     setExporting(true)
+    setExportError(null)
     try {
       await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, loop, beadType: bead, showLetters })
+    } catch (err) {
+      // Never swallow this: a silent failure looks exactly like a dead
+      // button, which is what the weaver reported.
+      console.error('Export a PDF falló:', err)
+      setExportError(t.editor.exportFailed)
     } finally {
       setExporting(false)
     }
@@ -220,8 +229,12 @@ export function EditorPage() {
   async function handleExportImage() {
     setImageMenuOpen(false)
     setExportingImage(true)
+    setExportError(null)
     try {
       await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
+    } catch (err) {
+      console.error('Export a PNG falló:', err)
+      setExportError(t.editor.exportImageFailed)
     } finally {
       setExportingImage(false)
     }
@@ -230,8 +243,12 @@ export function EditorPage() {
   async function handleExportInstagramCard() {
     setImageMenuOpen(false)
     setExportingImage(true)
+    setExportError(null)
     try {
       await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
+    } catch (err) {
+      console.error('Export de tarjeta falló:', err)
+      setExportError(t.editor.exportImageFailed)
     } finally {
       setExportingImage(false)
     }
@@ -543,6 +560,9 @@ export function EditorPage() {
 
       {weaveResetPending !== null && (
         <UndoToast message={t.editor.shape.weaveResetNotice} onUndo={undoWeaveReset} onExpire={clearWeaveResetPending} />
+      )}
+      {exportError && (
+        <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
     </div>
   )

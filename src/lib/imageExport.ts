@@ -5,6 +5,7 @@ import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { paletteFromCells, letterForIndex } from './palette'
 import { contrastTextColor } from './color'
+import { shareOrDownloadFile } from './shareFile'
 import { t } from '@/i18n/es'
 
 export interface ExportImageOptions {
@@ -321,63 +322,20 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: num
   })
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1])
-    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer la imagen'))
-    reader.readAsDataURL(blob)
-  })
-}
-
 function sanitizeFilename(name: string): string {
   return (name || 'patron').replace(/\s+/g, '_')
-}
-
-/**
- * On the web, prefers the native share sheet (mobile browsers / installed
- * PWA) when it can share files, falling back to a plain download when it
- * can't (most desktop browsers don't support file sharing). Inside a
- * Capacitor WebView there's no browser share/download UI to trigger, so —
- * mirroring `pdfExport.ts`'s `savePdf` — the image is written to the app's
- * cache directory and handed to the native share sheet instead.
- */
-export async function shareOrDownloadImage(blob: Blob, filename: string): Promise<void> {
-  const { Capacitor } = await import('@capacitor/core')
-  if (Capacitor.isNativePlatform()) {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const { Share } = await import('@capacitor/share')
-    const base64 = await blobToBase64(blob)
-    await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache })
-    const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache })
-    await Share.share({ title: filename, files: [uri] })
-    return
-  }
-
-  const file = new File([blob], filename, { type: blob.type })
-  if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: filename })
-    return
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 /** High-res PNG export of the pattern chart alone (no card framing) — the "share the actual chart" option. */
 export async function exportPatternImage(opts: ExportImageOptions): Promise<void> {
   const canvas = renderPatternCanvas(opts, '#ffffff', 1800)
   const blob = await canvasToBlob(canvas, 'image/png')
-  await shareOrDownloadImage(blob, `${sanitizeFilename(opts.name)}.png`)
+  await shareOrDownloadFile(blob, `${sanitizeFilename(opts.name)}.png`)
 }
 
 /** The branded Instagram card (see `composeInstagramCard`), shared/downloaded as a JPEG. */
 export async function exportInstagramCardImage(opts: ExportImageOptions): Promise<void> {
   const card = await composeInstagramCard(opts)
   const blob = await canvasToBlob(card, 'image/jpeg', 0.92)
-  await shareOrDownloadImage(blob, `${sanitizeFilename(opts.name)}_instagram.jpg`)
+  await shareOrDownloadFile(blob, `${sanitizeFilename(opts.name)}_instagram.jpg`)
 }

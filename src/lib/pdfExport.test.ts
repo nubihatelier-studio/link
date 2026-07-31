@@ -3,6 +3,7 @@ import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData, LoopData } from '@/engine/types'
 import { beadCount, gridFromPhysicalSizeMm, physicalSizeMm } from '@/engine/geometry'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
+import { createShapedRowShape } from '@/engine/shape'
 import { formatSizeMm } from '@/engine/units'
 import { loopBeadCount, loopHeightUnits } from '@/engine/loop'
 import {
@@ -461,5 +462,84 @@ describe('el encabezado del PDF reporta el mismo tamaño que el motor (Tarea 2)'
     const bead = getBeadType(beadTypeId)
     const size = physicalSizeMm(technique, cols, rows, bead)
     expect(gridFromPhysicalSizeMm(technique, size.widthMm, size.heightMm, bead)).toEqual({ cols, rows })
+  })
+})
+
+/**
+ * Integration coverage for Prioridad 1: these build the WHOLE document (every
+ * page, every section) for the configurations QA flagged, instead of testing
+ * the layout helpers in isolation. The helper-level tests above all passed
+ * while the export was reported broken in the field, so "the maths is right"
+ * is explicitly not the thing being asserted here — "jsPDF actually produced
+ * a document, end to end" is.
+ */
+describe('exportPatternToPdf — integración, documento completo (Prioridad 1)', () => {
+  const bead = getBeadType('miyuki-delica-11')
+
+  /** Bytes actually produced, so a "success" that emitted nothing can't pass. */
+  async function exportAndMeasure(opts: Parameters<typeof exportPatternToPdf>[0]) {
+    await exportPatternToPdf(opts)
+    const doc = lastDoc!
+    const bytes = doc.output('blob').size
+    return { pages: doc.getNumberOfPages(), bytes }
+  }
+
+  it('pulsera peyote larga (6 × 60)', async () => {
+    const { pages, bytes } = await exportAndMeasure({
+      name: 'Pulsera', technique: 'peyote', cols: 6, rows: 60, cells: fillCells(6, 60), beadType: bead,
+    })
+    expect(pages).toBeGreaterThanOrEqual(1)
+    expect(bytes).toBeGreaterThan(1000)
+  })
+
+  it('aro con flecos 7 × 7, cuerpo triangular, fleco en cascada y argolla tejida', async () => {
+    const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#1c1c1e' }
+    const { pages, bytes } = await exportAndMeasure({
+      name: 'Aro con flecos', technique: 'brick', cols: 7, rows: 7, cells: fillCells(7, 7),
+      rowShape: createShapedRowShape('triangle', 7, 7),
+      fringe: { lengths: [4, 6, 8, 9, 8, 6, 4], turnBeads: [true, true, true, true, true, true, true] },
+      loop, beadType: bead,
+    })
+    expect(pages).toBeGreaterThanOrEqual(1)
+    expect(bytes).toBeGreaterThan(1000)
+  })
+
+  it('patrón grande 50 × 50 (el que sale de "foto a patrón") — cae en el layout paginado', async () => {
+    const { pages, bytes } = await exportAndMeasure({
+      name: 'Foto', technique: 'loom', cols: 50, rows: 50, cells: fillCells(50, 50), beadType: bead,
+    })
+    expect(pages).toBeGreaterThan(1) // no cabe en una hoja: debe paginar, no romperse
+    expect(bytes).toBeGreaterThan(1000)
+  })
+
+  it('patrón mínimo de una sola fila', async () => {
+    const { pages, bytes } = await exportAndMeasure({
+      name: 'Una fila', technique: 'brick', cols: 6, rows: 1, cells: fillCells(6, 1), beadType: bead,
+    })
+    expect(pages).toBeGreaterThanOrEqual(1)
+    expect(bytes).toBeGreaterThan(1000)
+  })
+
+  // Los casos límite que el layout de una hoja podría dividir por cero o
+  // dejar en NaN: una sola celda, una tira muy ancha y baja (que fuerza el
+  // fallback a horizontal), y un fleco al largo máximo.
+  it.each([
+    ['una sola mostacilla', { technique: 'brick' as const, cols: 1, rows: 1 }],
+    ['una sola columna, muy alta', { technique: 'peyote' as const, cols: 1, rows: 80 }],
+    ['muy ancho y bajo (fuerza el fallback horizontal)', { technique: 'loom' as const, cols: 120, rows: 3 }],
+  ])('dimensión extrema: %s', async (_label, dims) => {
+    const { bytes } = await exportAndMeasure({
+      name: 'Extremo', ...dims, cells: fillCells(dims.cols, dims.rows), beadType: bead,
+    })
+    expect(bytes).toBeGreaterThan(1000)
+  })
+
+  it('fleco al largo máximo junto con argolla, sobre el layout de una hoja', async () => {
+    const { bytes } = await exportAndMeasure({
+      name: 'Fleco largo', technique: 'brick', cols: 6, rows: 6, cells: fillCells(6, 6),
+      fringe: { lengths: [100, 100, 100, 100, 100, 100], turnBeads: [] },
+      loop: { variant: 'woven', beadCount: 30, color: '#c9a227' }, beadType: bead,
+    })
+    expect(bytes).toBeGreaterThan(1000)
   })
 })

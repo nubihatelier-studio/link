@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Everything here is about which *branch* shareOrDownloadImage takes
+// Everything here is about which *branch* shareOrDownloadFile takes
 // (native / Web Share / plain download) — canvas.toBlob and <img> loads
 // never actually resolve in jsdom (see imageExport.test.ts), so this file
-// exercises shareOrDownloadImage directly with a hand-built Blob instead of
+// exercises shareOrDownloadFile directly with a hand-built Blob instead of
 // going through the full render → composite → export pipeline.
 
 const isNativePlatform = vi.fn(() => false)
@@ -22,7 +22,7 @@ vi.mock('@capacitor/filesystem', () => ({
 const shareNative = vi.fn(async (..._args: unknown[]) => {})
 vi.mock('@capacitor/share', () => ({ Share: { share: (...args: unknown[]) => shareNative(...args) } }))
 
-describe('shareOrDownloadImage', () => {
+describe('shareOrDownloadFile', () => {
   beforeEach(() => {
     isNativePlatform.mockReturnValue(false)
     writeFile.mockClear()
@@ -32,10 +32,10 @@ describe('shareOrDownloadImage', () => {
 
   it('writes to the cache dir and hands it to the native share sheet on a native platform', async () => {
     isNativePlatform.mockReturnValue(true)
-    const { shareOrDownloadImage } = await import('./imageExport')
+    const { shareOrDownloadFile } = await import('./shareFile')
     const blob = new Blob(['x'], { type: 'image/png' })
 
-    await shareOrDownloadImage(blob, 'foo.png')
+    await shareOrDownloadFile(blob, 'foo.png')
 
     expect(writeFile).toHaveBeenCalledTimes(1)
     expect(getUri).toHaveBeenCalledTimes(1)
@@ -48,10 +48,10 @@ describe('shareOrDownloadImage', () => {
     const share = vi.fn(async () => {})
     vi.stubGlobal('navigator', { ...navigator, canShare, share })
 
-    const { shareOrDownloadImage } = await import('./imageExport')
+    const { shareOrDownloadFile } = await import('./shareFile')
     const blob = new Blob(['x'], { type: 'image/png' })
 
-    await shareOrDownloadImage(blob, 'foo.png')
+    await shareOrDownloadFile(blob, 'foo.png')
 
     expect(canShare).toHaveBeenCalledTimes(1)
     expect(share).toHaveBeenCalledTimes(1)
@@ -61,6 +61,7 @@ describe('shareOrDownloadImage', () => {
   })
 
   it('falls back to a plain download when neither native nor Web Share is available', async () => {
+    vi.useFakeTimers()
     vi.stubGlobal('navigator', { ...navigator, canShare: undefined, share: undefined })
 
     const originalCreateObjectURL = URL.createObjectURL
@@ -78,18 +79,24 @@ describe('shareOrDownloadImage', () => {
       return el
     })
 
-    const { shareOrDownloadImage } = await import('./imageExport')
+    const { shareOrDownloadFile } = await import('./shareFile')
     const blob = new Blob(['x'], { type: 'image/png' })
 
-    await shareOrDownloadImage(blob, 'foo.png')
+    await shareOrDownloadFile(blob, 'foo.png')
 
     expect(createObjectURL).toHaveBeenCalledWith(blob)
     expect(clickSpy).toHaveBeenCalledTimes(1)
+    // Deliberately NOT revoked synchronously: Safari aborts a download whose
+    // object URL is revoked before it has actually started reading it, which
+    // is one of the ways an export "does nothing" with no error anywhere.
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(10_000)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake')
 
     URL.createObjectURL = originalCreateObjectURL
     URL.revokeObjectURL = originalRevokeObjectURL
     createElementSpy.mockRestore()
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 })

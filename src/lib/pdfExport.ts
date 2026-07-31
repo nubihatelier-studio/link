@@ -8,6 +8,7 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { formatSizeMm } from '@/engine/units'
+import { shareOrDownloadFile } from './shareFile'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
 import { t } from '@/i18n/es'
 
@@ -581,25 +582,13 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
 }
 
 /**
- * On the web, jsPDF's own `doc.save()` triggers a normal browser download.
- * Inside a Capacitor WebView there's no browser download UI to trigger, so
- * instead we write the PDF to the app's cache directory (the only folder
- * Capacitor shares files from without extra native config) and hand it to
- * the native share sheet — the standard Capacitor pattern for "export a
- * generated file" (Filesystem.writeFile + Filesystem.getUri + Share.share).
+ * Hands the finished document to the weaver — see `shareFile.ts` for why this
+ * deliberately does NOT use jsPDF's own `doc.save()`. That helper is an
+ * `<a download>` click, which is a silent no-op in an installed PWA and in
+ * iOS Safari: the PDF was being built correctly and then vanishing, with no
+ * error anywhere, which is exactly what "Exportar PDF no funciona" looked
+ * like from the outside.
  */
 async function savePdf(doc: JsPDF, filename: string): Promise<void> {
-  const { Capacitor } = await import('@capacitor/core')
-  if (!Capacitor.isNativePlatform()) {
-    doc.save(filename)
-    return
-  }
-
-  const { Filesystem, Directory } = await import('@capacitor/filesystem')
-  const { Share } = await import('@capacitor/share')
-
-  const base64 = doc.output('datauristring').split(',')[1]
-  await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache })
-  const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache })
-  await Share.share({ title: filename, files: [uri] })
+  await shareOrDownloadFile(doc.output('blob'), filename)
 }
