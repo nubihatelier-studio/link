@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { RowShape } from './types'
 import { isOddIndex } from './geometry'
 import {
   createRectangleRowShape,
@@ -282,6 +283,7 @@ describe('recenterRowShape — centering as an invariant, not an incremental cal
         const recentered = recenterRowShape(
           shape.map((row) => ({ offset: 0, length: row.length })),
           cols,
+          0,
         )
         expect(recentered).toEqual(shape)
       }
@@ -297,7 +299,7 @@ describe('recenterRowShape — centering as an invariant, not an incremental cal
     function addRowAtTop(rowShape: { offset: number; length: number }[], cols: number) {
       const oldFirst = rowShape[0]
       const length = Math.max(1, oldFirst.length - 1)
-      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
+      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols, 0)
     }
     let rowShape = createShapedRowShape('triangle', 13, 7)
     for (let i = 0; i < 5; i++) {
@@ -315,11 +317,11 @@ describe('recenterRowShape — centering as an invariant, not an incremental cal
 
   it('regression: removing rows from the top repeatedly also stays centered (no incremental patch, same recompute)', () => {
     function removeRowAtTop(rowShape: { offset: number; length: number }[], cols: number) {
-      return recenterRowShape(rowShape.slice(1), cols)
+      return recenterRowShape(rowShape.slice(1), cols, 0)
     }
     let rowShape = createShapedRowShape('rhombus', 13, 13)
     for (let i = 0; i < 4; i++) rowShape = removeRowAtTop(rowShape, 13)
-    expect(rowShape).toEqual(recenterRowShape(rowShape, 13)) // already a fixed point — recentering again changes nothing
+    expect(rowShape).toEqual(recenterRowShape(rowShape, 13, 0)) // already a fixed point — recentering again changes nothing
     rowShape.forEach((row) => {
       expect(row.offset).toBeGreaterThanOrEqual(0)
       expect(row.offset + row.length).toBeLessThanOrEqual(13)
@@ -332,7 +334,7 @@ describe('recenterRowShape — centering as an invariant, not an incremental cal
       { offset: 2, length: 9 }, // jumped from 3 to 9 beads — could never come from a single generator step
       { offset: 4, length: 5 },
     ]
-    const recentered = recenterRowShape(handEdited, 13)
+    const recentered = recenterRowShape(handEdited, 13, 0)
     expect(recentered.map((r) => r.length)).toEqual([3, 9, 5]) // widths are never touched, only offsets
     recentered.forEach((row) => {
       expect(row.offset).toBeGreaterThanOrEqual(0)
@@ -452,7 +454,7 @@ describe('recenterRowShape + staggerPhase — insertion/removal keeps the whole 
     function addRowAtTopNoPhase(rowShape: { offset: number; length: number }[], cols: number) {
       const oldFirst = rowShape[0]
       const length = Math.max(1, oldFirst.length - 1)
-      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols)
+      return recenterRowShape([{ offset: 0, length }, ...rowShape], cols, 0)
     }
     let rowShape = createShapedRowShape('triangle', 13, 13)
     rowShape = addRowAtTopNoPhase(rowShape, 13)
@@ -622,5 +624,128 @@ describe('preferredRowsFor — silently nudging even rows to odd for presets wit
   it('applying a preset again after the nudge is idempotent (rows is already odd, so it stays put)', () => {
     const once = preferredRowsFor('rhombus', 16)
     expect(preferredRowsFor('rhombus', once)).toBe(once)
+  })
+})
+
+/**
+ * Prioridad 3. QA reported `triangle 7×7` + 5 rows as still deforming the
+ * body: centers 3.5 / 4.0 / 3.5 …, deviation 0.50, rows out of the grid.
+ *
+ * Those numbers are what you get calling `recenterRowShape` WITHOUT the
+ * stagger phase — the app never does (see `editorStore#addRowAtTop`), but
+ * nothing in the type system stopped a caller from doing it, which is how the
+ * report was produced. The phase parameter is required now, and this block
+ * pins the exact fixture so the claim can be checked directly rather than
+ * argued about.
+ */
+describe('agregar/quitar filas en triangle 7×7 — el caso reportado por QA (Prioridad 3)', () => {
+  interface Shaped {
+    rowShape: RowShape[]
+    staggerPhase: 0 | 1
+  }
+
+  /** Exactly what editorStore.addRowAtTop does: narrower row on top, flip the phase, recenter with the NEW phase. */
+  function addRowAtTop(state: Shaped, cols: number): Shaped {
+    const length = Math.max(1, state.rowShape[0].length - 1)
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape([{ offset: 0, length }, ...state.rowShape], cols, staggerPhase), staggerPhase }
+  }
+
+  function removeRowAtTop(state: Shaped, cols: number): Shaped {
+    const staggerPhase: 0 | 1 = state.staggerPhase === 0 ? 1 : 0
+    return { rowShape: recenterRowShape(state.rowShape.slice(1), cols, staggerPhase), staggerPhase }
+  }
+
+  /** A row's real left edge on the canvas: its offset plus brick's half-bead stagger when it lands on odd parity. */
+  function physicalLeft(row: number, offset: number, phase: 0 | 1): number {
+    return offset + (isOddIndex(row + phase) ? 0.5 : 0)
+  }
+
+  function metrics(state: Shaped) {
+    return state.rowShape.map((row, r) => {
+      const left = physicalLeft(r, row.offset, state.staggerPhase)
+      return { left, right: left + row.length, center: left + row.length / 2 }
+    })
+  }
+
+  const CASES: readonly (readonly ['triangle' | 'rhombus', number])[] = [
+    ['triangle', 7], // el fixture exacto del reporte — 7 es impar, así que preferredRowsFor lo deja en 7×7
+    ['triangle', 12],
+    ['triangle', 13],
+    ['rhombus', 12],
+    ['rhombus', 13],
+  ]
+
+  /**
+   * El alto pasa por `preferredRowsFor`, que es el ajuste silencioso que la
+   * propia pantalla de creación aplica al elegir un preset — o sea, la
+   * silueta de partida es la que la app realmente produce. Con un alto
+   * arbitrario (por ejemplo un triángulo de 12 columnas forzado a 12 filas,
+   * que la app nudge­aría a 13) el taper no alcanza `cols` con la paridad que
+   * le corresponde y una meseta puede quedar a una mostacilla entera del eje;
+   * eso es la limitación ya documentada en `walkOffsets`, no lo que se está
+   * verificando acá.
+   */
+  function initial(preset: 'triangle' | 'rhombus', cols: number): Shaped {
+    return { rowShape: createShapedRowShape(preset, cols, preferredRowsFor(preset, cols)), staggerPhase: 0 }
+  }
+
+  it.each(CASES)('%s con %i columnas: 1, 2, 5 y 10 filas agregadas mantienen el eje y la grilla', (preset, cols) => {
+    let state: Shaped = initial(preset, cols)
+
+    function assertInvariants(step: number) {
+      const rows = metrics(state)
+      rows.forEach((m, r) => {
+        // Dentro de la grilla. El +0.5 no es holgura: es el corrimiento propio
+        // de brick, que gridBoundsUnits ya reserva en el ancho del lienzo.
+        expect(m.left, `${preset} ${cols} paso ${step} fila ${r} borde izq`).toBeGreaterThanOrEqual(-1e-9)
+        expect(m.right, `${preset} ${cols} paso ${step} fila ${r} borde der`).toBeLessThanOrEqual(cols + 0.5 + 1e-9)
+        // Centrada respecto al eje.
+        expect(Math.abs(m.center - cols / 2), `${preset} ${cols} paso ${step} fila ${r} eje`).toBeLessThanOrEqual(0.5 + 1e-9)
+      })
+      // Desplazamiento de bordes de ±0.5 como máximo entre filas consecutivas:
+      // la silueta avanza de a media mostacilla, nunca a saltos.
+      for (let r = 1; r < rows.length; r++) {
+        expect(Math.abs(rows[r].left - rows[r - 1].left), `${preset} ${cols} paso ${step} salto fila ${r}`).toBeLessThanOrEqual(0.5 + 1e-9)
+      }
+    }
+
+    assertInvariants(0)
+    let added = 0
+    for (const checkpoint of [1, 2, 5, 10]) {
+      while (added < checkpoint) {
+        state = addRowAtTop(state, cols)
+        added++
+        assertInvariants(added)
+      }
+    }
+  })
+
+  it('el fixture del reporte: triangle 7×7 + 5 filas queda centrado y dentro de [0, 7]', () => {
+    const cols = 7
+    let state: Shaped = { rowShape: createShapedRowShape('triangle', cols, 7), staggerPhase: 0 }
+    for (let i = 0; i < 5; i++) state = addRowAtTop(state, cols)
+
+    const rows = metrics(state)
+    expect(rows).toHaveLength(12)
+    // Ninguna fila se sale: esto es lo que el reporte marcaba como "SÍ".
+    expect(rows.every((m) => m.left >= -1e-9 && m.right <= cols + 0.5 + 1e-9)).toBe(true)
+    // Y la desviación máxima del eje no pasa de media mostacilla — que es el
+    // piso teórico: con offsets enteros y el corrimiento de media mostacilla
+    // de brick, una meseta de filas del mismo ancho no puede hacerlo mejor.
+    const maxDev = Math.max(...rows.map((m) => Math.abs(m.center - cols / 2)))
+    expect(maxDev).toBeLessThanOrEqual(0.5 + 1e-9)
+  })
+
+  it.each(CASES)('%s con %i columnas: quitar las filas agregadas devuelve la silueta original', (preset, cols) => {
+    const original = initial(preset, cols)
+
+    for (const count of [1, 2, 5, 10]) {
+      let state = original
+      for (let i = 0; i < count; i++) state = addRowAtTop(state, cols)
+      for (let i = 0; i < count; i++) state = removeRowAtTop(state, cols)
+      expect(state.rowShape, `${preset} ${cols} tras +${count}/-${count}`).toEqual(original.rowShape)
+      expect(state.staggerPhase, `${preset} ${cols} fase tras +${count}/-${count}`).toBe(original.staggerPhase)
+    }
   })
 })

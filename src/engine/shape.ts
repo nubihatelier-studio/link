@@ -236,7 +236,14 @@ function walkOffsets(cols: number, widths: number[], staggerPhase: 0 | 1): numbe
  * row at the top reindexes every existing row, flipping which absolute index
  * (and thus which brick parity) each one lands on — and with a ±1-bead taper,
  * a row's exact centering is only possible at ONE parity. That's what
- * `staggerPhase` is for (default 0, matching all prior behavior): pass the
+ * `staggerPhase` is for. The parameter is REQUIRED, deliberately: it used to
+ * default to 0, and that default is a trap — calling this without the phase
+ * on a pattern actually at phase 1 silently returns a silhouette whose rows
+ * alternate half a bead off-axis, which looks exactly like the "romboide"
+ * regression this function exists to prevent, and is how a QA run reported it
+ * as still present (`triangle 7×7` + 5 rows: centers wobbling 3.5 / 4.0). The
+ * app's own paths always passed the phase; nothing enforced it. Now the type
+ * does. Pass the
  * pattern's current phase so parity checks here match `geometry.ts`'s
  * `cellPosition` exactly. `addRowAtTop`/`removeRowAtTop` flip the phase
  * *before* calling this, so every pre-existing row's physical stagger (and
@@ -261,7 +268,7 @@ function walkOffsets(cols: number, widths: number[], staggerPhase: 0 | 1): numbe
  * absolute guarantee that nothing is ever asked to draw outside the grid —
  * fixed here, in the engine, not papered over with clamping in a renderer.
  */
-export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhase: 0 | 1 = 0): RowShape[] {
+export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhase: 0 | 1): RowShape[] {
   const widths = rowShape.map((row) => row.length)
   const offsets = walkOffsets(cols, widths, staggerPhase)
   return widths.map((length, r) => ({ offset: Math.max(0, Math.min(cols - length, offsets[r])), length }))
@@ -269,9 +276,13 @@ export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhas
 
 function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
   const widths = Array.from({ length: rows }, (_, r) => widthAt(preset, cols, rows, r))
+  // A fresh preset is only ever built at pattern creation, where the pattern's
+  // phase is 0 by definition — passed explicitly rather than defaulted so this
+  // assumption is visible instead of implied.
   return recenterRowShape(
     widths.map((length) => ({ offset: 0, length })),
     cols,
+    0,
   )
 }
 
