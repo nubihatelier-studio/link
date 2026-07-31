@@ -1,5 +1,6 @@
-import type { Technique, CellPosition, RowShape } from './types'
+import type { Technique, BeadTypeDef, CellPosition, RowShape } from './types'
 import { loopHeightUnits } from './loop'
+import { weaveThreadFactor } from './calibration'
 
 /**
  * Geometry model for the three supported weaving techniques.
@@ -35,7 +36,7 @@ import { loopHeightUnits } from './loop'
  *   additional row (BRICK_ROW_COMPACTION) — both on screen and, for now,
  *   in the physical size estimate too (still just the original theoretical
  *   guess there, not calibrated against a real brick piece — see
- *   `WEAVE_THREAD_FACTOR`).
+ *   `calibration.ts#WEAVE_THREAD_FACTOR`).
  */
 
 export const PEYOTE_ROW_COMPACTION = 0.75
@@ -54,14 +55,14 @@ export const BRICK_ROW_COMPACTION = 0.85
  *   same direction as the row — a column's width uses the bead's own width,
  *   a row's height uses its height. The "natural" assumption carried over
  *   from the original model; NOT calibrated against a physical loom sample
- *   (see `WEAVE_THREAD_FACTOR`).
+ *   (see `calibration.ts#WEAVE_THREAD_FACTOR`).
  * - Peyote: the bead lies on its side with the hole HORIZONTAL, threaded in
  *   vertical columns — so a column's width is the bead's short side
  *   (`heightMm` on a Delica, its actual width when lying down) and the step
  *   down a column is the bead's long side/diameter (`widthMm`). The exact
  *   reverse of loom's mapping, because the bead itself is rotated 90° to
  *   sit in a column instead of a row. Calibrated against a real measured
- *   piece (peyote, Delica 11/0, 6×60 → 8×102mm) — see `WEAVE_THREAD_FACTOR`.
+ *   piece (peyote, Delica 11/0, 6×60 → 8×102mm) — see `calibration.ts#WEAVE_THREAD_FACTOR`.
  * - Brick: the bead also lies on its side (hole horizontal) but threaded in
  *   HORIZONTAL rows instead of columns — so along a row it's the bead's
  *   long side/diameter that repeats (`widthMm`), and the step between rows
@@ -76,13 +77,22 @@ const BEAD_AXIS_MAP: Record<Technique, { horizontal: 'width' | 'height'; vertica
   brick: { horizontal: 'width', vertical: 'height' },
 }
 
-function beadAxisMm(
-  technique: Technique,
-  axis: 'horizontal' | 'vertical',
-  beadWidthMm: number,
-  beadHeightMm: number,
-): number {
-  return BEAD_AXIS_MAP[technique][axis] === 'width' ? beadWidthMm : beadHeightMm
+function beadAxisMm(technique: Technique, axis: 'horizontal' | 'vertical', bead: BeadTypeDef): number {
+  return BEAD_AXIS_MAP[technique][axis] === 'width' ? bead.widthMm : bead.heightMm
+}
+
+/**
+ * Millimetres between the start of one row and the start of the next, for the
+ * *finished piece* — the bead's own vertical dimension, times the technique's
+ * physical row pitch, times the measured thread/tension correction for this
+ * exact (technique × bead type) pair. Single source of truth shared by
+ * `physicalSizeMm` and its inverse `gridFromPhysicalSizeMm`, so asking for a
+ * length in mm and reading the resulting grid's length back always agrees.
+ */
+function physicalRowMm(technique: Technique, bead: BeadTypeDef): number {
+  return (
+    physicalRowPitch(technique) * beadAxisMm(technique, 'vertical', bead) * weaveThreadFactor(technique, bead.id)
+  )
 }
 
 /**
@@ -105,8 +115,9 @@ function beadAxisMm(
  * theoretical guess, NOT calibrated against a real piece.
  *
  * Even with both fixes, this is still only the bead's own raw dimension —
- * thread thickness and weaving tension nudge a real piece a bit further;
- * see the thread/tension correction layered on top of this pitch.
+ * thread thickness and weaving tension nudge a real piece a bit further, so
+ * `physicalRowMm` multiplies this by the measured correction from
+ * `calibration.ts#WEAVE_THREAD_FACTOR` before anything reports millimetres.
  */
 function physicalRowPitch(technique: Technique): number {
   switch (technique) {
@@ -278,8 +289,9 @@ export function beadCount(_technique: Technique, cols: number, rows: number, row
  * (cols × the bead's short side, 2.5% off the real 8.0mm) and 96mm tall
  * (rows × diameter, 6% off the real 102mm) — the residual height error is
  * thread thickness and weaving tension, which no bead-only model can
- * capture; see the calibrated thread/tension factor layered on top of this
- * function.
+ * capture — that residual is the measured correction in
+ * `calibration.ts#WEAVE_THREAD_FACTOR`, applied here via `physicalRowMm`, and
+ * it closes the remaining 6% exactly for the calibrated sample.
  *
  * `maxFringeBeads` folds the longest fringe into the total height, at the
  * same per-row pitch as the body, so the configurator/PDF header always
@@ -294,14 +306,13 @@ export function physicalSizeMm(
   technique: Technique,
   cols: number,
   rows: number,
-  beadWidthMm: number,
-  beadHeightMm: number,
+  bead: BeadTypeDef,
   maxFringeBeads = 0,
   loopBeads = 0,
 ) {
-  const horizontalMm = beadAxisMm(technique, 'horizontal', beadWidthMm, beadHeightMm)
-  const verticalMm = beadAxisMm(technique, 'vertical', beadWidthMm, beadHeightMm)
-  const rowMm = physicalRowPitch(technique) * verticalMm
+  const horizontalMm = beadAxisMm(technique, 'horizontal', bead)
+  const verticalMm = beadAxisMm(technique, 'vertical', bead)
+  const rowMm = physicalRowMm(technique, bead)
   return {
     widthMm: cols * horizontalMm,
     heightMm: (rows + maxFringeBeads) * rowMm + loopHeightUnits(loopBeads) * verticalMm,
@@ -390,12 +401,10 @@ export function gridFromPhysicalSizeMm(
   technique: Technique,
   widthMm: number,
   heightMm: number,
-  beadWidthMm: number,
-  beadHeightMm: number,
+  bead: BeadTypeDef,
 ) {
-  const horizontalMm = beadAxisMm(technique, 'horizontal', beadWidthMm, beadHeightMm)
-  const verticalMm = beadAxisMm(technique, 'vertical', beadWidthMm, beadHeightMm)
-  const rowMm = physicalRowPitch(technique) * verticalMm
+  const horizontalMm = beadAxisMm(technique, 'horizontal', bead)
+  const rowMm = physicalRowMm(technique, bead)
 
   const cols = Math.max(1, Math.round(widthMm / horizontalMm))
   const rows = Math.max(1, Math.round(heightMm / rowMm))

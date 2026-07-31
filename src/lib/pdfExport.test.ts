@@ -1,9 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData, LoopData } from '@/engine/types'
-import { beadCount, physicalSizeMm } from '@/engine/geometry'
+import { beadCount, gridFromPhysicalSizeMm, physicalSizeMm } from '@/engine/geometry'
+import { CALIBRATION_SAMPLE } from '@/engine/calibration'
+import { formatSizeMm } from '@/engine/units'
 import { loopBeadCount, loopHeightUnits } from '@/engine/loop'
-import { chartCellMm, chooseOnePageLayout, fitChartCellToOnePage, rulerLabelIndices, rulerLabelStep } from './pdfExport'
+import {
+  chartCellMm,
+  chooseOnePageLayout,
+  exportPatternToPdf,
+  fitChartCellToOnePage,
+  rulerLabelIndices,
+  rulerLabelStep,
+} from './pdfExport'
 
 // Route the native (Capacitor) export path instead of doc.save()'s browser download,
 // which jsdom doesn't implement — this still exercises the full document build.
@@ -409,9 +418,48 @@ describe('exportPatternToPdf', () => {
     it('same total/size formula the header prints is what geometry.ts itself computes (consistency, Corrección e)', () => {
       const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#c9a227' }
       const total = beadCount('brick', 6, 6) + loopBeadCount(loop)
-      const size = physicalSizeMm('brick', 6, 6, bead.widthMm, bead.heightMm, 0, loopBeadCount(loop))
+      const size = physicalSizeMm('brick', 6, 6, bead, 0, loopBeadCount(loop))
       expect(total).toBeGreaterThan(beadCount('brick', 6, 6)) // guard: loop beads actually added
-      expect(size.heightMm).toBeGreaterThan(physicalSizeMm('brick', 6, 6, bead.widthMm, bead.heightMm).heightMm)
+      expect(size.heightMm).toBeGreaterThan(physicalSizeMm('brick', 6, 6, bead).heightMm)
     })
+  })
+})
+
+/**
+ * Test (e) of the calibration round: the size a weaver reads must be the same
+ * number wherever they read it. The PDF header is checked here against the
+ * engine directly; ConfiguratorPage.test.tsx checks the on-screen summary
+ * against the same call, and geometry.test.ts checks the inverse.
+ */
+describe('el encabezado del PDF reporta el mismo tamaño que el motor (Tarea 2)', () => {
+  /** Every literal string jsPDF wrote into the document, in draw order. */
+  function pdfTextLines(doc: import('jspdf').jsPDF): string[] {
+    const raw = doc.output()
+    return [...raw.matchAll(/\((?:\\.|[^()\\])*\) Tj/g)].map((m) => m[0].slice(1, -4).replace(/\\([()])/g, '$1'))
+  }
+
+  it('imprime exactamente formatSizeMm(physicalSizeMm(...)) para la pieza real de referencia', async () => {
+    const { technique, beadTypeId, cols, rows } = CALIBRATION_SAMPLE
+    const bead = getBeadType(beadTypeId)
+    await exportPatternToPdf({
+      name: 'Pulsera de referencia',
+      technique,
+      cols,
+      rows,
+      cells: fillCells(cols, rows),
+      beadType: bead,
+    })
+
+    const size = physicalSizeMm(technique, cols, rows, bead)
+    const expected = formatSizeMm(size.widthMm, size.heightMm)
+    expect(expected).toBe('7.8 × 102.0 mm') // guard: si esto cambia, cambió la calibración
+    expect(pdfTextLines(lastDoc!).some((line) => line.includes(expected))).toBe(true)
+  })
+
+  it('el mismo tamaño vuelve a dar la misma grilla por "tamaño final"', async () => {
+    const { technique, beadTypeId, cols, rows } = CALIBRATION_SAMPLE
+    const bead = getBeadType(beadTypeId)
+    const size = physicalSizeMm(technique, cols, rows, bead)
+    expect(gridFromPhysicalSizeMm(technique, size.widthMm, size.heightMm, bead)).toEqual({ cols, rows })
   })
 })

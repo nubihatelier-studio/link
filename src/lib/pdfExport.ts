@@ -7,6 +7,7 @@ import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
+import { formatSizeMm } from '@/engine/units'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
 import { t } from '@/i18n/es'
 
@@ -350,8 +351,7 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
     opts.technique,
     opts.cols,
     opts.rows,
-    opts.beadType.widthMm,
-    opts.beadType.heightMm,
+    opts.beadType,
     maxFringeLength(opts.fringe),
     loopBeadCount(opts.loop),
   )
@@ -361,7 +361,7 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
     loopBeadCount(opts.loop)
   const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
   doc.text(
-    `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${size.widthMm.toFixed(1)} × ${size.heightMm.toFixed(1)} mm · Total: ${total} mostacillas`,
+    `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${formatSizeMm(size.widthMm, size.heightMm)} · Total: ${total} mostacillas`,
     margin,
     23,
   )

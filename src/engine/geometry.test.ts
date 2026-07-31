@@ -16,43 +16,76 @@ import {
 import { createShapedRowShape } from './shape'
 import { isPaintableCell } from './fringe'
 import { loopHeightUnits } from './loop'
+import { getBeadType } from '@/data/beadTypes'
+import { CALIBRATION_SAMPLE, weaveThreadFactor } from './calibration'
 
-// Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
-const DELICA_W = 1.6
-const DELICA_H = 1.3
+// Real catalog entries (src/data/beadTypes.ts) — physicalSizeMm keys its
+// thread/tension calibration off the bead's `id`, so these must be the actual
+// defs, not loose numbers.
+const DELICA = getBeadType('miyuki-delica-11')
+const ROCALLA = getBeadType('rocalla-11')
+const DELICA_W = DELICA.widthMm // 1.6 — the bead's diameter / long side
+const DELICA_H = DELICA.heightMm // 1.3 — its short side
+
+/**
+ * The whole point of the calibration work: a bracelet the weaver actually
+ * wove and measured with a ruler. Any change to the axis mapping, the row
+ * pitch or the thread factor has to keep landing on these numbers.
+ */
+describe('physicalSizeMm — calibrated against the real measured piece (Tarea 2)', () => {
+  const { technique, beadTypeId, cols, rows, measuredWidthMm, measuredHeightMm } = CALIBRATION_SAMPLE
+  const bead = getBeadType(beadTypeId)
+  const TOLERANCE = 0.03
+
+  it(`${'peyote'} · Delica 11/0 · 6 × 60 lands within ±3% of the measured 8.0 × 102 mm`, () => {
+    const size = physicalSizeMm(technique, cols, rows, bead)
+    const widthError = Math.abs(size.widthMm - measuredWidthMm) / measuredWidthMm
+    const heightError = Math.abs(size.heightMm - measuredHeightMm) / measuredHeightMm
+    expect(widthError, `ancho ${size.widthMm.toFixed(2)}mm vs ${measuredWidthMm}mm`).toBeLessThanOrEqual(TOLERANCE)
+    expect(heightError, `largo ${size.heightMm.toFixed(2)}mm vs ${measuredHeightMm}mm`).toBeLessThanOrEqual(TOLERANCE)
+  })
+
+  it('the length is calibrated exactly, not just within tolerance — that is what the factor is for', () => {
+    expect(physicalSizeMm(technique, cols, rows, bead).heightMm).toBeCloseTo(measuredHeightMm, 6)
+  })
+
+  it('the width is left uncorrected on purpose: bare beads, 2.5% under, inside measuring error', () => {
+    // No width factor exists — across a row beads sit hole-to-hole, touching.
+    expect(physicalSizeMm(technique, cols, rows, bead).widthMm).toBeCloseTo(cols * bead.heightMm, 6)
+  })
+})
 
 describe('physicalSizeMm', () => {
   it('loom: rows/cols multiplied straight by bead size (width→horizontal, height→vertical — unaffected by the peyote fix)', () => {
-    const size = physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H)
+    const size = physicalSizeMm('loom', 6, 16, DELICA)
     expect(size.widthMm).toBeCloseTo(9.6, 4)
     expect(size.heightMm).toBeCloseTo(20.8, 4)
   })
 
   it('peyote: axes are swapped vs. loom — a column uses the bead\'s short side, a row uses its diameter (Corrección 1)', () => {
-    const size = physicalSizeMm('peyote', 6, 16, DELICA_W, DELICA_H)
+    const size = physicalSizeMm('peyote', 6, 16, DELICA)
     // Width uses the SHORT side (DELICA_H, 1.3mm) per column, not the diameter.
     expect(size.widthMm).toBeCloseTo(6 * DELICA_H, 4)
     // Height uses the diameter (DELICA_W, 1.6mm) per row, with NO extra
     // compaction — PEYOTE_ROW_COMPACTION stays a render-only concern now
-    // (see `physicalRowPitch`'s doc comment); the theoretical bead-only
-    // estimate here is deliberately still ~6% short of a real piece (see
-    // the calibrated-fixture test below) — that gap is thread & tension,
-    // not something a bead-dimensions-only model can capture.
-    expect(size.heightMm).toBeCloseTo(16 * DELICA_W, 4)
+    // (see `physicalRowPitch`'s doc comment) — times the measured
+    // thread/tension correction for this exact bead (Tarea 2).
+    expect(size.heightMm).toBeCloseTo(16 * DELICA_W * weaveThreadFactor('peyote', DELICA.id), 4)
   })
 
   it('brick: unaffected by the peyote fix — same axis mapping and compaction as before', () => {
-    const brick = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
+    const brick = physicalSizeMm('brick', 6, 16, DELICA)
     expect(brick.widthMm).toBeCloseTo(6 * DELICA_W, 4)
     expect(brick.heightMm).toBeCloseTo(16 * BRICK_ROW_COMPACTION * DELICA_H, 4)
   })
 
   it('a single row/column reduces to exactly one bead pitch on the relevant axis, for every technique', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {
-      const size = physicalSizeMm(technique, 1, 1, DELICA_W, DELICA_H)
+      const size = physicalSizeMm(technique, 1, 1, DELICA)
       const expectedWidth = technique === 'peyote' ? DELICA_H : DELICA_W
-      const expectedHeight =
+      const bareHeight =
         technique === 'peyote' ? DELICA_W : technique === 'brick' ? BRICK_ROW_COMPACTION * DELICA_H : DELICA_H
+      const expectedHeight = bareHeight * weaveThreadFactor(technique, DELICA.id)
       expect(size.widthMm).toBeCloseTo(expectedWidth, 4)
       expect(size.heightMm).toBeCloseTo(expectedHeight, 4)
     }
@@ -60,9 +93,9 @@ describe('physicalSizeMm', () => {
 
   it('width scales linearly with cols, height linearly with rows — no cross terms', () => {
     for (const technique of ['loom', 'peyote', 'brick'] as const) {
-      const a = physicalSizeMm(technique, 6, 16, DELICA_W, DELICA_H)
-      const doubleCols = physicalSizeMm(technique, 12, 16, DELICA_W, DELICA_H)
-      const doubleRows = physicalSizeMm(technique, 6, 32, DELICA_W, DELICA_H)
+      const a = physicalSizeMm(technique, 6, 16, DELICA)
+      const doubleCols = physicalSizeMm(technique, 12, 16, DELICA)
+      const doubleRows = physicalSizeMm(technique, 6, 32, DELICA)
       expect(doubleCols.widthMm).toBeCloseTo(a.widthMm * 2, 4)
       expect(doubleCols.heightMm).toBeCloseTo(a.heightMm, 4)
       expect(doubleRows.heightMm).toBeCloseTo(a.heightMm * 2, 4)
@@ -71,16 +104,16 @@ describe('physicalSizeMm', () => {
   })
 
   it('a woven loop adds its own height on top of body+fringe (Tarea 3)', () => {
-    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
-    const withLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 0, 8)
+    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA)
+    const withLoop = physicalSizeMm('brick', 6, 16, DELICA, 0, 8)
     const verticalMm = DELICA_H // brick's vertical axis
     expect(withLoop.heightMm).toBeCloseTo(withoutLoop.heightMm + loopHeightUnits(8) * verticalMm, 6)
     expect(withLoop.widthMm).toBeCloseTo(withoutLoop.widthMm, 6) // loop never affects width
   })
 
   it('a loop with 0 beads (metal loop, or none at all) adds nothing', () => {
-    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
-    const withZeroLoop = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 0, 0)
+    const withoutLoop = physicalSizeMm('brick', 6, 16, DELICA)
+    const withZeroLoop = physicalSizeMm('brick', 6, 16, DELICA, 0, 0)
     expect(withZeroLoop).toEqual(withoutLoop)
   })
 })
@@ -102,15 +135,25 @@ describe('loopAnchorX', () => {
 })
 
 describe('gridFromPhysicalSizeMm — inverse of physicalSizeMm', () => {
-  it('round-trips a finished size back to (roughly) the same cols/rows for every technique', () => {
-    for (const technique of ['loom', 'peyote', 'brick'] as const) {
-      const cols = 20
-      const rows = 40
-      const target = physicalSizeMm(technique, cols, rows, DELICA_W, DELICA_H)
-      const back = gridFromPhysicalSizeMm(technique, target.widthMm, target.heightMm, DELICA_W, DELICA_H)
-      expect(back.cols).toBe(cols)
-      expect(back.rows).toBe(rows)
+  it('round-trips a finished size back to the same cols/rows for every technique AND bead type', () => {
+    for (const bead of [DELICA, ROCALLA]) {
+      for (const technique of ['loom', 'peyote', 'brick'] as const) {
+        const cols = 20
+        const rows = 40
+        const target = physicalSizeMm(technique, cols, rows, bead)
+        const back = gridFromPhysicalSizeMm(technique, target.widthMm, target.heightMm, bead)
+        expect(back.cols, `${technique} · ${bead.id} cols`).toBe(cols)
+        expect(back.rows, `${technique} · ${bead.id} rows`).toBe(rows)
+      }
     }
+  })
+
+  it('asking for the reference bracelet\'s real length gives back its real row count (Tarea 2)', () => {
+    const { technique, beadTypeId, cols, rows, measuredWidthMm, measuredHeightMm } = CALIBRATION_SAMPLE
+    const bead = getBeadType(beadTypeId)
+    const back = gridFromPhysicalSizeMm(technique, measuredWidthMm, measuredHeightMm, bead)
+    expect(back.rows).toBe(rows)
+    expect(back.cols).toBe(cols)
   })
 })
 
@@ -283,16 +326,25 @@ describe('gridBoundsUnits / physicalSizeMm with a fringe', () => {
     }
   })
 
-  it('physicalSizeMm folds maxFringeBeads into the total height, in mm, at the technique\'s row pitch', () => {
-    const plain = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H)
-    const withFringe = physicalSizeMm('brick', 6, 16, DELICA_W, DELICA_H, 5)
-    expect(withFringe.widthMm).toBeCloseTo(plain.widthMm, 10)
-    expect(withFringe.heightMm).toBeCloseTo(plain.heightMm + 5 * rowPitch('brick') * DELICA_H, 10)
+  it('physicalSizeMm folds maxFringeBeads into the total height at the same per-row step as the body', () => {
+    for (const technique of ['loom', 'peyote', 'brick'] as const) {
+      const plain = physicalSizeMm(technique, 6, 16, DELICA)
+      const withFringe = physicalSizeMm(technique, 6, 16, DELICA, 5)
+      expect(withFringe.widthMm).toBeCloseTo(plain.widthMm, 10)
+      // Derive the per-row step from the body itself (16 rows vs 17 rows)
+      // rather than restating the formula — that way this stays honest about
+      // "the same step" even if the pitch or the thread factor changes, and
+      // it can't accidentally assert against `rowPitch` (the RENDER pitch),
+      // which is a different constant that only coincides for brick.
+      const oneMoreRow = physicalSizeMm(technique, 6, 17, DELICA)
+      const bodyRowMm = oneMoreRow.heightMm - plain.heightMm
+      expect(withFringe.heightMm).toBeCloseTo(plain.heightMm + 5 * bodyRowMm, 10)
+    }
   })
 
   it('defaults to no fringe when maxFringeBeads is omitted', () => {
-    expect(physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H)).toEqual(
-      physicalSizeMm('loom', 6, 16, DELICA_W, DELICA_H, 0),
+    expect(physicalSizeMm('loom', 6, 16, DELICA)).toEqual(
+      physicalSizeMm('loom', 6, 16, DELICA, 0),
     )
   })
 })

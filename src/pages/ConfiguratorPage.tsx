@@ -13,7 +13,7 @@ import {
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { DEFAULT_LOOP_BEAD_COUNT, DEFAULT_LOOP_COLOR, loopBeadCount } from '@/engine/loop'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
-import { toMm, fromMm } from '@/engine/units'
+import { toMm, fromMm, formatSizeMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
@@ -174,8 +174,7 @@ export function ConfiguratorPage() {
         technique,
         cols,
         rows,
-        bead.widthMm,
-        bead.heightMm,
+        bead,
         fringeActive ? fringeMaxLength : 0,
         loopBeadCount(loop),
       ),
@@ -233,13 +232,13 @@ export function ConfiguratorPage() {
 
   function updateFinalWidth(valueInUnit: number) {
     const widthMm = toMm(valueInUnit, unit)
-    const { cols: newCols } = gridFromPhysicalSizeMm(technique, widthMm, size.heightMm, bead.widthMm, bead.heightMm)
+    const { cols: newCols } = gridFromPhysicalSizeMm(technique, widthMm, size.heightMm, bead)
     updateCols(newCols)
   }
 
   function updateFinalHeight(valueInUnit: number) {
     const heightMm = toMm(valueInUnit, unit)
-    const { rows: newRows } = gridFromPhysicalSizeMm(technique, size.widthMm, heightMm, bead.widthMm, bead.heightMm)
+    const { rows: newRows } = gridFromPhysicalSizeMm(technique, size.widthMm, heightMm, bead)
     updateRows(newRows)
   }
 
@@ -477,7 +476,7 @@ export function ConfiguratorPage() {
         <p className="text-2xl font-bold">{total.toLocaleString('es')}</p>
         <p className="text-sm text-text-muted">{t.configurator.totalBeads}</p>
         <p className="mt-2 text-sm text-text-muted">
-          {t.configurator.estimatedSize}: {formatSize(size.widthMm, size.heightMm, unit)}
+          {t.configurator.estimatedSize}: {formatSizeMm(size.widthMm, size.heightMm, unit)}
         </p>
       </Card>
 
@@ -499,11 +498,4 @@ export function ConfiguratorPage() {
       </div>
     </div>
   )
-}
-
-function formatSize(widthMm: number, heightMm: number, unit: MeasurementUnit) {
-  const w = fromMm(widthMm, unit)
-  const h = fromMm(heightMm, unit)
-  const decimals = unit === 'in' ? 2 : 1
-  return `${w.toFixed(decimals)} × ${h.toFixed(decimals)} ${unit}`
 }

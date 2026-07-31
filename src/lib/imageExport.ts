@@ -245,8 +245,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
     opts.technique,
     opts.cols,
     opts.rows,
-    opts.beadType.widthMm,
-    opts.beadType.heightMm,
+    opts.beadType,
     maxFringeLength(opts.fringe),
     loopBeadCount(opts.loop),
   )
