@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FringeData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import type { StorageAdapter } from '@/storage/types'
 import { beadCount } from '@/engine/geometry'
-import { createFringeLengthsForShape, totalFringeBeadCount } from '@/engine/fringe'
+import { totalFringeBeadCount } from '@/engine/fringe'
 import { createShapedRowShape } from '@/engine/shape'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
@@ -77,14 +77,14 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
 
     await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
 
-    // brick 13x13 cuerpo en trapecio (triangle preset: crece 1 mostacilla por
-    // fila hasta los 13 en la última fila; filas parte igualadas a columnas —
-    // ver Corrección 3) + fleco en V (largo máx. 10) bajo la punta de la
-    // última fila — misma fórmula pura que usa el componente.
-    const rowShape = createShapedRowShape('triangle', 13, 13)
-    const bodyTotal = beadCount('brick', 13, 13, rowShape)
-    const rectangleTotal = beadCount('brick', 13, 13) // what it would be WITHOUT shape — the regression guard
-    const fringeLengths = createFringeLengthsForShape('v', 13, 10, rowShape[12])
+    // brick 7x7 cuerpo en trapecio (triangle preset: crece 1 mostacilla por
+    // fila hasta las 7 en la última fila; filas parte igualadas a columnas —
+    // ver Corrección 3) + fleco redondeado hardcodeado 4,6,8,9,8,6,4 (Tarea 2)
+    // bajo la punta de la última fila.
+    const rowShape = createShapedRowShape('triangle', 7, 7)
+    const bodyTotal = beadCount('brick', 7, 7, rowShape)
+    const rectangleTotal = beadCount('brick', 7, 7) // what it would be WITHOUT shape — the regression guard
+    const fringeLengths = [4, 6, 8, 9, 8, 6, 4]
     const fringeTotal = totalFringeBeadCount({ lengths: fringeLengths, turnBeads: [] })
     const expectedTotal = bodyTotal + fringeTotal
 
@@ -92,6 +92,41 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
     expect(bodyTotal).toBeLessThan(rectangleTotal) // guard: si esto falla, el rombo no está achicando nada
     expect(screen.getByText(expectedTotal.toLocaleString('es'))).toBeInTheDocument()
     expect(screen.queryByText(rectangleTotal.toLocaleString('es'))).not.toBeInTheDocument()
+  })
+
+  it('la plantilla "Aro con flecos" genera 7×7 con la cascada redondeada 4,6,8,9,8,6,4 (Tarea 2)', async () => {
+    const createPattern = vi.fn(
+      (_config: PatternConfig, _name?: string, _fringe?: FringeData, _rowShape?: RowShape[]) => 'new-id',
+    )
+    usePatternsStore.setState({ createPattern })
+    const user = userEvent.setup()
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+
+    expect(createPattern).toHaveBeenCalledTimes(1)
+    const [config, , fringe, rowShape] = createPattern.mock.calls[0]
+    expect(config.technique).toBe('brick')
+    expect(config.cols).toBe(7)
+    expect(config.rows).toBe(7)
+    expect(fringe?.lengths).toEqual([4, 6, 8, 9, 8, 6, 4])
+
+    // Cuerpo triangular (cada fila crece 1 mostacilla, centrada simétricamente
+    // izquierda-derecha por el motor puro) y ninguna fila fuera de la grilla
+    // de 7 columnas.
+    const expectedRowShape = createShapedRowShape('triangle', 7, 7)
+    expect(rowShape).toEqual(expectedRowShape)
+    expect(rowShape![6]).toEqual({ offset: 0, length: 7 }) // última fila: ancho completo, de donde cuelga el fleco
+    for (const row of rowShape!) {
+      expect(row.offset).toBeGreaterThanOrEqual(0)
+      expect(row.offset + row.length).toBeLessThanOrEqual(7)
+    }
   })
 })
 
@@ -227,10 +262,10 @@ describe('ConfiguratorPage — "Aro con flecos": filas siguen a columnas (Correc
     return user
   }
 
-  it('al elegir la plantilla, las filas parten iguales a las columnas (13)', async () => {
+  it('al elegir la plantilla, las filas parten iguales a las columnas (7)', async () => {
     await renderAndSelectAroFlecos()
-    expect(colsInput()).toHaveValue(13)
-    expect(rowsInput()).toHaveValue(13)
+    expect(colsInput()).toHaveValue(7)
+    expect(rowsInput()).toHaveValue(7)
   })
 
   it('mover las columnas mantiene las filas iguales, incluso varias veces seguidas', async () => {

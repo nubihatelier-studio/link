@@ -41,6 +41,17 @@ interface TemplatePreset {
   fringeMaxLength: number
   fringeShape: FringeShape
   bodyShape: BodyShapePreset
+  /**
+   * A hand-designed fringe silhouette this template shows exactly, instead
+   * of whatever `fringeShape` + `fringeMaxLength` would generically produce
+   * — e.g. "Aro con flecos"'s cascade (4,6,8,9,8,6,4) matches a real
+   * reference piece bead-for-bead, which no generic min=1-anchored curve
+   * reproduces exactly. Absent for every other template (they're fine with
+   * the generic formula). See `templateFringeLengths` state below for how
+   * this stops applying the moment the weaver changes anything it depends
+   * on (cols, fringe length/shape, technique, body shape).
+   */
+  fringeLengths?: number[]
 }
 
 const BODY_SHAPE_PRESETS: BodyShapePreset[] = ['rectangle', 'triangle', 'triangleInverted', 'rhombus']
@@ -76,15 +87,21 @@ const TEMPLATES: TemplatePreset[] = [
     description: t.configurator.templates.aroFlecosDesc,
     technique: 'brick',
     // A trapezoid body (triangle preset: narrow top, full-width bottom) that
-    // grows exactly 1 bead/row up to 13 beads by the last row — the row the
-    // V fringe hangs from. See "Corrección 1" in shape.ts: at 1 bead of
-    // total width growth per row, every cols/rows pair tapers perfectly, so
-    // this is just a typical starting size, not a specially-fitted one.
-    cols: 13,
+    // grows exactly 1 bead/row up to 7 beads by the last row — the row the
+    // fringe hangs from. 7 cols x 7 rows, both odd, is the smallest size
+    // that both taps out at exactly `cols` on the last row AND keeps the
+    // triangle preset's own row-count nudge (`preferredRowsFor`) a no-op —
+    // matches a real reference piece (7-wide triangular body, rounded
+    // fringe cascade, top loop), not an arbitrarily bigger placeholder.
+    cols: 7,
     rows: 7,
     fringeEnabled: true,
-    fringeMaxLength: 10,
-    fringeShape: 'v',
+    fringeMaxLength: 9,
+    fringeShape: 'rounded',
+    // The generic 'rounded' formula (anchored at min=1) doesn't reproduce
+    // this exact oval by itself — this is the reference piece's own
+    // measured cascade, kept here as data. See `TemplatePreset.fringeLengths`.
+    fringeLengths: [4, 6, 8, 9, 8, 6, 4],
     bodyShape: 'triangle',
   },
   {
@@ -125,6 +142,18 @@ export function ConfiguratorPage() {
    * behaves this way; picking any other template or technique turns it off.
    */
   const [rowsFollowCols, setRowsFollowCols] = useState(false)
+  /**
+   * A template's own hand-designed fringe silhouette (see
+   * `TemplatePreset.fringeLengths`), used verbatim in place of the generic
+   * `fringeShape`-derived one — only while it still applies. Cleared back
+   * to `null` (falling back to the generic formula) the moment anything it
+   * depends on changes: a different template, technique, or body shape, or
+   * a direct edit to fringe length/shape. The `cols` mismatch guard below
+   * is a second, automatic safety net for the same thing (e.g. resizing via
+   * "por tamaño final") in case a column count change ever reaches here
+   * through a path that doesn't explicitly clear it.
+   */
+  const [templateFringeLengths, setTemplateFringeLengths] = useState<number[] | null>(null)
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
@@ -139,11 +168,12 @@ export function ConfiguratorPage() {
   )
   const fringePreviewLengths = useMemo(() => {
     if (!fringeActive) return null
+    if (templateFringeLengths && templateFringeLengths.length === cols) return templateFringeLengths
     const lastRowShape = rowShapePreview?.[rows - 1]
     return lastRowShape
       ? createFringeLengthsForShape(fringeShape, cols, fringeMaxLength, lastRowShape)
       : createFringeLengths(fringeShape, cols, fringeMaxLength)
-  }, [fringeActive, fringeShape, cols, fringeMaxLength, rowShapePreview, rows])
+  }, [fringeActive, fringeShape, cols, fringeMaxLength, rowShapePreview, rows, templateFringeLengths])
   const total =
     beadCount(technique, cols, rows, rowShapePreview ?? undefined) +
     (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0)
@@ -160,6 +190,7 @@ export function ConfiguratorPage() {
     setFringeEnabled(template.fringeEnabled)
     setFringeMaxLength(template.fringeMaxLength)
     setFringeShape(template.fringeShape)
+    setTemplateFringeLengths(template.fringeLengths ?? null)
     setBodyShape(template.bodyShape)
   }
 
@@ -167,12 +198,14 @@ export function ConfiguratorPage() {
     const clamped = Math.max(MIN_DIM, Math.min(MAX_DIM, next))
     setCols(clamped)
     if (rowsFollowCols) setRows(clamped)
+    setTemplateFringeLengths(null)
   }
 
   /** A direct edit to rows — always respected, and (per aroFlecos's own rule) stops rows from following columns from here on. */
   function updateRows(next: number) {
     setRowsFollowCols(false)
     setRows(Math.max(MIN_DIM, Math.min(MAX_DIM, next)))
+    setTemplateFringeLengths(null)
   }
 
   function updateFinalWidth(valueInUnit: number) {
@@ -234,6 +267,7 @@ export function ConfiguratorPage() {
                 setTechnique(tech)
                 setSelectedTemplate(null)
                 setRowsFollowCols(false)
+                setTemplateFringeLengths(null)
               }}
               icon={
                 <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
@@ -327,6 +361,7 @@ export function ConfiguratorPage() {
                 onClick={() => {
                   setBodyShape(preset)
                   setSelectedTemplate(null)
+                  setTemplateFringeLengths(null)
                   // Silent nudge, no dialog: triangle/rhombus each have one
                   // row whose position is physically pinned in a way that
                   // needs an odd row count to stay perfectly centered (see
@@ -371,6 +406,7 @@ export function ConfiguratorPage() {
               onClick={() => {
                 setFringeEnabled((v) => !v)
                 setSelectedTemplate(null)
+                setTemplateFringeLengths(null)
               }}
               aria-pressed={fringeEnabled}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
@@ -388,13 +424,19 @@ export function ConfiguratorPage() {
                 min={1}
                 max={MAX_FRINGE_LENGTH}
                 suffix={t.configurator.fringe.beadsUnit}
-                onChange={setFringeMaxLength}
+                onChange={(next) => {
+                  setFringeMaxLength(next)
+                  setTemplateFringeLengths(null)
+                }}
               />
               <div>
                 <p className="mb-2 text-sm font-semibold text-text">{t.configurator.fringe.shape}</p>
                 <SegmentedControl<FringeShape>
                   value={fringeShape}
-                  onChange={setFringeShape}
+                  onChange={(shape) => {
+                    setFringeShape(shape)
+                    setTemplateFringeLengths(null)
+                  }}
                   options={[
                     { value: 'straight', label: t.configurator.fringe.shapeStraight },
                     { value: 'v', label: t.configurator.fringe.shapeV },
