@@ -8,6 +8,7 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { paletteFromCells, letterForIndex } from './palette'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { formatSizeMm } from '@/engine/units'
+import { buildWordChart } from '@/engine/wordChart'
 import { shareOrDownloadFile } from './shareFile'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
 import { t } from '@/i18n/es'
@@ -31,6 +32,28 @@ export interface ExportPatternOptions {
   loop?: LoopData
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true — without it the chart is unreadable in B/W print or with similar-looking colors. */
   showLetters?: boolean
+  /** Which sections to print — see `PdfSections`. Omitted means all of them. */
+  sections?: Partial<PdfSections>
+}
+
+/**
+ * The four things a pattern PDF can contain. All on by default: a weaver who
+ * works off paper needs the word chart (that's the format you actually read
+ * from while beading), and one who just wants a compact reference sheet can
+ * switch it off in the export dialog. Dropping it unconditionally — as this
+ * module did for a while — takes the document's main job away from it.
+ */
+export interface PdfSections {
+  chart: boolean
+  materials: boolean
+  wordChart: boolean
+  notes: boolean
+}
+
+export const ALL_PDF_SECTIONS: PdfSections = { chart: true, materials: true, wordChart: true, notes: true }
+
+function resolveSections(sections: Partial<PdfSections> | undefined): PdfSections {
+  return { ...ALL_PDF_SECTIONS, ...sections }
 }
 
 /**
@@ -321,6 +344,87 @@ function drawLoop(
 }
 
 /** "Creado con Nubih Creator · @nubih.atelier" on every page — PDFs get shared, so the brand should travel with them. */
+/**
+ * The word chart: every bead in the real order the technique is worked
+ * (`engine/weaveOrder.ts`) — brick's base row first, each fringe strand as
+ * its own complete sequence, peyote's doubled first pass, serpentine
+ * directions — with the woven loop's ring as the closing step.
+ *
+ * This is the format a weaver actually READS FROM while beading, and a good
+ * share of them work from a printout with no screen nearby. It was dropped
+ * from the PDF once on the argument that Weave Mode covers it; Weave Mode
+ * only covers the people holding a phone. Goes on its own pages, after the
+ * compact chart + materials sheet — compressing the document is good,
+ * losing its main content is not.
+ */
+function drawWordChartPages(
+  doc: JsPDF,
+  opts: ExportPatternOptions,
+  letterForHex: Map<string, string>,
+  margin: number,
+  pageWidth: number,
+  pageHeight: number,
+) {
+  const lines = buildWordChart(
+    opts.technique,
+    opts.cols,
+    opts.rows,
+    opts.cells,
+    (hex) => letterForHex.get(hex) ?? '?',
+    opts.fringe,
+    opts.rowShape,
+    opts.loop,
+  )
+  if (lines.length === 0) return
+
+  const lineHeight = 4.6
+  const headerHeight = 16
+  const maxWidth = pageWidth - margin * 2
+
+  function drawPageHeader(): number {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(0)
+    doc.text(t.pdf.wordChartTitle, margin, margin + 4)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(130)
+    doc.text(opts.name || 'Patrón Nubih', margin, margin + 9)
+    doc.setTextColor(0)
+    // Monospace so the bead runs line up column-wise down the page, which is
+    // what makes it followable by eye while your hands are busy.
+    doc.setFont('courier', 'normal')
+    doc.setFontSize(8)
+    return margin + headerHeight
+  }
+
+  doc.addPage()
+  let y = drawPageHeader()
+
+  for (const line of lines) {
+    const prefix = line.isLoop
+      ? `${t.weave.loopStepLabel}: `
+      : line.isFringe
+        ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: `
+        : line.grouped
+          ? `${t.weave.foundationPass}: `
+          : line.isBaseRow
+            ? `${t.weave.baseRow}: `
+            : `${t.weave.row} ${line.unitIndex + 1}: `
+    const indent = ' '.repeat(prefix.length)
+    const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
+
+    wrapped.forEach((piece, i) => {
+      if (y > pageHeight - margin - FOOTER_RESERVE_MM) {
+        doc.addPage()
+        y = drawPageHeader()
+      }
+      doc.text((i === 0 ? prefix : indent) + piece, margin, y)
+      y += lineHeight
+    })
+  }
+}
+
 function stampFooterOnAllPages(doc: JsPDF, pageWidth: number, pageHeight: number) {
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
@@ -384,6 +488,7 @@ function drawMaterialsColumn(
   y: number,
   width: number,
   height: number,
+  sections: PdfSections,
 ) {
   const isMetalLoop = opts.loop?.variant === 'metal'
   const palette = paletteFromCells(
@@ -467,6 +572,8 @@ function drawMaterialsColumn(
   doc.setFont('helvetica', 'normal')
   doc.text(needle, x + needleLabelWidth, extrasY + 11)
 
+  if (!sections.notes) return
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.text(t.pdf.notes, x, extrasY + 17)
@@ -511,13 +618,15 @@ function drawMaterialsColumn(
  *    `fitChartCellToOnePage`) — this app's original layout, kept exactly
  *    for the cases the one-page layout can't serve legibly.
  *
- * Neither layout includes the bead-by-bead word chart any more — Weave
- * Mode is the one place that sequence is actually followed live; printing
- * it out added pages without adding anything a weaver used on paper.
+ * The word chart follows on its own pages after either layout (see
+ * `drawWordChartPages`) — that's the format a weaver reads from while
+ * beading off paper, so it's on by default; `opts.sections` lets the export
+ * dialog drop it (or any other section) for a compact reference sheet.
  * Every page gets the same footer stamp so the brand travels with shared PDFs.
  */
 export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<void> {
   const margin = 14
+  const sections = resolveSections(opts.sections)
   const showLetters = opts.showLetters ?? true
   const base = chartCellMm(opts.technique)
   const bodyRows = opts.rows + maxFringeLength(opts.fringe)
@@ -526,7 +635,9 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   // decision and cell-fit both leave room for it — `drawChart` itself is
   // still only ever given `bodyRows` (the loop isn't part of its grid).
   const totalRows = bodyRows + loopRows
-  const onePage = chooseOnePageLayout(base, opts.cols, totalRows, margin)
+  // With no chart there's nothing to fit, so the side-by-side layout is moot:
+  // the materials go full width on the first page and the word chart follows.
+  const onePage = sections.chart ? chooseOnePageLayout(base, opts.cols, totalRows, margin) : null
 
   // Lazy-loaded: jsPDF is only needed the first time someone actually exports.
   const { jsPDF } = await import('jspdf')
@@ -540,41 +651,60 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   )
   const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
 
+  drawHeaderBlock(doc, opts, margin)
+
   if (onePage) {
-    drawHeaderBlock(doc, opts, margin)
     const columnTop = HEADER_BOTTOM_MM
     const columnHeight = pageHeight - margin - columnTop
-    const columnWidth = (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2
+    // Materials off means the chart gets the whole sheet instead of half of it.
+    const columnWidth = sections.materials ? (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2 : pageWidth - margin * 2
     const bodyTop = columnTop + loopRows * onePage.cellH
     drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
     if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
-    drawMaterialsColumn(
-      doc,
-      opts,
-      letterForHex,
-      margin + columnWidth + COLUMN_GUTTER_MM,
-      columnTop,
-      columnWidth,
-      columnHeight,
-    )
+    if (sections.materials) {
+      drawMaterialsColumn(
+        doc,
+        opts,
+        letterForHex,
+        margin + columnWidth + COLUMN_GUTTER_MM,
+        columnTop,
+        columnWidth,
+        columnHeight,
+        sections,
+      )
+    }
   } else {
-    drawHeaderBlock(doc, opts, margin)
-    drawMaterialsColumn(doc, opts, letterForHex, margin, HEADER_BOTTOM_MM, pageWidth - margin * 2, pageHeight - margin - HEADER_BOTTOM_MM)
+    if (sections.materials) {
+      drawMaterialsColumn(
+        doc,
+        opts,
+        letterForHex,
+        margin,
+        HEADER_BOTTOM_MM,
+        pageWidth - margin * 2,
+        pageHeight - margin - HEADER_BOTTOM_MM,
+        sections,
+      )
+    }
 
-    const chartTop = margin + 8
-    const availW = pageWidth - margin * 2
-    const availH = pageHeight - chartTop - margin - 6
-    const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
-    const bodyTop = chartTop + loopRows * cellH
+    if (sections.chart) {
+      const chartTop = margin + 8
+      const availW = pageWidth - margin * 2
+      const availH = pageHeight - chartTop - margin - 6
+      const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
+      const bodyTop = chartTop + loopRows * cellH
 
-    doc.addPage()
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(0)
-    doc.text(opts.name || 'Patrón Nubih', margin, 10)
-    drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
-    if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
+      doc.addPage()
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(0)
+      doc.text(opts.name || 'Patrón Nubih', margin, 10)
+      drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
+      if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
+    }
   }
+
+  if (sections.wordChart) drawWordChartPages(doc, opts, letterForHex, margin, pageWidth, pageHeight)
 
   stampFooterOnAllPages(doc, pageWidth, pageHeight)
 

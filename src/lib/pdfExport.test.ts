@@ -3,6 +3,7 @@ import { getBeadType } from '@/data/beadTypes'
 import type { ColorMap, FringeData, LoopData } from '@/engine/types'
 import { beadCount, gridFromPhysicalSizeMm, physicalSizeMm } from '@/engine/geometry'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
+import { t } from '@/i18n/es'
 import { createShapedRowShape } from '@/engine/shape'
 import { formatSizeMm } from '@/engine/units'
 import { loopBeadCount, loopHeightUnits } from '@/engine/loop'
@@ -190,6 +191,11 @@ describe('chooseOnePageLayout — selector de una hoja vs. paginado (Corrección
 
 describe('exportPatternToPdf', () => {
   const bead = getBeadType('miyuki-delica-11')
+  // These assert the CHART+MATERIALS layout (one sheet vs. paginated), so they
+  // export with the word chart off — it always adds its own pages afterwards
+  // and would otherwise drown the number being checked. The word chart's own
+  // behaviour is covered in its own describe block below.
+  const layoutOnly = { sections: { wordChart: false } } as const
 
   beforeEach(() => {
     lastDoc = undefined
@@ -204,6 +210,7 @@ describe('exportPatternToPdf', () => {
       rows: 20,
       cells: fillCells(6, 20),
       beadType: bead,
+      ...layoutOnly,
     })
 
     expect(lastDoc).toBeDefined()
@@ -219,6 +226,7 @@ describe('exportPatternToPdf', () => {
       rows: 150,
       cells: fillCells(150, 150),
       beadType: bead,
+      ...layoutOnly,
     })
 
     expect(lastDoc).toBeDefined()
@@ -292,7 +300,7 @@ describe('exportPatternToPdf', () => {
       const rows = 60
       const cells = fillCells(cols, rows)
 
-      await exportPatternToPdf({ name: 'Sin fleco', technique: 'loom', cols, rows, cells, beadType: bead })
+      await exportPatternToPdf({ name: 'Sin fleco', technique: 'loom', cols, rows, cells, beadType: bead, ...layoutOnly })
       // Small enough on its own to fit the one-page layout.
       expect(lastDoc!.getNumberOfPages()).toBe(1)
 
@@ -300,7 +308,7 @@ describe('exportPatternToPdf', () => {
         lengths: Array.from({ length: cols }, () => 20),
         turnBeads: Array.from({ length: cols }, () => true),
       }
-      await exportPatternToPdf({ name: 'Con fleco largo', technique: 'loom', cols, rows, cells, fringe, beadType: bead })
+      await exportPatternToPdf({ name: 'Con fleco largo', technique: 'loom', cols, rows, cells, fringe, beadType: bead, ...layoutOnly })
       // The fringe pushes totalRows past what a one-page column can hold — falls back to
       // the paginated layout (ficha+materials page, then a single chart page), not a
       // multi-page explosion.
@@ -324,6 +332,7 @@ describe('exportPatternToPdf', () => {
         cells: fillCells(4, 2),
         beadType: bead,
         rowShape,
+        ...layoutOnly,
       })
 
       expect(lastDoc).toBeDefined()
@@ -541,5 +550,95 @@ describe('exportPatternToPdf — integración, documento completo (Prioridad 1)'
       loop: { variant: 'woven', beadCount: 30, color: '#c9a227' }, beadType: bead,
     })
     expect(bytes).toBeGreaterThan(1000)
+  })
+})
+
+/**
+ * Prioridad 2: the word chart is the format a weaver reads from while beading
+ * off paper. These assert the actual printed text, not just page counts —
+ * "there are more pages now" would also pass if the pages were blank.
+ */
+describe('word chart en el PDF (Prioridad 2)', () => {
+  const bead = getBeadType('miyuki-delica-11')
+
+  /** Every literal string jsPDF wrote into the document, in draw order. */
+  function pdfText(doc: import('jspdf').jsPDF): string {
+    return [...doc.output().matchAll(/\((?:\\.|[^()\\])*\) Tj/g)]
+      .map((m) => m[0].slice(1, -4).replace(/\\([()])/g, '$1'))
+      .join('\n')
+  }
+
+  it('imprime la secuencia de tejido por defecto, sin tener que pedirla', async () => {
+    await exportPatternToPdf({
+      name: 'Pulsera', technique: 'peyote', cols: 6, rows: 20, cells: fillCells(6, 20), beadType: bead,
+    })
+    expect(pdfText(lastDoc!)).toContain(t.pdf.wordChartTitle)
+  })
+
+  it('respeta el orden real de la técnica: brick abre por la fila base', async () => {
+    await exportPatternToPdf({
+      name: 'Brick', technique: 'brick', cols: 6, rows: 8, cells: fillCells(6, 8), beadType: bead,
+    })
+    const text = pdfText(lastDoc!)
+    const wordChartStart = text.indexOf(t.pdf.wordChartTitle)
+    const body = text.slice(wordChartStart)
+    expect(body).toContain(`${t.weave.baseRow}:`)
+    // La fila base va antes que cualquier "Fila N:" numerada. Ojo: "Fila base"
+    // empieza por "Fila ", así que hay que buscar el número explícitamente.
+    const firstNumberedRow = body.search(new RegExp(`${t.weave.row} \\d+:`))
+    expect(firstNumberedRow).toBeGreaterThan(-1)
+    expect(body.indexOf(`${t.weave.baseRow}:`)).toBeLessThan(firstNumberedRow)
+  })
+
+  it('peyote abre por la primera pasada doble', async () => {
+    await exportPatternToPdf({
+      name: 'Peyote', technique: 'peyote', cols: 6, rows: 10, cells: fillCells(6, 10), beadType: bead,
+    })
+    expect(pdfText(lastDoc!)).toContain(t.weave.foundationPass)
+  })
+
+  it('cada fleco sale como su propia secuencia, y la arandela como paso final', async () => {
+    await exportPatternToPdf({
+      name: 'Aro', technique: 'brick', cols: 4, rows: 4, cells: fillCells(4, 4),
+      fringe: { lengths: [3, 5, 5, 3], turnBeads: [true, true, true, true] },
+      loop: { variant: 'woven', beadCount: 8, color: '#c9a227' },
+      beadType: bead,
+    })
+    const text = pdfText(lastDoc!)
+    for (let col = 1; col <= 4; col++) expect(text).toContain(`${t.pdf.fringeLabel} ${col}:`)
+    expect(text).toContain(`${t.weave.loopStepLabel}:`)
+    // La arandela cierra: va después del último fleco.
+    expect(text.lastIndexOf(t.weave.loopStepLabel)).toBeGreaterThan(text.lastIndexOf(`${t.pdf.fringeLabel} 4:`))
+  })
+
+  it('desactivarlo da una hoja compacta: sin secuencia y con menos páginas', async () => {
+    const opts = {
+      name: 'Compacto', technique: 'peyote' as const, cols: 6, rows: 40, cells: fillCells(6, 40), beadType: bead,
+    }
+    await exportPatternToPdf(opts)
+    const withChart = lastDoc!.getNumberOfPages()
+
+    await exportPatternToPdf({ ...opts, sections: { wordChart: false } })
+    const withoutChart = lastDoc!.getNumberOfPages()
+
+    expect(withoutChart).toBeLessThan(withChart)
+    expect(pdfText(lastDoc!)).not.toContain(t.pdf.wordChartTitle)
+  })
+
+  it('cada sección se puede apagar por separado', async () => {
+    const opts = {
+      name: 'Secciones', technique: 'brick' as const, cols: 6, rows: 6, cells: fillCells(6, 6), beadType: bead,
+    }
+    await exportPatternToPdf({ ...opts, sections: { materials: false } })
+    expect(pdfText(lastDoc!)).not.toContain(t.pdf.materials)
+
+    await exportPatternToPdf({ ...opts, sections: { notes: false } })
+    expect(pdfText(lastDoc!)).not.toContain(t.pdf.notes)
+
+    // Sólo la secuencia: sigue siendo un documento válido, no revienta.
+    await exportPatternToPdf({ ...opts, sections: { chart: false, materials: false, notes: false } })
+    const soloWordChart = pdfText(lastDoc!)
+    expect(soloWordChart).toContain(t.pdf.wordChartTitle)
+    expect(soloWordChart).not.toContain(t.pdf.materials)
   })
 })

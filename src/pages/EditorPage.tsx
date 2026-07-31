@@ -10,7 +10,7 @@ import { WEAVE_ORDER_VERSION } from '@/engine/weaveOrder'
 import { isFringeCapable, totalFringeBeadCount } from '@/engine/fringe'
 import { isShapeCapable } from '@/engine/shape'
 import { loopBeadCount } from '@/engine/loop'
-import { exportPatternToPdf } from '@/lib/pdfExport'
+import { exportPatternToPdf, type PdfSections } from '@/lib/pdfExport'
 import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
 import { t } from '@/i18n/es'
@@ -25,6 +25,7 @@ import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { Toast } from '@/components/shared/Toast'
+import { ExportPdfDialog } from '@/components/editor/ExportPdfDialog'
 
 const TOOL_SHORTCUTS: { key: string; tool: Tool; labelKey: keyof typeof t.editor.tools }[] = [
   { key: 'P', tool: 'pencil', labelKey: 'pencil' },
@@ -77,6 +78,8 @@ export function EditorPage() {
   const [exporting, setExporting] = useState(false)
   /** Non-null while an export failure toast is showing — see `handleExport`. */
   const [exportError, setExportError] = useState<string | null>(null)
+  /** The "qué incluir" picker — see `ExportPdfDialog`. */
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [showLetters, setShowLetters] = useState(true)
@@ -211,11 +214,12 @@ export function EditorPage() {
     clearWeaveResetPending()
   }
 
-  async function handleExport() {
+  async function handleExport(sections: PdfSections) {
+    setExportDialogOpen(false)
     setExporting(true)
     setExportError(null)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, loop, beadType: bead, showLetters })
+      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, loop, beadType: bead, showLetters, sections })
     } catch (err) {
       // Never swallow this: a silent failure looks exactly like a dead
       // button, which is what the weaver reported.
@@ -332,7 +336,7 @@ export function EditorPage() {
             </>
           )}
         </div>
-        <Button onClick={handleExport} disabled={exporting} className="px-4 py-2 text-sm">
+        <Button onClick={() => setExportDialogOpen(true)} disabled={exporting} className="px-4 py-2 text-sm">
           {exporting ? '…' : t.editor.exportPdf}
         </Button>
       </header>
@@ -564,6 +568,7 @@ export function EditorPage() {
       {exportError && (
         <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
+      {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
   )
 }
