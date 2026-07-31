@@ -8,9 +8,7 @@ import type { Technique } from './types'
  * thread running through every bead, plus how tightly the weaver pulls it,
  * spaces consecutive ROWS slightly further apart than the bare bead pitch.
  * No manufacturer spec sheet publishes this number — Miyuki's included — so
- * it can only be obtained by weaving a piece and measuring it. Every value
- * here is therefore either a real measurement or an explicitly-flagged 1
- * placeholder; see `WEAVE_THREAD_FACTOR` below.
+ * it can only be obtained by weaving a piece and measuring it.
  *
  * Applied to the ROW pitch only, never to the width: across a row the beads
  * sit hole-to-hole, touching, so the thread adds no measurable width. Down a
@@ -30,8 +28,13 @@ import type { Technique } from './types'
  * The width is within hand-measuring error, so no width correction is
  * applied. The height gap is thread and tension: 102 / 96 = **1.0625**.
  *
- * Re-calibrating? Weave that same 6 × 60 swatch, measure it, and divide the
- * measured length by `rows × the bead's vertical dimension`.
+ * ## How to calibrate another combination
+ *
+ * Weave a swatch of known rows in that technique and bead, measure its
+ * finished length, and divide by `rows × the bead's vertical dimension`
+ * (which dimension is vertical depends on the technique — see
+ * `geometry.ts#BEAD_AXIS_MAP`). Then move its row in the table below from
+ * `theoretical()` to `measured()` with the sample's numbers.
  */
 export const CALIBRATION_SAMPLE = {
   technique: 'peyote' as Technique,
@@ -42,41 +45,103 @@ export const CALIBRATION_SAMPLE = {
   measuredHeightMm: 102,
 } as const
 
-/**
- * Row-pitch multiplier per (technique × bead type). Keyed by
- * `` `${technique}:${beadTypeId}` `` so a factor is never silently reused
- * across bead sizes — a Delica 11/0 and a Rocalla 11/0 take up thread very
- * differently even at the "same" nominal size.
- *
- * A missing entry falls back to `THEORETICAL_FACTOR` (exactly 1, i.e. bare
- * bead dimensions with no correction). That fallback is deliberate: an
- * uncalibrated combination reports honest bead-only geometry rather than a
- * number extrapolated from a different technique.
- */
-const WEAVE_THREAD_FACTOR: Record<string, number> = {
-  // Measured on a real piece — see CALIBRATION_SAMPLE above.
-  'peyote:miyuki-delica-11': 102 / 96,
-}
-
 /** No physical sample measured: report the bare bead geometry, uncorrected. */
 export const THEORETICAL_FACTOR = 1
+
+export interface WeaveCalibration {
+  /** Row-pitch multiplier. Exactly `THEORETICAL_FACTOR` unless measured. */
+  factor: number
+  /** `'measured'` means a real finished piece was put against a ruler. */
+  source: 'measured' | 'theoretical'
+  /** Free-text provenance — the sample for measured rows, what's missing for theoretical ones. */
+  note: string
+}
+
+/** A combination calibrated against a real piece: the factor IS the measurement. */
+function measured(measuredMm: number, theoreticalMm: number, note: string): WeaveCalibration {
+  return { factor: measuredMm / theoreticalMm, source: 'measured', note }
+}
+
+/**
+ * A combination nobody has woven and measured yet. The factor is exactly 1 on
+ * purpose — an uncalibrated pair reports honest bead-only geometry instead of
+ * a number extrapolated from a different technique or bead size, which would
+ * look calibrated without being it.
+ */
+function theoretical(note: string): WeaveCalibration {
+  return { factor: THEORETICAL_FACTOR, source: 'theoretical', note }
+}
+
+/**
+ * Every (technique × bead type) the app can produce, in one place — the
+ * single source of truth for how much thread and tension stretch a piece.
+ *
+ * Listed exhaustively rather than sparsely so the calibration debt is
+ * visible: reading this table tells you at a glance which combinations rest
+ * on a real measurement and which are still bare theory. `calibration.test.ts`
+ * enforces that every catalog bead type appears here for all three
+ * techniques, so adding a bead to `data/beadTypes.ts` fails the suite until
+ * its rows are filled in — deliberately, so a new bead can't silently inherit
+ * someone else's factor.
+ *
+ * Keyed by `` `${technique}:${beadTypeId}` `` — a Delica 11/0 and a Rocalla
+ * 11/0 are nominally "the same size" but take up thread very differently, so
+ * a factor is never shared across bead types.
+ */
+const WEAVE_THREAD_FACTOR: Record<string, WeaveCalibration> = {
+  // ── Miyuki Delica 11/0 ────────────────────────────────────────────────
+  'peyote:miyuki-delica-11': measured(
+    CALIBRATION_SAMPLE.measuredHeightMm,
+    CALIBRATION_SAMPLE.rows * 1.6,
+    'Pulsera 6 × 60 medida a mano: 102 mm de largo contra 96 mm teóricos.',
+  ),
+  'loom:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de loom en Delica 11/0.'),
+  'brick:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de brick en Delica 11/0.'),
+
+  // ── Rocalla 11/0 ──────────────────────────────────────────────────────
+  // Ninguna medida todavía. Además, la rocalla es redonda e irregular entre
+  // unidades, así que probablemente necesite una muestra más larga que la
+  // Delica para que el promedio por fila sea estable.
+  'peyote:rocalla-11': theoretical('Falta tejer y medir una muestra de peyote en rocalla 11/0.'),
+  'loom:rocalla-11': theoretical('Falta tejer y medir una muestra de loom en rocalla 11/0.'),
+  'brick:rocalla-11': theoretical('Falta tejer y medir una muestra de brick en rocalla 11/0.'),
+}
 
 function factorKey(technique: Technique, beadTypeId: string): string {
   return `${technique}:${beadTypeId}`
 }
 
 /**
- * Row-pitch multiplier for this technique and bead type — `1` for any
- * combination that hasn't been calibrated against a physical piece.
+ * The calibration entry for this pair, or a theoretical fallback for a bead
+ * type that isn't in the table yet. The fallback keeps the app working (and
+ * honest) if a bead is added without its rows; the exhaustiveness test is
+ * what makes sure that state doesn't survive review.
  */
-export function weaveThreadFactor(technique: Technique, beadTypeId: string): number {
-  return WEAVE_THREAD_FACTOR[factorKey(technique, beadTypeId)] ?? THEORETICAL_FACTOR
+export function weaveCalibration(technique: Technique, beadTypeId: string): WeaveCalibration {
+  return (
+    WEAVE_THREAD_FACTOR[factorKey(technique, beadTypeId)] ??
+    theoretical(`Sin fila en la tabla de calibración para ${factorKey(technique, beadTypeId)}.`)
+  )
 }
 
 /**
- * Whether this combination's factor comes from a measured piece. Useful for
- * tests and for any future UI that wants to flag an estimate as theoretical.
+ * Row-pitch multiplier for this technique and bead type — exactly 1 for any
+ * combination that hasn't been calibrated against a physical piece.
+ */
+export function weaveThreadFactor(technique: Technique, beadTypeId: string): number {
+  return weaveCalibration(technique, beadTypeId).factor
+}
+
+/**
+ * Whether this combination's size estimate rests on a measured piece. Kept
+ * public so tests — and any future UI that wants to flag an estimate as
+ * theoretical — read the same source of truth instead of hardcoding a list.
  */
 export function isCalibrated(technique: Technique, beadTypeId: string): boolean {
-  return factorKey(technique, beadTypeId) in WEAVE_THREAD_FACTOR
+  return weaveCalibration(technique, beadTypeId).source === 'measured'
+}
+
+/** Every key in the table, for tests and for a future "estado de calibración" view. */
+export function calibrationKeys(): string[] {
+  return Object.keys(WEAVE_THREAD_FACTOR)
 }
