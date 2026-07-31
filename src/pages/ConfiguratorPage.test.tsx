@@ -4,10 +4,13 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FringeData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import type { StorageAdapter } from '@/storage/types'
-import { beadCount } from '@/engine/geometry'
+import { beadCount, gridFromPhysicalSizeMm, physicalSizeMm } from '@/engine/geometry'
 import { totalFringeBeadCount } from '@/engine/fringe'
 import { createShapedRowShape } from '@/engine/shape'
 import { DEFAULT_LOOP_BEAD_COUNT } from '@/engine/loop'
+import { CALIBRATION_SAMPLE } from '@/engine/calibration'
+import { formatSizeMm } from '@/engine/units'
+import { getBeadType } from '@/data/beadTypes'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 
@@ -307,5 +310,51 @@ describe('ConfiguratorPage — "Aro con flecos": filas siguen a columnas (Correc
     await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.personalizado) }))
     fireEvent.change(colsInput(), { target: { value: '20' } })
     expect(rowsInput()).toHaveValue(16) // Personalizado's own rows value, untouched
+  })
+})
+
+/**
+ * Tarea 4 + test (e): the "Pulsera" template is the real measured bracelet,
+ * and the size it reports on screen has to be the very same number the engine
+ * computes — which `pdfExport.test.ts` separately asserts the PDF header
+ * prints, and `geometry.test.ts` asserts the "por tamaño final" inverse
+ * returns. Three surfaces, one number.
+ */
+describe('ConfiguratorPage — plantilla "Pulsera" calibrada (Tarea 4)', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], hydrated: true, migrationResult: null })
+  })
+
+  it('precarga 6 × 60 y muestra el tamaño de la pieza real, 8 × 102 mm', async () => {
+    const user = userEvent.setup()
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.pulsera) }))
+
+    const { technique, beadTypeId, cols, rows } = CALIBRATION_SAMPLE
+    const bead = getBeadType(beadTypeId)
+    const size = physicalSizeMm(technique, cols, rows, bead)
+
+    // El resumen en pantalla usa exactamente formatSizeMm(physicalSizeMm(...)).
+    const expected = `${t.configurator.estimatedSize}: ${formatSizeMm(size.widthMm, size.heightMm)}`
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    // Guarda contra la pieza real medida, no solo contra el motor.
+    expect(expected).toContain('7.8 × 102.0 mm')
+
+    // Y las columnas/filas precargadas son las de la pulsera medida. Cada una
+    // aparece dos veces (slider + input numérico), de ahí el getAll.
+    expect(screen.getAllByDisplayValue(String(cols)).length).toBeGreaterThan(0)
+    expect(screen.getAllByDisplayValue(String(rows)).length).toBeGreaterThan(0)
+  })
+
+  it('pedir 102 mm de largo por "tamaño final" devuelve las 60 filas de la pieza real', () => {
+    const { technique, beadTypeId, cols, rows, measuredWidthMm, measuredHeightMm } = CALIBRATION_SAMPLE
+    const bead = getBeadType(beadTypeId)
+    expect(gridFromPhysicalSizeMm(technique, measuredWidthMm, measuredHeightMm, bead)).toEqual({ cols, rows })
   })
 })

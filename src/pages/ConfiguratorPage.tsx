@@ -12,6 +12,7 @@ import {
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { DEFAULT_LOOP_BEAD_COUNT, DEFAULT_LOOP_COLOR, loopBeadCount } from '@/engine/loop'
+import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm, formatSizeMm } from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -42,6 +43,13 @@ interface TemplatePreset {
   fringeMaxLength: number
   fringeShape: FringeShape
   bodyShape: BodyShapePreset
+  /**
+   * The bead this template's numbers were chosen for. Set explicitly rather
+   * than left to whatever was selected before: "Pulsera" only finishes at the
+   * measured 8 × 102 mm in Delica 11/0, so picking the template with a
+   * Rocalla still selected would quietly report a different size.
+   */
+  beadTypeId: string
   /**
    * A hand-designed fringe silhouette this template shows exactly, instead
    * of whatever `fringeShape` + `fringeMaxLength` would generically produce
@@ -81,8 +89,13 @@ const TEMPLATES: TemplatePreset[] = [
     label: t.configurator.templates.pulsera,
     description: t.configurator.templates.pulseraDesc,
     technique: 'peyote',
-    cols: 10,
-    rows: 140,
+    // The real bracelet the size model is calibrated against: 6 × 60 in
+    // Delica 11/0 finishes at 8 × 102 mm (see engine/calibration.ts). Starting
+    // here means the very first thing a weaver creates reports a size someone
+    // has actually measured, instead of an arbitrary bigger placeholder.
+    cols: CALIBRATION_SAMPLE.cols,
+    rows: CALIBRATION_SAMPLE.rows,
+    beadTypeId: CALIBRATION_SAMPLE.beadTypeId,
     fringeEnabled: false,
     fringeMaxLength: 8,
     fringeShape: 'straight',
@@ -102,6 +115,7 @@ const TEMPLATES: TemplatePreset[] = [
     // fringe cascade, top loop), not an arbitrarily bigger placeholder.
     cols: 7,
     rows: 7,
+    beadTypeId: 'miyuki-delica-11',
     fringeEnabled: true,
     fringeMaxLength: 9,
     fringeShape: 'rounded',
@@ -119,6 +133,7 @@ const TEMPLATES: TemplatePreset[] = [
     technique: 'loom',
     cols: 16,
     rows: 16,
+    beadTypeId: 'miyuki-delica-11',
     fringeEnabled: false,
     fringeMaxLength: 8,
     fringeShape: 'straight',
@@ -207,6 +222,7 @@ export function ConfiguratorPage() {
     // aroFlecos ignores its own template.rows — rows always starts equal to columns for this one.
     setRows(followRows ? template.cols : template.rows)
     setRowsFollowCols(followRows)
+    setBeadTypeId(template.beadTypeId)
     setMode('count')
     setFringeEnabled(template.fringeEnabled)
     setFringeMaxLength(template.fringeMaxLength)
