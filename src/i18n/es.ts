@@ -261,7 +261,6 @@ export const t = {
     progressInvalidated: 'Corregimos el orden de tejido de esta técnica. Tu progreso guardado ya no calzaba con la mostacilla correcta, así que se reinició.',
     directionLtr: 'Tejiendo de izquierda a derecha',
     directionRtl: 'Tejiendo de derecha a izquierda',
-    handsBusyMode: 'Modo manos ocupadas',
     tapToAdvance: 'Tocar el patrón para avanzar',
     wakeLockActive: 'Pantalla siempre encendida',
     wakeLockRetrying: 'Reactivando pantalla siempre encendida…',

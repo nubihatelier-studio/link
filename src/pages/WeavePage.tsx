@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Hand, Moon, RefreshCw, Sun } from 'lucide-react'
+import { Moon, RefreshCw, Sun } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
@@ -15,17 +15,13 @@ import {
   WEAVE_ORDER_VERSION,
   type JumpTarget,
 } from '@/engine/weaveOrder'
-import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChart'
 import { normalizeFringe } from '@/engine/fringe'
 import { normalizeRowShape } from '@/engine/shape'
 import { loopBeadCount, normalizeLoop } from '@/engine/loop'
-import { letterMap } from '@/engine/letters'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
-import { HandsBusyView } from '@/components/weave/HandsBusyView'
 import { Button } from '@/components/shared/Button'
-import { IconButton } from '@/components/shared/IconButton'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { Toast } from '@/components/shared/Toast'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -54,7 +50,7 @@ export function WeavePage() {
   const navigate = useNavigate()
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
   const { getIndex, getOrderVersion, setIndex, reset, loadProgress } = useWeaveStore()
-  const { handsBusyMode, tapAnywhereToAdvance, setHandsBusyMode, setTapAnywhereToAdvance } = useWeavePrefsStore()
+  const { tapAnywhereToAdvance, setTapAnywhereToAdvance } = useWeavePrefsStore()
   const touchStartX = useRef<number | null>(null)
   // Captured index to restore if "Reiniciar" gets undone within the toast window.
   const [pendingReset, setPendingReset] = useState<number | null>(null)
@@ -119,36 +115,6 @@ export function WeavePage() {
     setProgressInvalidated(true)
   }, [id, pattern, currentIndex, getOrderVersion, orderVersion, reset])
 
-  const wordChartLines = useMemo(() => {
-    if (!pattern) return []
-    const letterForHex = letterMap({
-      technique,
-      cols: pattern.config.cols,
-      rows: pattern.config.rows,
-      cells: pattern.cells,
-      fringe,
-      rowShape,
-      loop,
-    })
-    return buildWordChart(
-      technique,
-      pattern.config.cols,
-      pattern.config.rows,
-      pattern.cells,
-      (hex) => letterForHex.get(hex) ?? '?',
-      fringe,
-      rowShape,
-      loop,
-    )
-  }, [pattern, technique, fringe, rowShape, loop])
-  const currentLine = onLoop
-    ? wordChartLines.find((l) => l.isLoop)
-    : onFringe
-      ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep.unit)
-      : onFoundation
-        ? wordChartLines.find((l) => l.grouped)
-        : wordChartLines.find((l) => !l.isFringe && !l.grouped && !l.isLoop && l.unitIndex === currentUnitIndex)
-  const currentLineText = formatWordChartLineForDisplay(currentLine?.text ?? '')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -294,61 +260,26 @@ export function WeavePage() {
         >
           <WakeLockIcon size={16} className={!wakeLock.isSupported ? '' : wakeLock.isActive ? '' : 'animate-spin'} />
         </span>
-        <IconButton
-          label={t.weave.handsBusyMode}
-          active={handsBusyMode}
-          onClick={() => setHandsBusyMode(!handsBusyMode)}
-          className="h-9 w-9"
-        >
-          <Hand size={16} />
-        </IconButton>
         <button onClick={requestReset} className="rounded-full px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2">
           {t.weave.reset}
         </button>
       </header>
 
       <div className="relative min-h-0 flex-1">
-        {handsBusyMode ? (
-          <HandsBusyView
-            unitLabel={
-              onLoop
-                ? t.weave.loopStepLabel
-                : onFringe
-                  ? t.weave.fringeUnitLabel
-                  : onFoundation
-                    ? t.weave.foundationPass
-                    : t.weave.row
-            }
-            unitIndex={onFringe ? currentStep!.unit : currentUnitIndex}
-            unitCount={onFringe ? pattern.config.cols : rows}
-            showCount={!onFoundation && !onLoop}
-            hint={
-              onLoop
-                ? t.weave.loopStepHint(currentStep!.cells.length)
-                : onFoundation
-                  ? t.weave.foundationPassHint(currentStep!.cells.length)
-                  : undefined
-            }
-            lineText={currentLineText}
-            onAdvance={advance}
-            tapAnywhere={tapAnywhereToAdvance}
-            canAdvance={canAdvance}
-          />
-        ) : (
-          <WeaveCanvas
-            technique={pattern.config.technique}
-            cols={pattern.config.cols}
-            rows={pattern.config.rows}
-            cells={pattern.cells}
-            fringe={fringe}
-            order={order}
-            currentIndex={currentIndex}
-            onTapNext={advance}
-            staggerPhase={pattern.config.staggerPhase ?? 0}
-            rowShape={rowShape}
-            loop={loop}
-          />
-        )}
+        <WeaveCanvas
+          technique={pattern.config.technique}
+          cols={pattern.config.cols}
+          rows={pattern.config.rows}
+          cells={pattern.cells}
+          fringe={fringe}
+          order={order}
+          currentIndex={currentIndex}
+          onTapNext={advance}
+          tapAnywhere={tapAnywhereToAdvance}
+          staggerPhase={pattern.config.staggerPhase ?? 0}
+          rowShape={rowShape}
+          loop={loop}
+        />
       </div>
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -380,16 +311,14 @@ export function WeavePage() {
                   ? t.weave.markFoundationDone
                   : t.weave.markRowDone}
           </button>
-          {handsBusyMode && (
-            <button
-              onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}
-              aria-pressed={tapAnywhereToAdvance}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors
-                ${tapAnywhereToAdvance ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
-            >
-              {t.weave.tapToAdvance}
-            </button>
-          )}
+          <button
+            onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}
+            aria-pressed={tapAnywhereToAdvance}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors
+              ${tapAnywhereToAdvance ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+          >
+            {t.weave.tapToAdvance}
+          </button>
         </div>
         {loop?.variant === 'metal' && (
           // A metal loop is a bought finding, so it produces no weave step at
@@ -402,11 +331,10 @@ export function WeavePage() {
             fullWidth
             onClick={goBack}
             disabled={currentIndex < 0}
-            className={handsBusyMode ? 'py-5 text-lg' : ''}
           >
             ← {t.weave.back}
           </Button>
-          <Button fullWidth onClick={advance} disabled={!canAdvance} className={handsBusyMode ? 'py-5 text-lg' : ''}>
+          <Button fullWidth onClick={advance} disabled={!canAdvance}>
             {t.weave.next} →
           </Button>
         </div>

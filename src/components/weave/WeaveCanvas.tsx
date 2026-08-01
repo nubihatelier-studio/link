@@ -16,6 +16,12 @@ interface WeaveCanvasProps {
   order: WeaveOrder
   currentIndex: number
   onTapNext: () => void
+  /**
+   * Any tap on the pattern advances, instead of only one landing on the next
+   * bead. On by default because it's the setting that works with a needle in
+   * hand; off is the precise option, for when a stray touch shouldn't count.
+   */
+  tapAnywhere?: boolean
   staggerPhase?: 0 | 1
   /** Absent/undefined is treated as a full rectangle — only used to anchor the loop. */
   rowShape?: RowShape[]
@@ -35,6 +41,7 @@ export function WeaveCanvas({
   order,
   currentIndex,
   onTapNext,
+  tapAnywhere = true,
   staggerPhase = 0,
   rowShape,
   loop,
@@ -250,7 +257,7 @@ export function WeaveCanvas({
     if (!start || start.pointerId !== e.pointerId || pointerCancelled.current) return
     const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
     if (moved > TAP_SLOP_PX) return
-    if (isNearNextCell(e.clientX, e.clientY)) onTapNext()
+    if (tapAnywhere || isNearNextCell(e.clientX, e.clientY)) onTapNext()
   }
 
   function handlePointerCancel() {

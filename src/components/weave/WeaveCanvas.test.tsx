@@ -9,7 +9,7 @@ import { WeaveCanvas } from './WeaveCanvas'
 // same units the component's own hit-test math uses (MARGIN=28, CELL_PX=24).
 const NEXT_CELL_CENTER = { x: 40, y: 40 } // loom (row 0, col 0): MARGIN + 0*CELL_PX + CELL_PX/2
 
-function renderCanvas(onTapNext = vi.fn()) {
+function renderCanvas(onTapNext = vi.fn(), tapAnywhere = false) {
   const order = buildWeaveOrder('loom', 2, 2)
   const utils = render(
     <WeaveCanvas
@@ -21,6 +21,7 @@ function renderCanvas(onTapNext = vi.fn()) {
       order={order}
       currentIndex={-1}
       onTapNext={onTapNext}
+      tapAnywhere={tapAnywhere}
     />,
   )
   const container = utils.container.firstChild as HTMLElement
@@ -50,9 +51,24 @@ describe('WeaveCanvas — avance por toque (Endurecimiento 5)', () => {
     expect(onTapNext).toHaveBeenCalledTimes(1)
   })
 
-  it('un tap lejos de la próxima mostacilla no avanza', () => {
+  it('con "tocar el patrón" apagado, un tap lejos de la próxima mostacilla no avanza', () => {
     const { container, onTapNext } = renderCanvas()
     tap(container, { x: 500, y: 500 })
+    expect(onTapNext).not.toHaveBeenCalled()
+  })
+
+  it('con "tocar el patrón para avanzar" encendido, un tap en cualquier parte avanza', () => {
+    // La preferencia que vivía en el modo manos ocupadas: con la aguja en la
+    // mano no hay que apuntarle a la mostacilla exacta.
+    const { container, onTapNext } = renderCanvas(vi.fn(), true)
+    tap(container, { x: 500, y: 500 })
+    expect(onTapNext).toHaveBeenCalledTimes(1)
+  })
+
+  it('encendido, un arrastre sigue sin avanzar: sigue siendo un gesto de paneo', () => {
+    const { container, onTapNext } = renderCanvas(vi.fn(), true)
+    fireEvent.pointerDown(container, { clientX: 500, clientY: 500, pointerId: 1 })
+    fireEvent.pointerUp(container, { clientX: 560, clientY: 500, pointerId: 1 })
     expect(onTapNext).not.toHaveBeenCalled()
   })
 
