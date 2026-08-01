@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowRight,
   BoxSelect,
+  ChevronDown,
   FlipHorizontal2,
   FlipVertical2,
   Merge,
@@ -40,6 +41,9 @@ export function ColorPanel() {
     applyGradient,
   } = useEditorStore()
   const [pickerOpen, setPickerOpen] = useState(true)
+  // Open by default — the group is collapsible so a long "sin usar" row can
+  // be folded away on a narrow screen, not to hide it until asked for.
+  const [unusedOpen, setUnusedOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceDraft, setReplaceDraft] = useState('#000000')
@@ -91,6 +95,39 @@ export function ColorPanel() {
     [palette],
   )
   const activeHex = slots[activeSlot]
+
+  /**
+   * The swatch row splits the palette in two, because it was showing two
+   * different things as if they were one: the colors this design is made of
+   * (they carry a letter and a bead count — they're the chart's notation) and
+   * the colors merely loaded and ready to paint with. Used ones come first in
+   * letter order; the rest follow, dimmed and letterless, and cross over the
+   * moment they're painted.
+   *
+   * Keyed by color rather than by slot: a color used in the pattern is one
+   * entry even if it sits in two slots, and one that's used but no longer in
+   * any slot (its slot was recolored) still gets a swatch — `slotIndex` -1
+   * means "give it a slot when picked" instead of leaving it unreachable.
+   */
+  const used = useMemo(
+    () => palette.map((p) => ({ hex: p.hex, letter: p.letter, count: p.count, slotIndex: slots.indexOf(p.hex) })),
+    [palette, slots],
+  )
+  const unused = useMemo(() => {
+    const usedHexes = new Set(palette.map((p) => p.hex))
+    return slots
+      .map((hex, slotIndex) => ({ hex, slotIndex, key: `${slotIndex}:${hex}` }))
+      .filter((s) => !usedHexes.has(s.hex))
+  }, [palette, slots])
+
+  function isActive(swatch: { hex: string; slotIndex: number }) {
+    return swatch.slotIndex >= 0 ? activeSlot === swatch.slotIndex : activeHex === swatch.hex
+  }
+
+  function pick(swatch: { hex: string; slotIndex: number }) {
+    if (swatch.slotIndex >= 0) setActiveSlot(swatch.slotIndex)
+    else addSlot(swatch.hex)
+  }
 
   const cloneWidth = selection ? selection.c1 - selection.c0 + 1 : 0
   const cloneHeight = selection ? selection.r1 - selection.r0 + 1 : 0
@@ -168,18 +205,46 @@ export function ColorPanel() {
           <p className="font-mono text-sm">{activeHex}</p>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {slots.map((hex, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveSlot(i)}
-              className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold
-                ${activeSlot === i ? 'border-accent-500' : 'border-border'}`}
-              style={{ backgroundColor: hex, color: contrastTextColor(hex) }}
-            >
-              {colorLetters[hex] ?? ''}
-            </button>
-          ))}
+        <div className="mt-3 flex flex-col gap-3">
+          {used.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {used.map((swatch) => (
+                <UsedSwatch key={swatch.hex} swatch={swatch} active={isActive(swatch)} onSelect={() => pick(swatch)} />
+              ))}
+            </div>
+          )}
+
+          {unused.length > 0 &&
+            // Before anything is painted every color is "unused", so the split
+            // has nothing to separate — show the plain row instead of filing
+            // the whole palette under a heading that only states the obvious.
+            (used.length === 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {unused.map((swatch) => (
+                  <UnusedSwatch key={swatch.key} swatch={swatch} active={isActive(swatch)} onSelect={() => pick(swatch)} />
+                ))}
+              </div>
+            ) : (
+              <div className="border-t border-border pt-3">
+                <button
+                  onClick={() => setUnusedOpen((v) => !v)}
+                  aria-expanded={unusedOpen}
+                  title={unusedOpen ? t.editor.hideUnusedColors : t.editor.showUnusedColors}
+                  className="flex w-full items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
+                >
+                  <ChevronDown size={13} className={unusedOpen ? '' : '-rotate-90'} />
+                  {t.editor.unusedColors} ({unused.length})
+                </button>
+                {unusedOpen && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {unused.map((swatch) => (
+                      <UnusedSwatch key={swatch.key} swatch={swatch} active={isActive(swatch)} onSelect={() => pick(swatch)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
           <button
             onClick={() => {
               addSlot()
@@ -372,6 +437,68 @@ export function ColorPanel() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * A color the design actually uses: its letter inside the swatch, its bead
+ * count underneath. The count sits outside the circle on purpose — the circle
+ * stays a full 36px touch target with a single legible character in it,
+ * instead of shrinking two pieces of text to fit.
+ */
+function UsedSwatch({
+  swatch,
+  active,
+  onSelect,
+}: {
+  swatch: { hex: string; letter: string; count: number }
+  active: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      title={t.editor.usedColorHint(swatch.letter, swatch.count)}
+      aria-label={t.editor.usedColorHint(swatch.letter, swatch.count)}
+      aria-pressed={active}
+      className="flex w-9 shrink-0 flex-col items-center gap-0.5"
+    >
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold
+          ${active ? 'border-accent-500' : 'border-border'}`}
+        style={{ backgroundColor: swatch.hex, color: contrastTextColor(swatch.hex) }}
+      >
+        {swatch.letter}
+      </span>
+      <span className="text-[10px] leading-none text-text-muted">{swatch.count}</span>
+    </button>
+  )
+}
+
+/**
+ * A color loaded in the palette but not painted anywhere yet — no letter (it
+ * hasn't earned one), dimmed so it reads as material rather than notation,
+ * and fully selectable: painting with it is exactly what promotes it.
+ */
+function UnusedSwatch({
+  swatch,
+  active,
+  onSelect,
+}: {
+  swatch: { hex: string }
+  active: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      title={`${swatch.hex} — ${t.editor.unusedColorHint}`}
+      aria-label={`${swatch.hex} — ${t.editor.unusedColorHint}`}
+      aria-pressed={active}
+      className={`h-9 w-9 shrink-0 rounded-full border-2 border-dashed transition-opacity hover:opacity-100
+        ${active ? 'border-accent-500 opacity-100' : 'border-border opacity-50'}`}
+      style={{ backgroundColor: swatch.hex }}
+    />
   )
 }
 

@@ -128,6 +128,13 @@ export const t = {
     palette: 'Paleta',
     paletteEmpty: 'Sin colores todavía',
     activeColor: 'Color activo',
+    /** Colores agregados a la paleta que todavía no se pintaron en ninguna mostacilla — no tienen letra. */
+    unusedColors: 'Sin usar todavía',
+    showUnusedColors: 'Mostrar los colores sin usar',
+    hideUnusedColors: 'Ocultar los colores sin usar',
+    unusedColorHint: 'Sin usar todavía — al pintar la primera mostacilla recibe su letra',
+    usedColorHint: (letter: string, count: number) =>
+      `Color ${letter} · ${count} ${count === 1 ? 'mostacilla' : 'mostacillas'}`,
     weaveMode: 'Modo tejido',
     zoom: 'Zoom',
     zoomOut: 'Alejar',

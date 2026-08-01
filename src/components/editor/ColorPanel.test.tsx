@@ -119,3 +119,99 @@ describe('ColorPanel — seleccionar por color', () => {
     expect(screen.queryByTestId('merge-panel')).not.toBeInTheDocument()
   })
 })
+
+describe('ColorPanel — usados y sin usar están separados (Tarea 2)', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  /** Los swatches de arriba: los usados llevan letra y conteo en su etiqueta accesible. */
+  function usedSwatches() {
+    return screen.getAllByRole('button', { name: /^Color [A-Z]+ · \d+ mostacilla/ })
+  }
+
+  /** Los swatches sin usar se nombran "<hex> — Sin usar todavía…", a diferencia del botón que pliega el grupo. */
+  function unusedSwatches() {
+    return screen.getAllByRole('button', { name: /^#[0-9a-f]{6} — Sin usar todavía/i })
+  }
+
+  function unusedSwatch(hex: string) {
+    return screen.getByRole('button', { name: new RegExp(`^${hex} — Sin usar todavía`, 'i') })
+  }
+
+  function unusedToggle() {
+    return screen.getByRole('button', { name: /^Sin usar todavía \(\d+\)$/ })
+  }
+
+  it('los colores usados van primero, en orden de letra, con su letra y su conteo', () => {
+    render(<ColorPanel />)
+
+    const used = usedSwatches()
+    expect(used).toHaveLength(2)
+    // '#111111' se teje primero (celda 0,0) → A, con 2 mostacillas; '#222222' → B, con 1.
+    expect(used[0]).toHaveAccessibleName('Color A · 2 mostacillas')
+    expect(used[1]).toHaveAccessibleName('Color B · 1 mostacilla')
+    expect(within(used[0]).getByText('A')).toBeInTheDocument()
+    expect(within(used[0]).getByText('2')).toBeInTheDocument()
+  })
+
+  it('los colores de la paleta que no se pintaron van aparte, sin letra, bajo "Sin usar todavía"', () => {
+    render(<ColorPanel />)
+
+    expect(unusedToggle()).toHaveAccessibleName('Sin usar todavía (2)')
+    const unused = unusedSwatches()
+    expect(unused).toHaveLength(2) // '#8da2b0' y '#ffffff': están en los slots, no en el diseño
+    for (const swatch of unused) expect(swatch).toHaveTextContent('')
+  })
+
+  it('un color sin usar sigue siendo seleccionable para pintar', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    await user.click(unusedSwatch('#8da2b0'))
+    const { slots, activeSlot } = useEditorStore.getState()
+    expect(slots[activeSlot]).toBe('#8da2b0')
+  })
+
+  it('al pintarse por primera vez, un color sin usar pasa al grupo de usados con la letra siguiente', () => {
+    useEditorStore.setState({ cells: { '0,0': '#111111', '0,1': '#111111', '0,2': '#222222', '0,3': '#8da2b0' } })
+    render(<ColorPanel />)
+
+    const used = usedSwatches()
+    expect(used).toHaveLength(3)
+    expect(used[2]).toHaveAccessibleName('Color C · 1 mostacilla')
+    expect(unusedToggle()).toHaveAccessibleName('Sin usar todavía (1)')
+  })
+
+  it('el grupo "sin usar" se puede plegar, para que el panel no se estire en pantallas angostas', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    const toggle = unusedToggle()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(unusedSwatches()).toHaveLength(2)
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryAllByRole('button', { name: /^#[0-9a-f]{6} — Sin usar todavía/i })).toHaveLength(0)
+  })
+
+  it('el color activo se destaca esté usado o no', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    expect(usedSwatches()[0]).toHaveAttribute('aria-pressed', 'true') // slot 0 = '#111111', usado
+
+    await user.click(unusedSwatch('#ffffff'))
+    expect(unusedSwatch('#ffffff')).toHaveAttribute('aria-pressed', 'true')
+    expect(usedSwatches()[0]).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('sin nada pintado no hay separación que hacer: la paleta se muestra como una sola fila', () => {
+    useEditorStore.setState({ cells: {} })
+    render(<ColorPanel />)
+
+    expect(screen.queryByRole('button', { name: /^Sin usar todavía \(\d+\)$/ })).not.toBeInTheDocument()
+    expect(unusedSwatches()).toHaveLength(4)
+  })
+})
