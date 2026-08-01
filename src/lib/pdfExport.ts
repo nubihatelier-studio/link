@@ -37,11 +37,11 @@ export interface ExportPatternOptions {
 }
 
 /**
- * The four things a pattern PDF can contain. All on by default: a weaver who
- * works off paper needs the word chart (that's the format you actually read
- * from while beading), and one who just wants a compact reference sheet can
- * switch it off in the export dialog. Dropping it unconditionally — as this
- * module did for a while — takes the document's main job away from it.
+ * The four things a pattern PDF can contain. Every one of them stays
+ * available — the word chart is the format you actually read from while
+ * beading, and dropping it unconditionally (as this module did for a while)
+ * takes the document's main job away from it. What differs is only what the
+ * export dialog *starts* with: see `DEFAULT_PDF_SECTIONS`.
  */
 export interface PdfSections {
   chart: boolean
@@ -52,6 +52,22 @@ export interface PdfSections {
 
 export const ALL_PDF_SECTIONS: PdfSections = { chart: true, materials: true, wordChart: true, notes: true }
 
+/**
+ * What the export dialog offers pre-selected. Everything except the word
+ * chart: the sheet people actually print is chart + materials, which fits on
+ * a single page, and the word chart's one-line-per-bead listing turns that
+ * into a several-page document. Whoever weaves from the written sequence
+ * still gets it by ticking the box — this is a starting point, not a
+ * restriction.
+ */
+export const DEFAULT_PDF_SECTIONS: PdfSections = { ...ALL_PDF_SECTIONS, wordChart: false }
+
+/**
+ * Fills in anything a caller left unsaid. Deliberately anchored to
+ * `ALL_PDF_SECTIONS`, not `DEFAULT_PDF_SECTIONS`: a caller passing
+ * `{ chart: false }` is narrowing a complete document, and the dialog always
+ * passes all four keys explicitly anyway.
+ */
 function resolveSections(sections: Partial<PdfSections> | undefined): PdfSections {
   return { ...ALL_PDF_SECTIONS, ...sections }
 }
@@ -619,9 +635,10 @@ function drawMaterialsColumn(
  *    for the cases the one-page layout can't serve legibly.
  *
  * The word chart follows on its own pages after either layout (see
- * `drawWordChartPages`) — that's the format a weaver reads from while
- * beading off paper, so it's on by default; `opts.sections` lets the export
- * dialog drop it (or any other section) for a compact reference sheet.
+ * `drawWordChartPages`) — the format a weaver reads from while beading off
+ * paper, requested through `opts.sections` (the export dialog leaves it off
+ * by default so the common case stays a single sheet — see
+ * `DEFAULT_PDF_SECTIONS` — and offers it as a tick box).
  * Every page gets the same footer stamp so the brand travels with shared PDFs.
  */
 export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<void> {

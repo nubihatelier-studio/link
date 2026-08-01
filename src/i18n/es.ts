@@ -275,7 +275,7 @@ export const t = {
     wordChartTitle: 'Secuencia de tejido',
     fringeLabel: 'Fleco',
   },
-  /** "Qué incluir" section picker in the PDF export dialog — everything on by default. */
+  /** "Qué incluir" section picker in the PDF export dialog — everything except the word chart on by default. */
   exportDialog: {
     title: 'Exportar PDF',
     subtitle: 'Elige qué incluir en el documento.',

@@ -10,6 +10,7 @@ import { loopBeadCount, loopHeightUnits } from '@/engine/loop'
 import {
   chartCellMm,
   chooseOnePageLayout,
+  DEFAULT_PDF_SECTIONS,
   exportPatternToPdf,
   fitChartCellToOnePage,
   rulerLabelIndices,
@@ -568,11 +569,41 @@ describe('word chart en el PDF (Prioridad 2)', () => {
       .join('\n')
   }
 
-  it('imprime la secuencia de tejido por defecto, sin tener que pedirla', async () => {
+  // Ojo: quien no dice nada sobre `sections` sigue recibiendo el documento
+  // completo — el que la deja apagada es el diálogo de exportación, con su
+  // propio DEFAULT_PDF_SECTIONS. Este test cuida esa distinción.
+  it('un llamado que no acota `sections` recibe la secuencia de tejido igual', async () => {
     await exportPatternToPdf({
       name: 'Pulsera', technique: 'peyote', cols: 6, rows: 20, cells: fillCells(6, 20), beadType: bead,
     })
     expect(pdfText(lastDoc!)).toContain(t.pdf.wordChartTitle)
+  })
+
+  it('con las secciones por defecto del diálogo, el aro sale en una hoja con gráfico y materiales', async () => {
+    // El aro tal como lo crea hoy la plantilla: sin argolla (se activa a mano).
+    await exportPatternToPdf({
+      name: 'Aro con flecos', technique: 'brick', cols: 7, rows: 7, cells: fillCells(7, 7),
+      rowShape: createShapedRowShape('triangle', 7, 7),
+      fringe: { lengths: [4, 6, 8, 9, 8, 6, 4], turnBeads: [true, true, true, true, true, true, true] },
+      beadType: bead,
+      sections: DEFAULT_PDF_SECTIONS,
+    })
+    const text = pdfText(lastDoc!)
+    expect(lastDoc!.getNumberOfPages()).toBe(1)
+    expect(text).toContain(t.pdf.materials)
+    expect(text).not.toContain(t.pdf.wordChartTitle)
+  })
+
+  it('el mismo aro con la secuencia activada a mano la sigue incluyendo', async () => {
+    await exportPatternToPdf({
+      name: 'Aro con flecos', technique: 'brick', cols: 7, rows: 7, cells: fillCells(7, 7),
+      rowShape: createShapedRowShape('triangle', 7, 7),
+      fringe: { lengths: [4, 6, 8, 9, 8, 6, 4], turnBeads: [true, true, true, true, true, true, true] },
+      beadType: bead,
+      sections: { ...DEFAULT_PDF_SECTIONS, wordChart: true },
+    })
+    expect(pdfText(lastDoc!)).toContain(t.pdf.wordChartTitle)
+    expect(lastDoc!.getNumberOfPages()).toBeGreaterThan(1)
   })
 
   it('respeta el orden real de la técnica: brick abre por la fila base', async () => {

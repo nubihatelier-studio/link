@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ALL_PDF_SECTIONS, type PdfSections } from '@/lib/pdfExport'
+import { DEFAULT_PDF_SECTIONS, type PdfSections } from '@/lib/pdfExport'
 import { Button } from '@/components/shared/Button'
 import { t } from '@/i18n/es'
 
@@ -16,13 +16,13 @@ const SECTION_ORDER: { key: keyof PdfSections; label: string; hint: string }[] =
 ]
 
 /**
- * "Qué incluir" picker shown before generating the PDF. Everything starts on:
- * a weaver working from a printout needs the word chart, and one who just
- * wants a compact reference sheet can switch it off here — which is the point
- * of asking instead of deciding for them.
+ * "Qué incluir" picker shown before generating the PDF. Starts on the
+ * single-sheet document most people print — chart + materials + notes, with
+ * the word chart off (see `DEFAULT_PDF_SECTIONS`). Every section stays one
+ * tap away, which is the point of asking instead of deciding for them.
  */
 export function ExportPdfDialog({ onCancel, onConfirm }: ExportPdfDialogProps) {
-  const [sections, setSections] = useState<PdfSections>(ALL_PDF_SECTIONS)
+  const [sections, setSections] = useState<PdfSections>(DEFAULT_PDF_SECTIONS)
   const nothingSelected = !Object.values(sections).some(Boolean)
 
   function toggle(key: keyof PdfSections) {
