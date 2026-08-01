@@ -7,6 +7,7 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { lineCells } from '@/engine/line'
 import { usePatternLetterMap } from '@/hooks/usePatternLetters'
 import { letterFontSizePx, shouldShowLetters } from '@/lib/letterVisibility'
+import { initialFitZoom } from '@/lib/fitZoom'
 import { useEditorPrefsStore } from '@/store/editorPrefsStore'
 import { contrastTextColor } from '@/lib/color'
 import { t } from '@/i18n/es'
@@ -40,10 +41,13 @@ export function CanvasGrid() {
   // precise "zoom anchored under your fingers" transform (which would need
   // to solve for scroll offset from the zoom origin), but it feels natural
   // for a bead chart where you mostly pinch OR pan, not both at once.
+  /** Pattern id whose opening zoom has already been applied — see the framing effect below. */
+  const framedPatternId = useRef<string | null>(null)
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const pinch = useRef<{ startDist: number; startZoom: number; midX: number; midY: number } | null>(null)
 
   const {
+    patternId,
     technique,
     cols,
     rows,
@@ -96,6 +100,32 @@ export function CanvasGrid() {
   const originY = MARGIN + loopReservePx
   const canvasWidth = bounds.width * cellPx + MARGIN
   const canvasHeight = bounds.height * cellPx + originY
+
+  /**
+   * Opening framing: a strip (a bracelet, a band) is fitted to its width so
+   * the beads stay big and legible and you scroll down through them, while
+   * everything else keeps the whole-pattern framing it always had. See
+   * `lib/fitZoom.ts` for the rule and why 41 rows at once is the wrong goal.
+   *
+   * Runs once per pattern opened — `framedPatternId` makes sure a zoom the
+   * weaver sets afterwards is never overridden, and that simply editing the
+   * pattern doesn't re-frame the canvas under her.
+   */
+  useEffect(() => {
+    if (!patternId || framedPatternId.current === patternId) return
+    const container = containerRef.current
+    if (!container || container.clientWidth === 0) return
+    framedPatternId.current = patternId
+    setZoom(
+      initialFitZoom({
+        boundsWidth: bounds.width,
+        boundsHeight: bounds.height,
+        viewportWidth: container.clientWidth,
+        viewportHeight: container.clientHeight,
+        margin: MARGIN,
+      }),
+    )
+  }, [patternId, bounds.width, bounds.height, setZoom])
   const activeColor = slots[activeSlot]
 
   // Leaving the line tool (or switching patterns) abandons any pending
