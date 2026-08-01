@@ -4,7 +4,7 @@ import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { letterMap } from '@/engine/letters'
-import { contrastTextColor } from './color'
+import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from './beadStyle'
 import { shareOrDownloadFile } from './shareFile'
 import { t } from '@/i18n/es'
 
@@ -41,14 +41,6 @@ export function computeExportCellPx(boundsWidth: number, boundsHeight: number, t
   return Math.max(MIN_CELL_PX, Math.min(MAX_CELL_PX, targetLongSidePx / longSideUnits))
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}
 
 /**
  * The `'metal'` loop's stand-in: a thin open ring sitting in the reserved space
@@ -115,8 +107,8 @@ export function renderPatternCanvas(
   const letterForHex = letterMap({ technique, cols, rows, cells, fringe, rowShape, loop })
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
-  const radius = Math.max(1, cellPx * 0.12)
-  const inset = Math.max(0.5, cellPx * 0.05)
+  // Same bead style as the editor — see lib/beadStyle.ts.
+  const { inset, radius } = beadMetricsPx(cellPx)
   if (showLetters) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

@@ -1,12 +1,13 @@
 import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, physicalSizeMm, beadCount, loopAnchorX } from '@/engine/geometry'
+import { cellPosition, physicalSizeMm, beadCount, loopAnchorX, rowPitch } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { assignLetters, type LetterEntry } from '@/engine/letters'
-import { catalogMatchForHex, contrastTextColor } from './color'
+import { beadMetrics, contrastTextColor } from './beadStyle'
+import { catalogMatchForHex } from './color'
 import { formatSizeMm } from '@/engine/units'
 import { buildWordChart } from '@/engine/wordChart'
 import { shareOrDownloadFile } from './shareFile'
@@ -272,6 +273,15 @@ function drawChart(
   const lettersVisible = showLetters && minCell >= MIN_LEGIBLE_CELL_MM
   const letterFontSize = Math.min(MAX_LETTER_FONT_SIZE, minCell * 1.6)
 
+  // Same bead style as the editor canvas (see lib/beadStyle.ts): a gap on both
+  // axes and rounded corners, so a column reads as a stack of beads rather
+  // than one bar of colour. The height fed to `beadMetrics` is the real
+  // distance to the next row, not the nominal cell — peyote and brick step
+  // less than a full cell (see geometry.ts#rowPitch), so a bead sized to the
+  // cell would overlap the one below and close the gap again.
+  const rowStep = rowPitch(technique) * cellH
+  const bead = beadMetrics(cellW, rowStep)
+
   doc.setLineWidth(0.05)
   for (let row = 0; row < totalRows; row++) {
     for (let col = 0; col < cols; col++) {
@@ -282,22 +292,26 @@ function drawChart(
 
       const hex = cells[cellKey(row, col)]
       const pos = cellPosition(technique, row, col, rows, staggerPhase)
-      const x = originX + (pos.x - origin.x) * cellW
-      const y = originY + (pos.y - origin.y) * cellH
+      const x = originX + (pos.x - origin.x) * cellW + bead.inset
+      const y = originY + (pos.y - origin.y) * cellH + bead.inset
 
+      doc.setDrawColor(200)
       if (hex) {
         doc.setFillColor(hex)
-        doc.setDrawColor(200)
-        doc.rect(x, y, cellW, cellH, 'FD')
+        doc.roundedRect(x, y, bead.width, bead.height, bead.radius, bead.radius, 'FD')
         if (lettersVisible) {
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(letterFontSize)
           doc.setTextColor(contrastTextColor(hex))
-          doc.text(letterForHex.get(hex) ?? '?', x + cellW / 2, y + cellH / 2, { align: 'center', baseline: 'middle' })
+          doc.text(letterForHex.get(hex) ?? '?', x + bead.width / 2, y + bead.height / 2, {
+            align: 'center',
+            baseline: 'middle',
+          })
         }
       } else {
-        doc.setDrawColor(200)
-        doc.rect(x, y, cellW, cellH, 'S')
+        // An empty bead still gets its outline: that's the background mesh the
+        // editor shows, and what makes an unpainted stretch readable as beads.
+        doc.roundedRect(x, y, bead.width, bead.height, bead.radius, bead.radius, 'S')
       }
     }
   }

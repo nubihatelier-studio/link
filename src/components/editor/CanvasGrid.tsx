@@ -9,7 +9,7 @@ import { usePatternLetterMap } from '@/hooks/usePatternLetters'
 import { letterFontSizePx, shouldShowLetters } from '@/lib/letterVisibility'
 import { initialFitZoom } from '@/lib/fitZoom'
 import { useEditorPrefsStore } from '@/store/editorPrefsStore'
-import { contrastTextColor } from '@/lib/color'
+import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from '@/lib/beadStyle'
 import { t } from '@/i18n/es'
 
 const BASE_CELL_PX = 30
@@ -209,8 +209,8 @@ export function CanvasGrid() {
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * cellPx + cellPx / 2)
     }
 
-    const radius = Math.max(1.5, cellPx * 0.12)
-    const inset = Math.max(0.5, cellPx * 0.05)
+    // The reference bead style, shared with the PNG, the card and the PDF — see lib/beadStyle.ts.
+    const { inset, radius } = beadMetricsPx(cellPx)
     // Every 5th/10th cell gets a bolder edge (like cross-stitch chart
     // counting guides), so large grids stay readable and easy to click
     // precisely without losing count.
@@ -790,11 +790,3 @@ export function CanvasGrid() {
   )
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}

@@ -5,6 +5,7 @@ import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { cellsInSameUnit, directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
+import { beadMetricsPx, beadPath as roundRect } from '@/lib/beadStyle'
 import { TAP_SLOP_PX } from './tapGesture'
 
 interface WeaveCanvasProps {
@@ -112,8 +113,7 @@ export function WeaveCanvas({
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
-    const inset = 1.5
-    const radius = 4
+    const { inset, radius } = beadMetricsPx(CELL_PX)
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -322,14 +322,6 @@ export function WeaveCanvas({
   )
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
-}
 
 function drawArrow(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, color: string) {
   ctx.strokeStyle = color
