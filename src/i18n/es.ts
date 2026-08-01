@@ -296,10 +296,9 @@ export const t = {
     /** Metal (unwoven) loop's own materials-list line — see `engine/types.ts#LoopData`. */
     metalLoopMaterial: '1 argolla metálica',
     /** Word chart: the sequence a weaver actually reads from when working off paper. */
-    wordChartTitle: 'Secuencia de tejido',
     fringeLabel: 'Fleco',
   },
-  /** "Qué incluir" section picker in the PDF export dialog — everything except the word chart on by default. */
+  /** "Qué incluir" section picker in the PDF export dialog — las tres secciones vienen marcadas. */
   exportDialog: {
     title: 'Exportar PDF',
     subtitle: 'Elige qué incluir en el documento.',
@@ -307,8 +306,6 @@ export const t = {
     chartHint: 'La grilla del patrón, con letras por color.',
     materials: 'Materiales',
     materialsHint: 'Colores con su código DB, hilo estimado y aguja.',
-    wordChart: 'Secuencia de tejido',
-    wordChartHint: 'Mostacilla por mostacilla, en el orden real de la técnica. Para tejer leyendo, sin pantalla.',
     notes: 'Notas',
     notesHint: 'Tu nota del patrón, o líneas en blanco para escribir a mano.',
     cancel: 'Cancelar',

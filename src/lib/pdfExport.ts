@@ -9,7 +9,6 @@ import { assignLetters, type LetterEntry } from '@/engine/letters'
 import { beadMetrics, contrastTextColor } from './beadStyle'
 import { catalogMatchForHex } from './color'
 import { formatSizeMm } from '@/engine/units'
-import { buildWordChart } from '@/engine/wordChart'
 import { shareOrDownloadFile } from './shareFile'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
 import { t } from '@/i18n/es'
@@ -38,37 +37,21 @@ export interface ExportPatternOptions {
 }
 
 /**
- * The four things a pattern PDF can contain. Every one of them stays
- * available — the word chart is the format you actually read from while
- * beading, and dropping it unconditionally (as this module did for a while)
- * takes the document's main job away from it. What differs is only what the
- * export dialog *starts* with: see `DEFAULT_PDF_SECTIONS`.
+ * The three things a pattern PDF can contain. The bead-by-bead written
+ * sequence used to be a fourth: it produced several extra pages nobody was
+ * printing, and it belongs in Weave Mode, where you read it one pass at a
+ * time off the screen. `engine/wordChart.ts` still builds it — for that
+ * screen, not for this document.
  */
 export interface PdfSections {
   chart: boolean
   materials: boolean
-  wordChart: boolean
   notes: boolean
 }
 
-export const ALL_PDF_SECTIONS: PdfSections = { chart: true, materials: true, wordChart: true, notes: true }
+export const ALL_PDF_SECTIONS: PdfSections = { chart: true, materials: true, notes: true }
 
-/**
- * What the export dialog offers pre-selected. Everything except the word
- * chart: the sheet people actually print is chart + materials, which fits on
- * a single page, and the word chart's one-line-per-bead listing turns that
- * into a several-page document. Whoever weaves from the written sequence
- * still gets it by ticking the box — this is a starting point, not a
- * restriction.
- */
-export const DEFAULT_PDF_SECTIONS: PdfSections = { ...ALL_PDF_SECTIONS, wordChart: false }
-
-/**
- * Fills in anything a caller left unsaid. Deliberately anchored to
- * `ALL_PDF_SECTIONS`, not `DEFAULT_PDF_SECTIONS`: a caller passing
- * `{ chart: false }` is narrowing a complete document, and the dialog always
- * passes all four keys explicitly anyway.
- */
+/** Fills in anything a caller left unsaid — a caller passing `{ chart: false }` is narrowing a complete document. */
 function resolveSections(sections: Partial<PdfSections> | undefined): PdfSections {
   return { ...ALL_PDF_SECTIONS, ...sections }
 }
@@ -374,89 +357,6 @@ function drawLoop(
 }
 
 /** "Creado con Nubih Creator · @nubih.atelier" on every page — PDFs get shared, so the brand should travel with them. */
-/**
- * The word chart: every bead in the real order the technique is worked
- * (`engine/weaveOrder.ts`) — brick's base row first, each fringe strand as
- * its own complete sequence, peyote's doubled first pass, serpentine
- * directions — with the woven loop's ring as the closing step.
- *
- * This is the format a weaver actually READS FROM while beading, and a good
- * share of them work from a printout with no screen nearby. It was dropped
- * from the PDF once on the argument that Weave Mode covers it; Weave Mode
- * only covers the people holding a phone. Goes on its own pages, after the
- * compact chart + materials sheet — compressing the document is good,
- * losing its main content is not.
- */
-function drawWordChartPages(
-  doc: JsPDF,
-  opts: ExportPatternOptions,
-  letterForHex: Map<string, string>,
-  margin: number,
-  pageWidth: number,
-  pageHeight: number,
-) {
-  const lines = buildWordChart(
-    opts.technique,
-    opts.cols,
-    opts.rows,
-    opts.cells,
-    (hex) => letterForHex.get(hex) ?? '?',
-    opts.fringe,
-    opts.rowShape,
-    opts.loop,
-  )
-  if (lines.length === 0) return
-
-  const lineHeight = 4.6
-  const headerHeight = 16
-  const maxWidth = pageWidth - margin * 2
-
-  function drawPageHeader(): number {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.setTextColor(0)
-    doc.text(t.pdf.wordChartTitle, margin, margin + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(130)
-    doc.text(opts.name || 'Patrón Nubih', margin, margin + 9)
-    doc.setTextColor(0)
-    // Monospace so the bead runs line up column-wise down the page, which is
-    // what makes it followable by eye while your hands are busy.
-    doc.setFont('courier', 'normal')
-    doc.setFontSize(8)
-    return margin + headerHeight
-  }
-
-  doc.addPage()
-  let y = drawPageHeader()
-
-  for (const line of lines) {
-    const prefix = line.isLoop
-      ? `${t.weave.loopStepLabel}: `
-      : line.isFringe
-        ? `${t.pdf.fringeLabel} ${line.unitIndex + 1}: `
-        : line.grouped
-          ? `${t.weave.foundationPass}: `
-          : line.isBaseRow
-            ? `${t.weave.baseRow}: `
-            : line.isPass
-              ? `${t.weave.pass} ${line.unitIndex + 1}: `
-              : `${t.weave.row} ${line.unitIndex + 1}: `
-    const indent = ' '.repeat(prefix.length)
-    const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
-
-    wrapped.forEach((piece, i) => {
-      if (y > pageHeight - margin - FOOTER_RESERVE_MM) {
-        doc.addPage()
-        y = drawPageHeader()
-      }
-      doc.text((i === 0 ? prefix : indent) + piece, margin, y)
-      y += lineHeight
-    })
-  }
-}
-
 function stampFooterOnAllPages(doc: JsPDF, pageWidth: number, pageHeight: number) {
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
@@ -646,11 +546,6 @@ function drawMaterialsColumn(
  *    `fitChartCellToOnePage`) — this app's original layout, kept exactly
  *    for the cases the one-page layout can't serve legibly.
  *
- * The word chart follows on its own pages after either layout (see
- * `drawWordChartPages`) — the format a weaver reads from while beading off
- * paper, requested through `opts.sections` (the export dialog leaves it off
- * by default so the common case stays a single sheet — see
- * `DEFAULT_PDF_SECTIONS` — and offers it as a tick box).
  * Every page gets the same footer stamp so the brand travels with shared PDFs.
  */
 export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<void> {
@@ -740,8 +635,6 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
       if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
     }
   }
-
-  if (sections.wordChart) drawWordChartPages(doc, opts, letterForHex, margin, pageWidth, pageHeight)
 
   stampFooterOnAllPages(doc, pageWidth, pageHeight)
 

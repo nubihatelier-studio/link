@@ -9,37 +9,25 @@ function checkbox(label: string) {
 }
 
 describe('ExportPdfDialog — qué viene marcado por defecto', () => {
-  it('la "Secuencia de tejido" nace desmarcada; gráfico, materiales y notas marcados', async () => {
+  it('ofrece tres secciones, las tres marcadas: gráfico, materiales y notas', async () => {
     render(<ExportPdfDialog onCancel={vi.fn()} onConfirm={vi.fn()} />)
 
     expect(checkbox(t.exportDialog.chart)).toBeChecked()
     expect(checkbox(t.exportDialog.materials)).toBeChecked()
     expect(checkbox(t.exportDialog.notes)).toBeChecked()
-    // El PDF por defecto es una sola hoja de gráfico + materiales; la
-    // secuencia mostacilla-por-mostacilla la agrega quien la quiera.
-    expect(checkbox(t.exportDialog.wordChart)).not.toBeChecked()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    // La secuencia de tejido dejó de ser una sección del PDF: vive en el modo tejido.
+    expect(screen.queryByText(/Secuencia de tejido/)).not.toBeInTheDocument()
   })
 
-  it('exportar sin tocar nada pide el documento sin secuencia de tejido', async () => {
+  it('exportar sin tocar nada pide las tres secciones', async () => {
     const user = userEvent.setup()
     const onConfirm = vi.fn()
     render(<ExportPdfDialog onCancel={vi.fn()} onConfirm={onConfirm} />)
 
     await user.click(screen.getByRole('button', { name: t.exportDialog.confirm }))
 
-    expect(onConfirm).toHaveBeenCalledWith({ chart: true, materials: true, wordChart: false, notes: true })
-  })
-
-  it('la secuencia de tejido sigue disponible: marcarla a mano la incluye', async () => {
-    const user = userEvent.setup()
-    const onConfirm = vi.fn()
-    render(<ExportPdfDialog onCancel={vi.fn()} onConfirm={onConfirm} />)
-
-    await user.click(checkbox(t.exportDialog.wordChart))
-    expect(checkbox(t.exportDialog.wordChart)).toBeChecked()
-
-    await user.click(screen.getByRole('button', { name: t.exportDialog.confirm }))
-    expect(onConfirm).toHaveBeenCalledWith({ chart: true, materials: true, wordChart: true, notes: true })
+    expect(onConfirm).toHaveBeenCalledWith({ chart: true, materials: true, notes: true })
   })
 
   it('el resto de las secciones se siguen pudiendo apagar, y con todo apagado no deja exportar', async () => {

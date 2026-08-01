@@ -19,6 +19,8 @@ import {
 import { normalizeFringe } from '@/engine/fringe'
 import { normalizeRowShape } from '@/engine/shape'
 import { loopBeadCount, normalizeLoop } from '@/engine/loop'
+import { letterMap } from '@/engine/letters'
+import { buildWordChart } from '@/engine/wordChart'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
@@ -110,6 +112,35 @@ export function WeavePage() {
    * rather than adding to. Outlined on the canvas because they're the landmark
    * a weaver hunts for — see `weaveOrder.ts#peyoteThreadThroughCells`.
    */
+  /**
+   * The written sequence for the unit being worked — "3A, 2B" — read off the
+   * same `engine/wordChart.ts` the app has always built. This is where a word
+   * chart earns its keep: one pass at a time, next to the pattern, instead of
+   * as pages of a printout nobody follows bead by bead.
+   */
+  const wordChartLines = useMemo(() => {
+    if (!pattern) return []
+    const letterForHex = letterMap({
+      technique,
+      cols: pattern.config.cols,
+      rows: pattern.config.rows,
+      cells: pattern.cells,
+      fringe,
+      rowShape,
+      loop,
+    })
+    return buildWordChart(
+      technique,
+      pattern.config.cols,
+      pattern.config.rows,
+      pattern.cells,
+      (hex) => letterForHex.get(hex) ?? '?',
+      fringe,
+      rowShape,
+      loop,
+    )
+  }, [pattern, technique, fringe, rowShape, loop])
+
   const threadThroughCells = useMemo(
     () => (technique === 'peyote' ? peyoteThreadThroughCells(order, currentIndex + 1) : []),
     [technique, order, currentIndex],
@@ -207,6 +238,13 @@ export function WeavePage() {
   // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
   const directionArrow = !onFringe && !onLoop && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
+  const currentLine = onLoop
+    ? wordChartLines.find((l) => l.isLoop)
+    : onFringe
+      ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep!.unit)
+      : onFoundation
+        ? wordChartLines.find((l) => l.grouped)
+        : wordChartLines.find((l) => !l.isFringe && !l.grouped && !l.isLoop && l.unitIndex === currentUnitIndex)
 
   // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
   // pass 1 (rows 1-2 in one go) and every row after it contributes two passes,
@@ -269,6 +307,11 @@ export function WeavePage() {
             )}{' '}
             · {Math.max(0, beadsWoven)} / {totalBeads} {t.weave.beadsWoven}
           </p>
+          {currentLine?.text && (
+            <p className="truncate font-mono text-sm text-text" title={currentLine.text}>
+              {currentLine.text}
+            </p>
+          )}
         </div>
         <span
           role="img"

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DEFAULT_PDF_SECTIONS, type PdfSections } from '@/lib/pdfExport'
+import { ALL_PDF_SECTIONS, type PdfSections } from '@/lib/pdfExport'
 import { Button } from '@/components/shared/Button'
 import { t } from '@/i18n/es'
 
@@ -11,18 +11,16 @@ interface ExportPdfDialogProps {
 const SECTION_ORDER: { key: keyof PdfSections; label: string; hint: string }[] = [
   { key: 'chart', label: t.exportDialog.chart, hint: t.exportDialog.chartHint },
   { key: 'materials', label: t.exportDialog.materials, hint: t.exportDialog.materialsHint },
-  { key: 'wordChart', label: t.exportDialog.wordChart, hint: t.exportDialog.wordChartHint },
   { key: 'notes', label: t.exportDialog.notes, hint: t.exportDialog.notesHint },
 ]
 
 /**
- * "Qué incluir" picker shown before generating the PDF. Starts on the
- * single-sheet document most people print — chart + materials + notes, with
- * the word chart off (see `DEFAULT_PDF_SECTIONS`). Every section stays one
- * tap away, which is the point of asking instead of deciding for them.
+ * "Qué incluir" picker shown before generating the PDF: chart, materials and
+ * notes, all on. The bead-by-bead written sequence used to be a fourth option
+ * here and now lives only in Weave Mode, which is where it's read.
  */
 export function ExportPdfDialog({ onCancel, onConfirm }: ExportPdfDialogProps) {
-  const [sections, setSections] = useState<PdfSections>(DEFAULT_PDF_SECTIONS)
+  const [sections, setSections] = useState<PdfSections>(ALL_PDF_SECTIONS)
   const nothingSelected = !Object.values(sections).some(Boolean)
 
   function toggle(key: keyof PdfSections) {
