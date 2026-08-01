@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from '@/engine/types'
-import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from './palette'
-
-describe('letterForIndex', () => {
-  it('cycles A-Z then rolls over to AA, AB, ...', () => {
-    expect(letterForIndex(0)).toBe('A')
-    expect(letterForIndex(25)).toBe('Z')
-    expect(letterForIndex(26)).toBe('AA')
-    expect(letterForIndex(27)).toBe('AB')
-    expect(letterForIndex(51)).toBe('AZ')
-    expect(letterForIndex(52)).toBe('BA')
-  })
-})
+import { paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from './palette'
 
 describe('paletteFromCells', () => {
   it('counts and sorts by descending frequency, ignoring empty cells', () => {

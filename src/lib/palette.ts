@@ -7,6 +7,12 @@ export interface PaletteEntry {
 }
 
 /**
+ * Raw "which colors are on the grid, and how many beads of each" — used where
+ * only the color set matters (seeding the editor's slots, the loop panel's
+ * swatches). It does NOT decide letters and doesn't know about them: labels
+ * come from `engine/letters.ts#assignLetters`, which orders colors by first
+ * use along the weave and is the only place that hands out A, B, C.
+ *
  * `loopBeads` (see `engine/loop.ts`) folds a woven hanging loop's beads into
  * the materials count — merged into an existing entry if the loop reuses one
  * of the pattern's own colors, or its own new entry otherwise — so the
@@ -27,17 +33,6 @@ export function paletteFromCells(cells: ColorMap, loopBeads?: { color: string; c
   return Array.from(counts.entries())
     .map(([hex, count]) => ({ hex, count }))
     .sort((a, b) => b.count - a.count)
-}
-
-/** A, B, ... Z, AA, AB, ... — stable per-pattern letter code for a palette index. */
-export function letterForIndex(i: number): string {
-  let n = i
-  let s = ''
-  do {
-    s = String.fromCharCode(65 + (n % 26)) + s
-    n = Math.floor(n / 26) - 1
-  } while (n >= 0)
-  return s
 }
 
 /**

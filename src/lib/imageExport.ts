@@ -3,7 +3,7 @@ import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm } from '@/en
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { paletteFromCells, letterForIndex } from './palette'
+import { letterMap } from '@/engine/letters'
 import { contrastTextColor } from './color'
 import { shareOrDownloadFile } from './shareFile'
 import { t } from '@/i18n/es'
@@ -112,8 +112,7 @@ export function renderPatternCanvas(
   ctx.fillStyle = backgroundHex
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const palette = paletteFromCells(cells, loop?.variant === 'woven' ? { color: loop.color, count: loop.beadCount } : undefined)
-  const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
+  const letterForHex = letterMap({ technique, cols, rows, cells, fringe, rowShape, loop })
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
   const radius = Math.max(1, cellPx * 0.12)

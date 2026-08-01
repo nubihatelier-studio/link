@@ -8,7 +8,7 @@ import { normalizeLoop } from '@/engine/loop'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
-import { letterForIndex, paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
+import { paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { usePatternsStore } from './patternsStore'
 import { useWeaveStore } from './weaveStore'
 
@@ -180,18 +180,6 @@ interface EditorState {
   slots: string[]
   activeSlot: SlotId
   addSlot: (hex?: string) => void
-  /**
-   * Stable hex → letter (A, B, C…) map, assigned the first time a color is
-   * ever introduced (a default slot, a loaded pattern's existing cells, or
-   * a color picked into a slot) and never reassigned afterwards. Shown
-   * consistently on slot buttons, canvas cells, and the palette list, so
-   * adding a new slot can never change a letter already in use anywhere —
-   * and the palette list is where you can see exactly which colors already
-   * hold the letters a new slot's jumps past.
-   */
-  colorLetters: Record<string, string>
-  registerColor: (hex: string) => void
-
   zoom: number
   /**
    * Purely an editing aid — a thin dashed line marking where the body ends
@@ -568,13 +556,6 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   addSlot: (hex) => {
     const newHex = hex ?? NEUTRAL_SLOT_DEFAULTS[get().slots.length % NEUTRAL_SLOT_DEFAULTS.length]
     set((s) => ({ slots: [...s.slots, newHex], activeSlot: s.slots.length }))
-    get().registerColor(newHex)
-  },
-
-  colorLetters: {},
-  registerColor: (hex) => {
-    if (!hex || get().colorLetters[hex]) return
-    set((s) => ({ colorLetters: { ...s.colorLetters, [hex]: letterForIndex(Object.keys(s.colorLetters).length) } }))
   },
 
   zoom: 100,
@@ -640,9 +621,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       pasteFlipV: false,
       slots,
       activeSlot: 0,
-      colorLetters: {},
     })
-    for (const hex of slots) get().registerColor(hex)
   },
 
   setTool: (tool) => {
@@ -656,7 +635,6 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       next[slot] = hex
       return { slots: next }
     })
-    get().registerColor(hex)
   },
   setZoom: (zoom) => set({ zoom: Math.max(25, Math.min(400, zoom)) }),
   setShowFringeDivider: (show) => set({ showFringeDivider: show }),
@@ -732,12 +710,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         next[slot] = hex
         return { slots: next }
       })
-      get().registerColor(hex)
     }
   },
 
   mergeColors: (fromHex, toHex) => {
-    get().registerColor(toHex)
     get().commit(replaceColorInCells(get().cells, fromHex, toHex))
   },
 
@@ -747,7 +723,6 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   floodFill: (row, col, hex) => {
     const { cells, cols, rows, fringe, rowShape } = get()
-    if (hex) get().registerColor(hex)
     get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe, rowShape))
   },
 
@@ -776,8 +751,6 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
     const palette = paletteFromCells(cells).map((p) => p.hex)
     const gradientColors = computeGradientCells(targets, technique, rows, startHex, endHex, direction, palette, 0.2, staggerPhase)
-    get().registerColor(startHex)
-    get().registerColor(endHex)
     get().commit({ ...cells, ...gradientColors })
   },
 

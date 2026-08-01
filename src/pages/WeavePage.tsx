@@ -19,7 +19,7 @@ import { buildWordChart, formatWordChartLineForDisplay } from '@/engine/wordChar
 import { normalizeFringe } from '@/engine/fringe'
 import { normalizeRowShape } from '@/engine/shape'
 import { loopBeadCount, normalizeLoop } from '@/engine/loop'
-import { paletteFromCells, letterForIndex } from '@/lib/palette'
+import { letterMap } from '@/engine/letters'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
@@ -121,11 +121,15 @@ export function WeavePage() {
 
   const wordChartLines = useMemo(() => {
     if (!pattern) return []
-    const palette = paletteFromCells(
-      pattern.cells,
-      loop?.variant === 'woven' ? { color: loop.color, count: loop.beadCount } : undefined,
-    )
-    const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
+    const letterForHex = letterMap({
+      technique,
+      cols: pattern.config.cols,
+      rows: pattern.config.rows,
+      cells: pattern.cells,
+      fringe,
+      rowShape,
+      loop,
+    })
     return buildWordChart(
       technique,
       pattern.config.cols,

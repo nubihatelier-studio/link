@@ -15,7 +15,7 @@ import {
 import { useEditorStore } from '@/store/editorStore'
 import type { GradientDirection } from '@/engine/gradient'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
-import { paletteFromCells } from '@/lib/palette'
+import { usePatternLetters } from '@/hooks/usePatternLetters'
 import { catalogMatchForHex, contrastTextColor } from '@/lib/color'
 import { ColorPicker } from './ColorPicker'
 import { t } from '@/i18n/es'
@@ -29,12 +29,10 @@ export function ColorPanel() {
     setActiveSlot,
     setSlotColor,
     addSlot,
-    cells,
     selection,
     cloneDirection,
     setCloneDirection,
     cloneSelection,
-    colorLetters,
     mergeColors,
     swapColors,
     selectColor,
@@ -85,15 +83,12 @@ export function ColorPanel() {
     setReplaceTarget(null)
   }
 
-  // Sorted by letter (not usage count) so this list reads in the same
-  // obvious A, B, C… order as the slot row above it, instead of jumping
-  // around whenever the most-used color changes.
-  const palette = useMemo(
-    () =>
-      [...paletteFromCells(cells)].sort((a, b) =>
-        (colorLetters[a.hex] ?? '').localeCompare(colorLetters[b.hex] ?? ''),
-      ),
-    [cells, colorLetters],
+  // Already in A, B, C… order — `assignLetters` returns used colors by order
+  // of first use, which is exactly the order this list should read in.
+  const palette = usePatternLetters()
+  const colorLetters = useMemo(
+    () => Object.fromEntries(palette.map((p) => [p.hex, p.letter])),
+    [palette],
   )
   const activeHex = slots[activeSlot]
 

@@ -5,7 +5,7 @@ import { cellPosition, physicalSizeMm, beadCount, loopAnchorX } from '@/engine/g
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { paletteFromCells, letterForIndex } from './palette'
+import { assignLetters, type LetterEntry } from '@/engine/letters'
 import { catalogMatchForHex, contrastTextColor } from './color'
 import { formatSizeMm } from '@/engine/units'
 import { buildWordChart } from '@/engine/wordChart'
@@ -499,7 +499,7 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
 function drawMaterialsColumn(
   doc: JsPDF,
   opts: ExportPatternOptions,
-  letterForHex: Map<string, string>,
+  palette: LetterEntry[],
   x: number,
   y: number,
   width: number,
@@ -507,10 +507,6 @@ function drawMaterialsColumn(
   sections: PdfSections,
 ) {
   const isMetalLoop = opts.loop?.variant === 'metal'
-  const palette = paletteFromCells(
-    opts.cells,
-    opts.loop?.variant === 'woven' ? { color: opts.loop.color, count: opts.loop.beadCount } : undefined,
-  )
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
@@ -545,7 +541,7 @@ function drawMaterialsColumn(
       // '~' not '≈': jsPDF's standard helvetica font only supports the WinAnsi range and
       // silently corrupts the rest of the string when fed a glyph outside it (found via
       // visual QA — the U+2248 "almost equal" sign broke every legend row that used it).
-      `${letterForHex.get(p.hex) ?? '?'} — ${match.exact ? '' : '~ '}${match.color.code} (${match.color.name}) ×${p.count}`,
+      `${p.letter} — ${match.exact ? '' : '~ '}${match.color.code} (${match.color.name}) ×${p.count}`,
       x + boxSize + 3,
       ly,
     )
@@ -662,11 +658,19 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  const palette = paletteFromCells(
-    opts.cells,
-    opts.loop?.variant === 'woven' ? { color: opts.loop.color, count: opts.loop.beadCount } : undefined,
-  )
-  const letterForHex = new Map(palette.map((p, i) => [p.hex, letterForIndex(i)]))
+  // One assignment for the whole document — chart cells, word chart and
+  // materials legend all label a color the same way, and the same way the
+  // editor does (see `engine/letters.ts`).
+  const palette = assignLetters({
+    technique: opts.technique,
+    cols: opts.cols,
+    rows: opts.rows,
+    cells: opts.cells,
+    fringe: opts.fringe,
+    rowShape: opts.rowShape,
+    loop: opts.loop,
+  })
+  const letterForHex = new Map(palette.map((p) => [p.hex, p.letter]))
 
   drawHeaderBlock(doc, opts, margin)
 
@@ -682,7 +686,7 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
       drawMaterialsColumn(
         doc,
         opts,
-        letterForHex,
+        palette,
         margin + columnWidth + COLUMN_GUTTER_MM,
         columnTop,
         columnWidth,
@@ -695,7 +699,7 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
       drawMaterialsColumn(
         doc,
         opts,
-        letterForHex,
+        palette,
         margin,
         HEADER_BOTTOM_MM,
         pageWidth - margin * 2,

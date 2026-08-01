@@ -5,6 +5,7 @@ import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { lineCells } from '@/engine/line'
+import { usePatternLetterMap } from '@/hooks/usePatternLetters'
 import { contrastTextColor } from '@/lib/color'
 import { t } from '@/i18n/es'
 
@@ -73,13 +74,13 @@ export function CanvasGrid() {
     copySelection,
     armPaste,
     disarmPaste,
-    colorLetters,
     showFringeDivider,
     fringeSculptMode,
     fringeSculptStart,
     fringeSculptSetColumn,
     fringeSculptEnd,
   } = useEditorStore()
+  const colorLetters = usePatternLetterMap()
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
   const bodyBounds = gridBoundsUnits(technique, cols, rows)
@@ -222,7 +223,7 @@ export function CanvasGrid() {
         }
 
         if (hex && showLetters) {
-          const letter = colorLetters[hex]
+          const letter = colorLetters.get(hex)
           if (letter) {
             ctx.fillStyle = contrastTextColor(hex)
             ctx.fillText(letter, x + w / 2, y + h / 2 + 0.5)
@@ -261,7 +262,7 @@ export function CanvasGrid() {
           ctx.stroke()
 
           if (hex && showLetters) {
-            const letter = colorLetters[hex]
+            const letter = colorLetters.get(hex)
             if (letter) {
               ctx.fillStyle = contrastTextColor(hex)
               ctx.fillText(letter, x + w / 2, y + h / 2 + 0.5)
@@ -328,7 +329,7 @@ export function CanvasGrid() {
           ctx.lineWidth = 1
           ctx.stroke()
           if (showLetters) {
-            const letter = colorLetters[loop.color]
+            const letter = colorLetters.get(loop.color)
             if (letter) {
               ctx.fillStyle = contrastTextColor(loop.color)
               ctx.fillText(letter, cx, cy + 0.5)

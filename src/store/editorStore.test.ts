@@ -20,7 +20,6 @@ function resetStore(
     patternId: overrides.patternId ?? null,
     technique: 'brick',
     cells: overrides.cells ?? { '0,0': '#111111', '1,1': '#222222', '2,3': '#111111', '0,3': '#222222' },
-    colorLetters: { '#111111': 'A', '#222222': 'B' },
     cols: 10,
     rows: 10,
     fringe: overrides.fringe ?? createEmptyFringe(10),

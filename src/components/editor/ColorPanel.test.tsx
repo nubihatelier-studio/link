@@ -7,7 +7,6 @@ import { ColorPanel } from './ColorPanel'
 function resetStore() {
   useEditorStore.setState({
     cells: { '0,0': '#111111', '0,1': '#111111', '0,2': '#222222' },
-    colorLetters: { '#111111': 'A', '#222222': 'B' },
     slots: ['#111111', '#222222', '#8da2b0', '#ffffff'],
     activeSlot: 0,
     history: [],
