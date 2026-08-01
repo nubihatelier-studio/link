@@ -6,6 +6,8 @@ import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { lineCells } from '@/engine/line'
 import { usePatternLetterMap } from '@/hooks/usePatternLetters'
+import { letterFontSizePx, shouldShowLetters } from '@/lib/letterVisibility'
+import { useEditorPrefsStore } from '@/store/editorPrefsStore'
 import { contrastTextColor } from '@/lib/color'
 import { t } from '@/i18n/es'
 
@@ -81,6 +83,7 @@ export function CanvasGrid() {
     fringeSculptEnd,
   } = useEditorStore()
   const colorLetters = usePatternLetterMap()
+  const letterVisibility = useEditorPrefsStore((s) => s.letterVisibility)
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
   const bodyBounds = gridBoundsUnits(technique, cols, rows)
@@ -182,13 +185,13 @@ export function CanvasGrid() {
     // counting guides), so large grids stay readable and easy to click
     // precisely without losing count.
     const groupStep = cellPx < 12 ? 10 : 5
-    // Below this cell size a letter badge would just be noise — only stamp
-    // it on once cells are big enough to read, same idea as the PDF chart.
-    const showLetters = cellPx >= 16
+    // 'auto' hides the letters once cells get too small to read them; the
+    // weaver can force them on or off from the toolbar. See lib/letterVisibility.ts.
+    const showLetters = shouldShowLetters(letterVisibility, cellPx)
     if (showLetters) {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = `600 ${Math.max(9, cellPx * 0.42)}px system-ui, sans-serif`
+      ctx.font = `600 ${letterFontSizePx(cellPx)}px system-ui, sans-serif`
     }
 
     for (let row = 0; row < rows; row++) {
@@ -475,6 +478,7 @@ export function CanvasGrid() {
     clipboard,
     pasteFlipH,
     pasteFlipV,
+    letterVisibility,
   ])
 
   function dist(a: { x: number; y: number }, b: { x: number; y: number }) {

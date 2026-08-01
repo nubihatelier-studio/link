@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
+import { CaseSensitive, Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
+import { useEditorPrefsStore } from '@/store/editorPrefsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { getBeadType } from '@/data/beadTypes'
 import { beadCount } from '@/engine/geometry'
@@ -82,7 +83,11 @@ export function EditorPage() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
-  const [showLetters, setShowLetters] = useState(true)
+  const letterVisibility = useEditorPrefsStore((s) => s.letterVisibility)
+  const cycleLetterVisibility = useEditorPrefsStore((s) => s.cycleLetterVisibility)
+  // Exports keep taking a plain "does she want letters at all": their own
+  // legibility floors are about print and pixel size, not screen zoom.
+  const showLetters = letterVisibility !== 'never'
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const fringeCapable = isFringeCapable(technique)
@@ -289,12 +294,12 @@ export function EditorPage() {
           <Download size={18} />
         </button>
         <IconButton
-          active={showLetters}
-          label={t.editor.exportLetters}
-          onClick={() => setShowLetters((v) => !v)}
+          active={letterVisibility !== 'never'}
+          label={`${t.editor.letterVisibility[letterVisibility]} — ${t.editor.letterVisibility[`${letterVisibility}Hint`]}`}
+          onClick={cycleLetterVisibility}
           className="h-9 w-9"
         >
-          <Type size={16} />
+          {letterVisibility === 'always' ? <CaseSensitive size={17} /> : <Type size={16} />}
         </IconButton>
         <IconButton
           label={t.editor.shortcutsTitle}

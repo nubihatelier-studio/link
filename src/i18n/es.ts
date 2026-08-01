@@ -104,6 +104,15 @@ export const t = {
     back: 'Volver',
     exportPdf: 'Exportar PDF',
     exportLetters: 'Letras en el gráfico',
+    /** Control de 3 estados en la barra del editor — ver lib/letterVisibility.ts. */
+    letterVisibility: {
+      auto: 'Letras: automático',
+      autoHint: 'Se muestran cuando las mostacillas son lo bastante grandes',
+      always: 'Letras: siempre visibles',
+      alwaysHint: 'Se muestran aunque las mostacillas queden chicas',
+      never: 'Letras: ocultas',
+      neverHint: 'El gráfico se ve sólo con los colores',
+    },
     shareImage: 'Compartir imagen',
     shareImageDownloadPng: 'Descargar imagen (PNG)',
     shareImageInstagram: 'Tarjeta para Instagram',
