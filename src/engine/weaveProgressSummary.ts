@@ -2,9 +2,9 @@ import type { FringeData, PatternConfig, RowShape } from './types'
 import { beadsThrough, buildWeaveOrder, isFringeStep, totalBeadCount } from './weaveOrder'
 
 export interface WeaveProgressSummary {
-  /** 0-based index of the current row — pinned to the last row while `isFringe` is true, meaningless (0) while `grouped` is true (see below). */
+  /** 0-based index of the current row (peyote: the current PASS — see `isPass`) — pinned to the last unit while `isFringe` is true, meaningless (0) while `grouped` is true (see below). */
   unitIndex: number
-  /** total rows in the body. */
+  /** Total rows in the body, or total passes for peyote. */
   unitCount: number
   /** 0-100, rounded — based on beads strung, not raw step count (a grouped step can be worth more than one). */
   percent: number
@@ -12,6 +12,11 @@ export interface WeaveProgressSummary {
   isFringe: boolean
   /** True while progress is still on peyote's foundation pass — callers should show that label instead of "Fila X de Y". */
   grouped: boolean
+  /**
+   * True for peyote: the units counted here are passes, not grid rows (see
+   * `weaveOrder.ts#buildPeyoteOrder`), so callers should read "Pasada X de Y".
+   */
+  isPass: boolean
 }
 
 /**
@@ -37,11 +42,16 @@ export function summarizeWeaveProgress(
   const clampedIndex = Math.min(currentIndex, order.length - 1)
   const step = order[clampedIndex]
   const isFringe = isFringeStep(step)
-  const unitCount = rows
+  const isPass = technique === 'peyote'
+  // Peyote's units are passes, and how many there are follows from the order
+  // itself (the foundation is one, then two per grid row) — not from `rows`.
+  const unitCount = isPass
+    ? new Set(order.filter((st) => !st.isFringe && !st.isLoop).map((st) => st.unit)).size
+    : rows
   const unitIndex = isFringe ? unitCount - 1 : step.unit
   const percent = Math.round((beadsThrough(order, clampedIndex) / totalBeadCount(order)) * 100)
 
-  return { unitIndex, unitCount, percent, isFringe, grouped: step.grouped }
+  return { unitIndex, unitCount, percent, isFringe, grouped: step.grouped, isPass }
 }
 
 /**

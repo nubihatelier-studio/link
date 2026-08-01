@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap, FringeData, LoopData } from './types'
-import { buildWordChart, formatWordChartLineForDisplay } from './wordChart'
+import { buildWordChart } from './wordChart'
 
 const A = 'A'
 const B = 'B'
@@ -68,11 +68,32 @@ describe('buildWordChart — peyote (Tarea 3: primera pasada doble, luego serpen
       '2,1': '#222222',
     }
     const lines = buildWordChart('peyote', 2, 3, cells, letterForHex)
+    // La primera pasada es la 0. La fila 3 se parte en dos pasadas de una
+    // mostacilla cada una: la columna par (0) y después la impar (1) — cada
+    // línea cuenta las mostacillas ensartadas en esa pasada, no celdas de la
+    // grilla.
     expect(lines).toEqual([
-      { unitIndex: 1, text: '2A, 2B', grouped: true },
-      // row 2 (index 2, "fila 3") is the foundation's first turn — rtl: col 1 then col 0.
-      { unitIndex: 2, text: '1B, 1A' },
+      { unitIndex: 0, text: '2A, 2B', grouped: true },
+      { unitIndex: 1, text: '1A', isPass: true },
+      { unitIndex: 2, text: '1B', isPass: true },
     ])
+  })
+
+  it('una pasada cuenta las mostacillas que van a la aguja: "Pasada N: 3A, 2B" son cinco', () => {
+    // 10 de ancho: cada pasada toma 5 posiciones alternadas.
+    const cells: ColorMap = {}
+    for (let col = 0; col < 10; col++) {
+      cells[`0,${col}`] = '#111111'
+      cells[`1,${col}`] = '#111111'
+      // Fila 3: las columnas pares (la pasada 1) van A, A, A, B, B.
+      cells[`2,${col}`] = col % 2 === 0 && col >= 6 ? '#222222' : '#111111'
+    }
+    const lines = buildWordChart('peyote', 10, 3, cells, letterForHex)
+    const firstPass = lines.find((l) => l.isPass && l.unitIndex === 1)!
+    // La pasada va rtl (columnas 8, 6, 4, 2, 0), así que las dos B van primero.
+    expect(firstPass.text).toBe('2B, 3A')
+    const beadsInLine = firstPass.text.split(', ').reduce((sum, token) => sum + parseInt(token, 10), 0)
+    expect(beadsInLine).toBe(5)
   })
 })
 
@@ -181,19 +202,5 @@ describe('buildWordChart with a woven loop (Tarea 3)', () => {
     const loopLineIndex = lines.findIndex((l) => l.isLoop)
     expect(loopLineIndex).toBe(lines.length - 1)
     expect(lines[loopLineIndex - 1].isFringe).toBe(true)
-  })
-})
-
-describe('formatWordChartLineForDisplay', () => {
-  it('inserts a multiplication sign between the run count and its letter(s)', () => {
-    expect(formatWordChartLineForDisplay('3A, 2B, 1A')).toBe('3×A, 2×B, 1×A')
-  })
-
-  it('handles multi-letter tokens (palette index 26+) and the empty-slot token', () => {
-    expect(formatWordChartLineForDisplay('12AB, 3–')).toBe('12×AB, 3×–')
-  })
-
-  it('passes through an empty string untouched', () => {
-    expect(formatWordChartLineForDisplay('')).toBe('')
   })
 })

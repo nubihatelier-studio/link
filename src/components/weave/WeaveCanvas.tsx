@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
+import type { Cell, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
+import { cellsInSameUnit, directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
 import { TAP_SLOP_PX } from './tapGesture'
 
 interface WeaveCanvasProps {
@@ -22,6 +22,13 @@ interface WeaveCanvasProps {
    * hand; off is the precise option, for when a stray touch shouldn't count.
    */
   tapAnywhere?: boolean
+  /**
+   * Peyote only: the previous pass's beads, which the current pass threads
+   * *through* instead of adding to. Outlined rather than filled — they're the
+   * landmark the needle looks for, not something being strung. See
+   * `engine/weaveOrder.ts#peyoteThreadThroughCells`.
+   */
+  threadThroughCells?: Cell[]
   staggerPhase?: 0 | 1
   /** Absent/undefined is treated as a full rectangle — only used to anchor the loop. */
   rowShape?: RowShape[]
@@ -42,6 +49,7 @@ export function WeaveCanvas({
   currentIndex,
   onTapNext,
   tapAnywhere = true,
+  threadThroughCells,
   staggerPhase = 0,
   rowShape,
   loop,
@@ -71,6 +79,12 @@ export function WeaveCanvas({
   const nextStep = order[currentIndex + 1]
   const nextIsLoop = nextStep?.isLoop === true
   const nextCell = nextIsLoop ? undefined : nextStep?.cells[0]
+  /**
+   * Every bead of the pass (or row) about to be worked, so the weaver sees the
+   * whole instruction at once instead of only the single next bead. The bright
+   * "next" ring still marks where to start within it.
+   */
+  const currentUnitCells = useMemo(() => cellsInSameUnit(order, currentIndex + 1), [order, currentIndex])
   const loopStepIndex = useMemo(() => order.findIndex((step) => step.isLoop), [order])
   const loopDone = loopStepIndex >= 0 && loopStepIndex <= currentIndex
 
@@ -177,6 +191,38 @@ export function WeaveCanvas({
       }
     }
 
+    // The pass about to be worked, as a soft band behind its beads — the
+    // instruction is "these beads", not just the one under the ring.
+    for (const cell of currentUnitCells) {
+      if (cell.row < 0) continue
+      const pos = cellPosition(technique, cell.row, cell.col, rows, staggerPhase)
+      const x = MARGIN + pos.x * CELL_PX
+      const y = originY + pos.y * CELL_PX
+      ctx.globalAlpha = 0.22
+      ctx.beginPath()
+      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, CELL_PX + 2, radius + 1)
+      ctx.fillStyle = '#c9a227'
+      ctx.fill()
+      ctx.globalAlpha = 1
+    }
+
+    // Beads the needle passes *through* on this pass (peyote): a dashed
+    // outline, deliberately unlike the solid "next bead" ring — nothing is
+    // strung into them, they're the reference you thread by.
+    if (threadThroughCells && threadThroughCells.length > 0) {
+      ctx.strokeStyle = '#7fb6c4'
+      ctx.lineWidth = 2
+      ctx.setLineDash([4, 3])
+      for (const cell of threadThroughCells) {
+        if (cell.row < 0) continue
+        const pos = cellPosition(technique, cell.row, cell.col, rows, staggerPhase)
+        ctx.beginPath()
+        roundRect(ctx, MARGIN + pos.x * CELL_PX, originY + pos.y * CELL_PX, CELL_PX, CELL_PX, radius)
+        ctx.stroke()
+      }
+      ctx.setLineDash([])
+    }
+
     if (nextCell) {
       const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
       const x = MARGIN + pos.x * CELL_PX
@@ -213,7 +259,7 @@ export function WeaveCanvas({
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells])
 
   function isNearNextCell(clientX: number, clientY: number): boolean {
     const canvas = canvasRef.current

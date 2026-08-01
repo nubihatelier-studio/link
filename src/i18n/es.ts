@@ -242,6 +242,15 @@ export const t = {
     fringeColumnHeader: (n: number) => `Fleco · Columna ${n}`,
     /** Brick's very first row of the traversal — the widest one, adjacent to the fringe, that the whole body is built up from. */
     baseRow: 'Fila base',
+    /**
+     * Peyote se teje en pasadas, no en filas de la grilla: cada pasada ensarta
+     * las posiciones alternadas. Ver `engine/weaveOrder.ts#buildPeyoteOrder`.
+     */
+    pass: 'Pasada',
+    jumpToPass: 'Ir a pasada',
+    markPassDone: 'Marcar pasada hecha',
+    /** Las mostacillas de la pasada anterior por las que se pasa la aguja — la referencia que se busca al tejer. */
+    threadThroughHint: 'La aguja pasa por las mostacillas marcadas con contorno',
     /** Peyote's foundation pass — rows 1 and 2 strung together as a single instruction. */
     foundationPass: 'Primera pasada',
     foundationPassHint: (n: number) => `Ensarta estas ${n} mostacillas de una vez`,

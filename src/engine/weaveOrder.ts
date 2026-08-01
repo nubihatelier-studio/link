@@ -8,10 +8,10 @@ export type WeaveDirection = 'ltr' | 'rtl'
  * but can group more than one when the real technique threads several beads
  * in the same motion (peyote's foundation pass, see `buildPeyoteOrder`).
  * `unit` is this technique's weave-unit index for the step: the row for a
- * body step (loom/brick/peyote all read row-by-row now — see
- * `buildPeyoteOrder`'s doc comment for why peyote moved off column-major),
- * or the fringe column for a fringe step. It's meaningless (left at 0) for
- * a `grouped` step, since that step doesn't belong to a single row.
+ * loom/brick body step, the PASS number for peyote (its passes aren't grid
+ * rows — see `buildPeyoteOrder`), or the fringe column for a fringe step.
+ * Peyote's foundation is pass 0; every other technique leaves a `grouped`
+ * step's unit at 0 too, since it doesn't belong to a single row.
  */
 export interface WeaveStep {
   /** The physical cell(s) this step strings, in stringing order. */
@@ -68,7 +68,9 @@ export function beadsThrough(order: WeaveOrder, index: number): number {
 export const WEAVE_ORDER_VERSION: Record<Technique, number> = {
   loom: 1,
   brick: 2,
-  peyote: 2,
+  // 3: peyote walks passes (alternating positions) instead of the drawn
+  // zigzag — a saved index points at a different bead entirely.
+  peyote: 3,
 }
 
 /**
@@ -186,25 +188,33 @@ function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowSha
 }
 
 /**
- * Peyote: real flat even-count peyote strings the first two rows together
- * as a single foundation pass — a flat strip, alternating between the two
- * rows as you move across the width — and only from row 3 on does the
- * zigzag interlock appear: a new bead, skip one from the previous pass,
- * take the next (see the reference diagram). This app doesn't model
- * peyote's dropped-edge-bead simplification (every column has exactly
- * `rows` beads — see `geometry.ts`'s doc comment), so from row 3 on every
- * column still gets exactly one bead per row; the "skip one, take the
- * next" motion changes how a weaver physically picks up each bead, not
- * which cells exist. Every row from row 3 on turns the work at the end
- * (serpentine) — direction alternates continuously, counting the
- * foundation pass itself as the first turn.
+ * Peyote is worked in PASSES, and a pass is not a row of the grid.
  *
- * This reads row-by-row like brick/loom now — the old column-major
- * boustrophedon (`unit` = column) didn't match how the technique is
- * actually worked, and once the foundation pass and serpentine are row
- * concepts, keeping the body "Columna N" would just be stale UI left over
- * from the old model. Fringe columns are still column-based (a strand
- * hangs from a column regardless of technique) — that terminology stays.
+ * The needle's real motion is: string one new bead, then pass through the
+ * hole of a bead from the previous pass, skipping the one between. So the
+ * beads you actually add in a single pass are the alternating positions —
+ * every other column — and the beads in between aren't steps at all: they're
+ * the previous pass's beads, the ones you thread *through*. They're the
+ * reference you look for while weaving, not something you string.
+ *
+ * The grid draws this staggered: `geometry.ts#cellPosition` puts odd columns
+ * half a pitch lower than even ones, so one drawn row `r` actually holds two
+ * different passes — the even columns sitting at height `r`, and the odd
+ * columns half a bead below them. Beads of one pass are all at the same
+ * height and therefore all in the same logical row, even though the chart
+ * draws them as a zigzag. Walking the drawn zigzag cell by cell (what this
+ * did before) followed the picture instead of the needle.
+ *
+ * So, after the foundation, each grid row from row 3 on yields two passes:
+ * its even columns, then its odd columns. Each pass turns the work at its end
+ * (serpentine), continuing the alternation the foundation starts.
+ *
+ * Unchanged, and deliberately so: the first two rows are still strung
+ * together as one grouped foundation pass — a flat strip alternating between
+ * the two rows across the width — and directions still alternate. `unit` is
+ * the pass number now (foundation = 0), which is what the UI counts and what
+ * the word chart groups its lines by. Fringe columns stay column-based (a
+ * strand hangs from a column regardless of technique).
  */
 function buildPeyoteOrder(cols: number, rows: number): WeaveOrder {
   const order: WeaveOrder = []
@@ -221,20 +231,79 @@ function buildPeyoteOrder(cols: number, rows: number): WeaveOrder {
     foundationCells.push({ row: 0, col })
     foundationCells.push({ row: 1, col })
   }
-  order.push({ cells: foundationCells, unit: 1, direction: 'ltr', grouped: true })
+  order.push({ cells: foundationCells, unit: 0, direction: 'ltr', grouped: true })
 
+  let pass = 0
   for (let row = 2; row < rows; row++) {
-    // Continues the foundation pass's own alternation: the foundation counts as turn 0 (ltr),
-    // so row 2 is turn 1 (rtl), row 3 is turn 2 (ltr), and so on.
-    const turnIndex = row - 1
-    const direction: WeaveDirection = turnIndex % 2 === 0 ? 'ltr' : 'rtl'
-    for (let i = 0; i < cols; i++) {
-      const col = direction === 'ltr' ? i : cols - 1 - i
-      order.push({ cells: [{ row, col }], unit: row, direction, grouped: false })
+    // Even columns first: they sit half a bead higher than the odd ones in the
+    // same drawn row (see `cellPosition`), so that's the pass the needle
+    // reaches first coming down the work.
+    for (const parity of [0, 1]) {
+      const columns: number[] = []
+      for (let col = parity; col < cols; col += 2) columns.push(col)
+      // A one-column pattern has no odd positions at all — skip rather than
+      // emit an empty pass, which would leave a gap in the numbering.
+      if (columns.length === 0) continue
+      pass++
+      // The foundation counts as turn 0 (ltr), so pass 1 turns to rtl, pass 2
+      // back to ltr, and so on.
+      const direction: WeaveDirection = pass % 2 === 1 ? 'rtl' : 'ltr'
+      const ordered = direction === 'ltr' ? columns : [...columns].reverse()
+      for (const col of ordered) {
+        order.push({ cells: [{ row, col }], unit: pass, direction, grouped: false })
+      }
     }
   }
 
   return order
+}
+
+/**
+ * The beads a peyote pass threads *through* — the previous pass's beads,
+ * sitting between the ones this pass adds. Not steps (nothing is strung into
+ * them), but the landmark a weaver looks for, so Weave Mode outlines them.
+ * Empty for any other technique, and for the foundation pass (there is no
+ * previous pass to go through).
+ */
+export function peyoteThreadThroughCells(order: WeaveOrder, index: number): Cell[] {
+  const step = order[index]
+  if (!step || step.grouped || step.isFringe || step.isLoop) return []
+  const cell = step.cells[0]
+  if (!cell || cell.row < 0) return []
+
+  // The pass sitting half a bead above this one, in grid terms: the odd
+  // columns of a row are threaded through its own even columns, and the even
+  // columns of a row are threaded through the odd columns of the row above.
+  // Derived from the geometry rather than from the previous `unit` so it also
+  // works for the first real pass, whose predecessor lives inside the grouped
+  // foundation step rather than in a pass of its own.
+  const parity = cell.col % 2
+  const previousRow = parity === 1 ? cell.row : cell.row - 1
+  const previousParity = parity === 1 ? 0 : 1
+  if (previousRow < 0) return []
+
+  const seen = new Set<string>()
+  const cells: Cell[] = []
+  for (const other of order) {
+    if (other.isFringe || other.isLoop) continue
+    for (const c of other.cells) {
+      if (c.row !== previousRow || c.col % 2 !== previousParity) continue
+      const key = `${c.row},${c.col}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      cells.push(c)
+    }
+  }
+  return cells
+}
+
+/** Every cell belonging to the same unit (pass/row) as the step at `index` — what Weave Mode highlights as "the current pass". */
+export function cellsInSameUnit(order: WeaveOrder, index: number): Cell[] {
+  const step = order[index]
+  if (!step || step.isLoop) return []
+  return order
+    .filter((s) => s.isFringe === step.isFringe && s.grouped === step.grouped && !s.isLoop && s.unit === step.unit)
+    .flatMap((s) => s.cells)
 }
 
 /**

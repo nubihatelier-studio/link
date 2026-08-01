@@ -266,7 +266,7 @@ export function HomePage() {
                 ? t.weave.fringeUnitLabel
                 : heroSummary.grouped
                   ? t.weave.foundationPass
-                  : `${t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
+                  : `${heroSummary.isPass ? t.weave.pass : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
               · {heroSummary.percent}%
             </p>
           </div>

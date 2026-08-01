@@ -8,10 +8,11 @@ const EMPTY_TOKEN = '–'
 
 export interface WordChartLine {
   /**
-   * 0-based row index for a body line, or the fringe column for a fringe
-   * line (`isFringe: true`) — fringes hang per column regardless of
-   * technique. Meaningless (0) for a `grouped` line (peyote's foundation
-   * pass), since that line doesn't belong to a single row.
+   * 0-based row index for a body line, the pass number for peyote
+   * (`isPass: true` — see `weaveOrder.ts#buildPeyoteOrder`), or the fringe
+   * column for a fringe line (`isFringe: true`) — fringes hang per column
+   * regardless of technique. Meaningless (0) for a `grouped` line (peyote's
+   * foundation pass), since that line doesn't belong to a single row.
    */
   unitIndex: number
   /** Run-length-encoded sequence for this unit, e.g. "3A, 2B, 1A" (fringe lines add a trailing ", giro" when the deepest bead is a turn bead). */
@@ -20,6 +21,13 @@ export interface WordChartLine {
   isFringe?: true
   /** Set only on peyote's foundation pass — the first two rows strung together, see `weaveOrder.ts#buildPeyoteOrder`. */
   grouped?: true
+  /**
+   * Set on peyote's body lines: the line counts the beads strung in one PASS
+   * (the alternating positions), not the cells of a drawn row — so
+   * "Pasada 5: 3A, 2B" means five beads went on the needle. See
+   * `weaveOrder.ts#buildPeyoteOrder`.
+   */
+  isPass?: true
   /** Set only on brick's very first line — the widest row the whole body is built up from, see `weaveOrder.ts#buildBrickOrder`. */
   isBaseRow?: true
   /** Set only on the final line — a woven hanging loop's ring, see `weaveOrder.ts#appendLoopStep`. */
@@ -56,7 +64,14 @@ export function buildWordChart(
   const lines: WordChartLine[] = []
 
   let currentKey: string | null = null
-  let lineMeta: { unitIndex: number; isFringe?: true; grouped?: true; isBaseRow?: true; isLoop?: true } | null = null
+  let lineMeta: {
+    unitIndex: number
+    isFringe?: true
+    grouped?: true
+    isPass?: true
+    isBaseRow?: true
+    isLoop?: true
+  } | null = null
   let endsOnTurnBead = false
   let tokens: string[] = []
   let runLetter: string | null = null
@@ -82,10 +97,12 @@ export function buildWordChart(
     if (key !== currentKey) {
       flushLine()
       currentKey = key
+      const isPeyoteBody = technique === 'peyote' && !step.isFringe && !step.grouped && !step.isLoop
       lineMeta = {
         unitIndex: step.unit,
         ...(step.isFringe ? { isFringe: true as const } : {}),
         ...(step.grouped ? { grouped: true as const } : {}),
+        ...(isPeyoteBody ? { isPass: true as const } : {}),
         ...(step.isBaseRow ? { isBaseRow: true as const } : {}),
         ...(step.isLoop ? { isLoop: true as const } : {}),
       }
@@ -108,15 +125,4 @@ export function buildWordChart(
   flushLine()
 
   return lines
-}
-
-/**
- * "3A, 2B" -> "3×A, 2×B" — the on-screen hands-busy reading view spells out
- * the multiplication sign for legibility at a glance/distance; the PDF word
- * chart keeps the terser "3A" form since it's already labeled and printed
- * small. Same underlying `WordChartLine.text`, just formatted per surface.
- */
-export function formatWordChartLineForDisplay(text: string): string {
-  if (!text) return text
-  return text.replace(/(\d+)([^\d,]+)/g, '$1×$2')
 }

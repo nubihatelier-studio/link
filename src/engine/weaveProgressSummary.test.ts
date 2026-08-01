@@ -15,6 +15,7 @@ describe('summarizeWeaveProgress', () => {
       percent: 17,
       isFringe: false,
       grouped: false,
+      isPass: false,
     })
     // Last cell (row 1, col 2) — final index of 6 total.
     expect(summarizeWeaveProgress(config, 5)).toEqual({
@@ -23,18 +24,23 @@ describe('summarizeWeaveProgress', () => {
       percent: 100,
       isFringe: false,
       grouped: false,
+      isPass: false,
     })
   })
 
-  it('peyote: the foundation pass (rows 1-2) is one grouped step, counted as row 2', () => {
+  it('peyote: cuenta pasadas, no filas de la grilla', () => {
     const config = { technique: 'peyote' as const, cols: 2, rows: 3, beadTypeId: 'x' }
-    // order[0] = foundation pass (4 beads, unit 1), order[1..2] = row 2 (index 2, "fila 3").
+    // order[0] = primera pasada (4 mostacillas, unit 0); después la fila 3 se
+    // parte en dos pasadas de una mostacilla: unit 1 (col par) y unit 2 (impar).
+    // Son 3 pasadas en total, que aquí coincide con las 3 filas por casualidad
+    // del tamaño — el test de abajo con más filas las separa.
     expect(summarizeWeaveProgress(config, 0)).toEqual({
-      unitIndex: 1,
+      unitIndex: 0,
       unitCount: 3,
-      percent: 67, // 4 of 6 total beads strung
+      percent: 67, // 4 de 6 mostacillas ensartadas
       isFringe: false,
       grouped: true,
+      isPass: true,
     })
     expect(summarizeWeaveProgress(config, 2)).toEqual({
       unitIndex: 2,
@@ -42,7 +48,16 @@ describe('summarizeWeaveProgress', () => {
       percent: 100,
       isFringe: false,
       grouped: false,
+      isPass: true,
     })
+  })
+
+  it('peyote: el total de pasadas no es el total de filas — cada fila después de la primera pasada aporta dos', () => {
+    const config = { technique: 'peyote' as const, cols: 8, rows: 5, beadTypeId: 'x' }
+    // Primera pasada (filas 1-2) + 3 filas × 2 pasadas = 7 pasadas, no 5 filas.
+    const summary = summarizeWeaveProgress(config, 0)!
+    expect(summary.isPass).toBe(true)
+    expect(summary.unitCount).toBe(7)
   })
 
   it('clamps an out-of-range index to the last cell instead of throwing', () => {
@@ -53,6 +68,7 @@ describe('summarizeWeaveProgress', () => {
       percent: 100,
       isFringe: false,
       grouped: false,
+      isPass: false,
     })
   })
 
@@ -69,7 +85,7 @@ describe('summarizeWeaveProgress', () => {
       const config = { technique: 'brick' as const, cols: 2, rows: 2, beadTypeId: 'x' }
       const fringe: FringeData = { lengths: [2, 0], turnBeads: [false, false] }
       const summary = summarizeWeaveProgress(config, 4, fringe) // index 4 = first fringe bead
-      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, grouped: false })
+      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, grouped: false, isPass: false })
     })
   })
 

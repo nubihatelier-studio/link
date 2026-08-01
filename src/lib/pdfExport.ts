@@ -426,7 +426,9 @@ function drawWordChartPages(
           ? `${t.weave.foundationPass}: `
           : line.isBaseRow
             ? `${t.weave.baseRow}: `
-            : `${t.weave.row} ${line.unitIndex + 1}: `
+            : line.isPass
+              ? `${t.weave.pass} ${line.unitIndex + 1}: `
+              : `${t.weave.row} ${line.unitIndex + 1}: `
     const indent = ' '.repeat(prefix.length)
     const wrapped: string[] = doc.splitTextToSize(line.text, maxWidth - doc.getTextWidth(prefix))
 

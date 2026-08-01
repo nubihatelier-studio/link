@@ -8,6 +8,7 @@ import {
   buildWeaveOrder,
   firstIndexOfNextBodyRow,
   firstIndexOfNextFringeColumn,
+  peyoteThreadThroughCells,
   isFringeStep,
   jumpTargetToIndex,
   totalBeadCount,
@@ -104,6 +105,15 @@ export function WeavePage() {
   const onFoundation = (currentStep?.grouped ?? false) && !onLoop
   const currentUnitIndex = currentStep ? currentStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
+  /**
+   * Peyote only: the previous pass's beads, which this pass threads *through*
+   * rather than adding to. Outlined on the canvas because they're the landmark
+   * a weaver hunts for — see `weaveOrder.ts#peyoteThreadThroughCells`.
+   */
+  const threadThroughCells = useMemo(
+    () => (technique === 'peyote' ? peyoteThreadThroughCells(order, currentIndex + 1) : []),
+    [technique, order, currentIndex],
+  )
 
   // A saved index from before this technique's traversal order was corrected points at a
   // completely different bead now — never silently misread it, reset and say so explicitly.
@@ -191,20 +201,28 @@ export function WeavePage() {
         ? t.weave.foundationPass
         : currentStep?.isBaseRow
           ? t.weave.baseRow
-          : `${t.weave.row} ${currentUnitIndex + 1}`
+          : technique === 'peyote'
+            ? `${t.weave.pass} ${currentUnitIndex + 1}`
+            : `${t.weave.row} ${currentUnitIndex + 1}`
   // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
   const directionArrow = !onFringe && !onLoop && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
 
-  // "Ir a" selector: peyote's foundation pass collapses rows 1-2 into one option; brick's
-  // widest row (the base row) keeps its numeric slot but reads "Fila base" instead of "Fila N".
+  // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
+  // pass 1 (rows 1-2 in one go) and every row after it contributes two passes,
+  // so the options are read straight off the order rather than counted from
+  // `rows`. Brick's widest row keeps its numeric slot but reads "Fila base".
+  const peyotePassCount = useMemo(
+    () => (technique === 'peyote' ? new Set(order.filter((s) => !s.grouped && !s.isFringe && !s.isLoop).map((s) => s.unit)).size : 0),
+    [technique, order],
+  )
   const rowJumpOptions: { target: JumpTarget; label: string }[] =
     technique === 'peyote' && rows >= 2
       ? [
           { target: { kind: 'foundation', index: 0 }, label: t.weave.foundationPass },
-          ...Array.from({ length: rows - 2 }, (_, i) => ({
-            target: { kind: 'body' as const, index: i + 2 },
-            label: `${t.weave.row} ${i + 3}`,
+          ...Array.from({ length: peyotePassCount }, (_, i) => ({
+            target: { kind: 'body' as const, index: i + 1 },
+            label: `${t.weave.pass} ${i + 2}`,
           })),
         ]
       : Array.from({ length: rows }, (_, i) => ({
@@ -276,6 +294,7 @@ export function WeavePage() {
           currentIndex={currentIndex}
           onTapNext={advance}
           tapAnywhere={tapAnywhereToAdvance}
+          threadThroughCells={threadThroughCells}
           staggerPhase={pattern.config.staggerPhase ?? 0}
           rowShape={rowShape}
           loop={loop}
@@ -284,7 +303,9 @@ export function WeavePage() {
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <label className="text-xs text-text-muted">{fringeColumns.length > 0 ? t.weave.jumpTo : t.weave.jumpToRow}</label>
+          <label className="text-xs text-text-muted">
+            {fringeColumns.length > 0 ? t.weave.jumpTo : technique === 'peyote' ? t.weave.jumpToPass : t.weave.jumpToRow}
+          </label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
             value={currentJumpValue}
@@ -309,7 +330,9 @@ export function WeavePage() {
                 ? t.weave.markFringeDone
                 : onFoundation
                   ? t.weave.markFoundationDone
-                  : t.weave.markRowDone}
+                  : technique === 'peyote'
+                    ? t.weave.markPassDone
+                    : t.weave.markRowDone}
           </button>
           <button
             onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}

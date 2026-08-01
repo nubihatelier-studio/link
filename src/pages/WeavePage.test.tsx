@@ -6,6 +6,7 @@ import type { PatternDoc } from '@/engine/types'
 import type { StorageAdapter, WeaveProgressRecord } from '@/storage/types'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
+import { WEAVE_ORDER_VERSION } from '@/engine/weaveOrder'
 
 // Defaults to "supported and acquires successfully" so the pre-existing tests below (which don't
 // care about wake lock at all) render the "active" state without extra setup; the dedicated
@@ -308,6 +309,34 @@ describe('WeavePage — progreso guardado invalidado por cambio de orden de teji
     await renderWeaveFor(loomPattern)
 
     await waitFor(() => expect(useWeaveStore.getState().getIndex(loomPattern.id)).toBe(5))
+    expect(
+      screen.queryByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('el progreso guardado de un peyote anterior a las pasadas se invalida con aviso, no queda apuntando a otra mostacilla', async () => {
+    // orderVersion 2 era el recorrido que seguía el zigzag dibujado; ahora
+    // peyote va por pasadas (versión 3), así que ese índice apunta a una
+    // mostacilla distinta. Reiniciar y avisar, nunca leerlo mal en silencio.
+    await fakeAdapter.setWeaveProgress({ patternId: PATTERN.id, currentIndex: 40, orderVersion: 2, updatedAt: 1 })
+    await renderWeaveFor(PATTERN)
+
+    await waitFor(() => expect(useWeaveStore.getState().getIndex(PATTERN.id)).toBe(-1))
+    expect(
+      screen.getByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
+    ).toBeInTheDocument()
+  })
+
+  it('un peyote guardado ya con la versión de pasadas no se toca', async () => {
+    await fakeAdapter.setWeaveProgress({
+      patternId: PATTERN.id,
+      currentIndex: 12,
+      orderVersion: WEAVE_ORDER_VERSION.peyote,
+      updatedAt: 1,
+    })
+    await renderWeaveFor(PATTERN)
+
+    await waitFor(() => expect(useWeaveStore.getState().getIndex(PATTERN.id)).toBe(12))
     expect(
       screen.queryByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
     ).not.toBeInTheDocument()
