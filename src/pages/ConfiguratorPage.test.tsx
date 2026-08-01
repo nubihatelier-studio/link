@@ -2,12 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FringeData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
+import type { FringeData, LoopData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import type { StorageAdapter } from '@/storage/types'
 import { beadCount, gridFromPhysicalSizeMm, physicalSizeMm } from '@/engine/geometry'
 import { totalFringeBeadCount } from '@/engine/fringe'
 import { createShapedRowShape } from '@/engine/shape'
-import { DEFAULT_LOOP_BEAD_COUNT } from '@/engine/loop'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { formatSizeMm } from '@/engine/units'
 import { getBeadType } from '@/data/beadTypes'
@@ -90,8 +89,9 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
     const rectangleTotal = beadCount('brick', 7, 7) // what it would be WITHOUT shape — the regression guard
     const fringeLengths = [4, 6, 8, 9, 8, 6, 4]
     const fringeTotal = totalFringeBeadCount({ lengths: fringeLengths, turnBeads: [] })
-    // …y la argolla tejida con la que esta plantilla parte activada (Tarea 3).
-    const expectedTotal = bodyTotal + fringeTotal + DEFAULT_LOOP_BEAD_COUNT
+    // Sin argolla: esta plantilla ya no parte con una, así que no suma sus
+    // mostacillas al total (se activa a mano en el editor si se quiere).
+    const expectedTotal = bodyTotal + fringeTotal
 
     expect(fringeTotal).toBeGreaterThan(0) // guard: si esto es 0, el test no prueba nada
     expect(bodyTotal).toBeLessThan(rectangleTotal) // guard: si esto falla, el rombo no está achicando nada
@@ -101,7 +101,13 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
 
   it('la plantilla "Aro con flecos" genera 7×7 con la cascada redondeada 4,6,8,9,8,6,4 (Tarea 2)', async () => {
     const createPattern = vi.fn(
-      (_config: PatternConfig, _name?: string, _fringe?: FringeData, _rowShape?: RowShape[]) => 'new-id',
+      (
+        _config: PatternConfig,
+        _name?: string,
+        _fringe?: FringeData,
+        _rowShape?: RowShape[],
+        _loop?: LoopData,
+      ) => 'new-id',
     )
     usePatternsStore.setState({ createPattern })
     const user = userEvent.setup()
@@ -128,6 +134,10 @@ describe('ConfiguratorPage — conteo total con flecos activados', () => {
     const expectedRowShape = createShapedRowShape('triangle', 7, 7)
     expect(rowShape).toEqual(expectedRowShape)
     expect(rowShape![6]).toEqual({ offset: 0, length: 7 }) // última fila: ancho completo, de donde cuelga el fleco
+
+    // La plantilla nace sin argolla — la funcionalidad sigue completa en el
+    // editor, pero no viene activada.
+    expect(createPattern.mock.calls[0][4]).toBeUndefined()
     for (const row of rowShape!) {
       expect(row.offset).toBeGreaterThanOrEqual(0)
       expect(row.offset + row.length).toBeLessThanOrEqual(7)

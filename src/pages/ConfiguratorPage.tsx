@@ -11,7 +11,7 @@ import {
   type FringeShape,
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
-import { DEFAULT_LOOP_BEAD_COUNT, DEFAULT_LOOP_COLOR, loopBeadCount } from '@/engine/loop'
+import { loopBeadCount } from '@/engine/loop'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm, formatSizeMm } from '@/engine/units'
@@ -62,9 +62,13 @@ interface TemplatePreset {
    */
   fringeLengths?: number[]
   /**
-   * Templates for pieces that hang (the "Aro con flecos") start with a woven
-   * hanging loop already on. Everything else starts with none — the loop is
-   * always editable afterward in the editor's own panel.
+   * A hanging loop the template starts with. No template sets one today —
+   * "Aro con flecos" used to start with a woven ring, and now starts bare:
+   * how a piece is hung (woven ring, metal jump ring, or a cord through the
+   * top bead) is the weaver's decision, and one built in by default quietly
+   * adds beads to the totals and the materials list. The mechanism stays
+   * here for any template that wants it, and both loop variants stay fully
+   * available in the editor's own panel.
    */
   loop?: LoopData
 }
@@ -112,7 +116,8 @@ const TEMPLATES: TemplatePreset[] = [
     // that both taps out at exactly `cols` on the last row AND keeps the
     // triangle preset's own row-count nudge (`preferredRowsFor`) a no-op —
     // matches a real reference piece (7-wide triangular body, rounded
-    // fringe cascade, top loop), not an arbitrarily bigger placeholder.
+    // fringe cascade), not an arbitrarily bigger placeholder. The reference
+    // piece's hanging loop is deliberately left off — see `TemplatePreset.loop`.
     cols: 7,
     rows: 7,
     beadTypeId: 'miyuki-delica-11',
@@ -124,7 +129,6 @@ const TEMPLATES: TemplatePreset[] = [
     // measured cascade, kept here as data. See `TemplatePreset.fringeLengths`.
     fringeLengths: [4, 6, 8, 9, 8, 6, 4],
     bodyShape: 'triangle',
-    loop: { variant: 'woven', beadCount: DEFAULT_LOOP_BEAD_COUNT, color: DEFAULT_LOOP_COLOR },
   },
   {
     id: 'personalizado',
