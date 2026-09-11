@@ -45,40 +45,63 @@ function bead(cx: number, cy: number, w: number, key: number | string) {
   )
 }
 
-/** Pulsera — un lazo de mostacillas cerrado sobre sí mismo, como una tira que rodea la muñeca. */
+/** Una mostacilla redonda: los cierres de la pulsera y el remate de cada fleco, que no son cuadradas. */
+function roundBead(cx: number, cy: number, r: number, key: number | string) {
+  return <circle key={key} cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeWidth={1.4} />
+}
+
+const STROKE = { stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' } as const
+
+/**
+ * Pulsera — la tira de mostacillas a lo ancho, con su cierre redondo en cada
+ * punta: así se ve la pieza terminada sobre la muñeca. Antes era un aro
+ * cerrado de mostacillas, que leía más como una pulsera rígida que como la
+ * tira angosta y larga que la plantilla crea.
+ */
 function PulseraIcon({ size = 40, className }: IconProps) {
-  const cx = 24
-  const cy = 24
-  const rx = 16
-  const ry = 13
-  const count = 11
+  const rows = [17.5, 24, 30.5]
+  const cols = [14.5, 19.5, 24.5, 29.5, 34.5]
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden="true">
-      {Array.from({ length: count }).map((_, i) => {
-        const angle = (i / count) * Math.PI * 2
-        return bead(cx + rx * Math.cos(angle), cy + ry * Math.sin(angle), 5, i)
-      })}
+      {rows.map((y, r) => cols.map((x, c) => bead(x, y, 4.2, `${r}-${c}`)))}
+      {roundBead(6.5, 24, 3.2, 'cierre-izq')}
+      {roundBead(41.5, 24, 3.2, 'cierre-der')}
+      <line x1={9.7} y1={24} x2={12.4} y2={24} {...STROKE} />
+      <line x1={36.6} y1={24} x2={38.3} y2={24} {...STROKE} />
     </svg>
   )
 }
 
-/** Aro con flecos — un aro chico de mostacillas con hebras colgando, cada una rematada en una mostacilla. */
+/**
+ * Aro con flecos — el gancho de la oreja, el cuerpo chico que se teje arriba
+ * y las hebras colgando, cada una rematada en su mostacilla: la pieza
+ * completa, no sólo el aro.
+ */
 function AroFlecosIcon({ size = 40, className }: IconProps) {
-  const cx = 24
-  const cy = 15
-  const r = 9
-  const count = 8
-  const fringeX = [15, 20, 28, 33]
+  // Pegadas entre sí (4.8 de paso para mostacillas de 4.6): un cuerpo tejido
+  // se ve macizo — separadas leían como un colgante de alambre.
+  const body: [number, number][] = [
+    [24, 15.4],
+    [21.6, 20.2],
+    [26.4, 20.2],
+    [19.2, 25],
+    [24, 25],
+    [28.8, 25],
+  ]
+  // La hebra del medio cuelga más, como en un aro de verdad.
+  const fringe = [
+    { x: 19.2, end: 36.5 },
+    { x: 24, end: 41 },
+    { x: 28.8, end: 36.5 },
+  ]
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden="true">
-      {Array.from({ length: count }).map((_, i) => {
-        const angle = (i / count) * Math.PI * 2
-        return bead(cx + r * Math.cos(angle), cy + r * Math.sin(angle), 4.4, `ring-${i}`)
-      })}
-      {fringeX.map((x, i) => (
-        <g key={`fringe-${i}`}>
-          <line x1={x} y1={24} x2={x} y2={37} stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
-          {bead(x, 40, 4, `drop-${i}`)}
+      <path d="M24 13.2V10a4 4 0 1 1 6.4 3.2" fill="none" {...STROKE} />
+      {body.map(([x, y], i) => bead(x, y, 4.6, `cuerpo-${i}`))}
+      {fringe.map(({ x, end }, i) => (
+        <g key={`fleco-${i}`}>
+          <line x1={x} y1={27.6} x2={x} y2={end - 2.2} {...STROKE} />
+          {roundBead(x, end, 1.9, `remate-${i}`)}
         </g>
       ))}
     </svg>
