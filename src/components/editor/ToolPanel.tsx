@@ -7,7 +7,6 @@ import {
   Pipette,
   SquareDashedMousePointer,
   Copy,
-  ClipboardPaste,
   FlipHorizontal2,
   FlipVertical2,
   Trash2,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { EraseAreaIcon } from '@/components/icons/EraseAreaIcon'
+import { PasteIcon } from '@/components/icons/PasteIcon'
 import { IconButton } from '@/components/shared/IconButton'
 import { t } from '@/i18n/es'
 
@@ -104,7 +104,7 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
         <Copy size={18} />
       </IconButton>
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
-        <ClipboardPaste size={18} />
+        <PasteIcon size={18} />
       </IconButton>
       {pasteArmed && (
         <>
