@@ -36,6 +36,8 @@ interface WeaveCanvasProps {
   rowShape?: RowShape[]
   /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
   loop?: LoopData
+  /** Drawn row of the bead being worked — its number on the ruler is highlighted, so "fila N" is easy to find. */
+  activeRow?: number | null
 }
 
 /** Bead size before the container has been measured (and in tests, where nothing is). */
@@ -65,6 +67,7 @@ export function WeaveCanvas({
   staggerPhase = 0,
   rowShape,
   loop,
+  activeRow = null,
 }: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -154,6 +157,9 @@ export function WeaveCanvas({
     // An unpainted bead is the theme's own empty-bead grey, as in the editor — not a fixed dark block.
     const emptyColor = styles.getPropertyValue('--nb-surface-3').trim() || '#3a3a3d'
     const rulerColor = styles.getPropertyValue('--nb-text-muted').trim() || '#a3a0a8'
+    // Every bead gets the editor's thin outline, so a black bead on the dark
+    // theme (or a white one on the light) still reads as a bead.
+    const outlineColor = styles.getPropertyValue('--nb-grid-line').trim() || '#3a3a3d'
 
     const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(CELL_PX, technique)
     // The space one row actually takes — outlines hug the bead, not a full square cell.
@@ -181,6 +187,9 @@ export function WeaveCanvas({
         roundRect(ctx, x, y, w, h, radius)
         ctx.fillStyle = hex
         ctx.fill()
+        ctx.strokeStyle = outlineColor
+        ctx.lineWidth = 1
+        ctx.stroke()
         ctx.globalAlpha = 1
       }
     }
@@ -205,6 +214,9 @@ export function WeaveCanvas({
         roundRect(ctx, x, y, w, h, radius)
         ctx.fillStyle = hex
         ctx.fill()
+        ctx.strokeStyle = outlineColor
+        ctx.lineWidth = 1
+        ctx.stroke()
         ctx.globalAlpha = 1
       }
     }
@@ -306,10 +318,17 @@ export function WeaveCanvas({
     }
     ctx.textAlign = 'right'
     for (let r = 0; r < rows; r += step) {
+      if (r === activeRow) continue
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX])
+    if (activeRow !== null && activeRow < rows) {
+      const pos = cellPosition(technique, activeRow, 0, undefined, staggerPhase)
+      ctx.fillStyle = '#c9a227'
+      ctx.font = '700 12px system-ui, sans-serif'
+      ctx.fillText(String(activeRow + 1), MARGIN - 4, originY + pos.y * CELL_PX + CELL_PX / 2 + 4)
+    }
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
 
   /**
    * Keeps the next bead in view. A strip fitted to its width is taller than the

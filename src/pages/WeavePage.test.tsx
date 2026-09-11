@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -407,18 +407,74 @@ describe('WeavePage — par de aros', () => {
   it('el aro derecho se teje reflejado: su secuencia empieza por el otro extremo', async () => {
     const user = userEvent.setup()
     await renderAt(`/editor/${PAIR.id}/weave`)
-    // brick arranca por la fila base (fila 1), de izquierda a derecha: negro primero.
-    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
-    expect(screen.getByText('1A, 2B')).toBeInTheDocument()
+    const chips = () =>
+      within(screen.getByRole('list', { name: t.weave.sequenceLabel }))
+        .getAllByRole('listitem')
+        .map((li) => li.textContent?.replace(/\s+/g, ''))
+
+    // brick arranca por la fila base (fila 2), de izquierda a derecha: negro primero.
+    expect(chips()).toEqual(['1×A', '2×B'])
 
     await user.click(screen.getByRole('button', { name: t.weave.rightEarring }))
-    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
     // Reflejado, el negro queda al final de la fila base. Mismas letras que el izquierdo.
-    expect(screen.getByText('2B, 1A')).toBeInTheDocument()
+    expect(chips()).toEqual(['2×B', '1×A'])
   })
 
   it('?aro=derecho abre directo en el aro derecho', async () => {
     await renderAt(`/editor/${PAIR.id}/weave?aro=derecho`)
     expect(screen.getByRole('button', { name: t.weave.rightEarring })).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+describe('WeavePage — todo habla de la próxima mostacilla', () => {
+  const STRIP: PatternDoc = {
+    id: 'p_tira',
+    name: 'Tira',
+    config: { technique: 'peyote', cols: 6, rows: 4, beadTypeId: 'miyuki-delica-11' },
+    cells: {},
+    createdAt: 1,
+    updatedAt: 1,
+  }
+
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    usePatternsStore.setState({ patterns: { [STRIP.id]: STRIP }, order: [STRIP.id], hydrated: true, migrationResult: null })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderStrip() {
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${STRIP.id}/weave`]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('al cerrar la base, el encabezado ya nombra la pasada que viene, con su fila del gráfico', async () => {
+    const user = userEvent.setup()
+    await renderStrip()
+    expect(screen.getByText(new RegExp(`${t.weave.pass} 1 · ${t.weave.chartRow(1)}`))).toBeInTheDocument()
+
+    for (let i = 0; i < 6; i++) await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    // Las 6 de la base están hechas: lo que viene es la pasada 2, en la fila 2 del gráfico.
+    expect(screen.getByText(new RegExp(`${t.weave.pass} 2 · ${t.weave.chartRow(2)}`))).toBeInTheDocument()
+  })
+
+  it('"Marcar pasada hecha" cierra la pasada que se está tejiendo', async () => {
+    const user = userEvent.setup()
+    await renderStrip()
+    await user.click(screen.getByRole('button', { name: t.weave.markPassDone }))
+    // La base son 6 mostacillas: quedan todas tejidas.
+    expect(useWeaveStore.getState().getIndex(STRIP.id)).toBe(5)
+    expect(screen.getByText(new RegExp(`${t.weave.pass} 2 · ${t.weave.chartRow(2)}`))).toBeInTheDocument()
+  })
+
+  it('al llegar al final lo dice', async () => {
+    useWeaveStore.getState().setIndex(STRIP.id, 6 * 4 - 1, WEAVE_ORDER_VERSION.peyote)
+    await renderStrip()
+    expect(screen.getByText(new RegExp(t.weave.finished))).toBeInTheDocument()
   })
 })

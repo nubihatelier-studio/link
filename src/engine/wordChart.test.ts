@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap, FringeData, LoopData } from './types'
-import { buildWordChart } from './wordChart'
+import { buildWordChart, wordChartRuns } from './wordChart'
 
 const A = 'A'
 const B = 'B'
@@ -198,5 +198,26 @@ describe('buildWordChart with a woven loop (Tarea 3)', () => {
     const loopLineIndex = lines.findIndex((l) => l.isLoop)
     expect(loopLineIndex).toBe(lines.length - 1)
     expect(lines[loopLineIndex - 1].isFringe).toBe(true)
+  })
+})
+
+describe('wordChartRuns', () => {
+  it('parte una línea en sus tramos, en orden', () => {
+    expect(wordChartRuns('3A, 2B, 1A')).toEqual({ runs: [{ count: 3, letter: 'A' }, { count: 2, letter: 'B' }, { count: 1, letter: 'A' }], turn: false })
+  })
+
+  it('reconoce el giro del fleco, letras dobles y mostacillas sin pintar', () => {
+    expect(wordChartRuns('12AB, 3–, giro')).toEqual({ runs: [{ count: 12, letter: 'AB' }, { count: 3, letter: '–' }], turn: true })
+  })
+
+  it('una línea vacía no tiene tramos', () => {
+    expect(wordChartRuns('')).toEqual({ runs: [], turn: false })
+  })
+
+  it('los tramos suman exactamente las mostacillas del recorrido de esa línea', () => {
+    const cells: ColorMap = { '0,0': '#111111', '0,1': '#222222', '0,2': '#222222', '1,0': '#111111' }
+    const lines = buildWordChart('loom', 3, 2, cells, letterForHex)
+    const total = lines.flatMap((l) => wordChartRuns(l.text).runs).reduce((sum, r) => sum + r.count, 0)
+    expect(total).toBe(6)
   })
 })

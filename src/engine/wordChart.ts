@@ -121,3 +121,32 @@ export function buildWordChart(
 
   return lines
 }
+
+/** One run of a word chart line: `count` beads of `letter` in a row (`letter` is `EMPTY_TOKEN` for unpainted beads). */
+export interface WordChartRun {
+  letter: string
+  count: number
+}
+
+/**
+ * A line's runs, in weaving order — "3A, 2B, giro" → [{A, 3}, {B, 2}] plus
+ * `turn: true`. For views that draw the sequence (weave mode's big colour
+ * chips) instead of printing the text, so they read the very same sequence
+ * the text says rather than recounting it their own way.
+ */
+export function wordChartRuns(text: string): { runs: WordChartRun[]; turn: boolean } {
+  const runs: WordChartRun[] = []
+  let turn = false
+  for (const token of text.split(', ')) {
+    if (token === 'giro') {
+      turn = true
+      continue
+    }
+    const match = /^(\d+)(.+)$/.exec(token)
+    if (match) runs.push({ count: Number(match[1]), letter: match[2] })
+  }
+  return { runs, turn }
+}
+
+/** The token a word chart uses for an unpainted bead. */
+export const WORD_CHART_EMPTY = EMPTY_TOKEN

@@ -19,11 +19,12 @@ import {
 import { loopBeadCount } from '@/engine/loop'
 import { leftPieceOf, piecesOf, rightEarring } from '@/engine/pair'
 import type { EarringSide } from '@/engine/types'
-import { letterMap } from '@/engine/letters'
-import { buildWordChart } from '@/engine/wordChart'
+import { assignLettersAcross } from '@/engine/letters'
+import { buildWordChart, wordChartRuns } from '@/engine/wordChart'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
+import { WeaveSequence } from '@/components/weave/WeaveSequence'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { UndoToast } from '@/components/shared/UndoToast'
@@ -105,10 +106,19 @@ export function WeavePage() {
   const total = order.length
   const totalBeads = totalBeadCount(order)
   const beadsWoven = beadsThrough(order, currentIndex)
-  const currentStep = order[currentIndex]
-  const onFringe = currentStep ? isFringeStep(currentStep) : false
-  const onLoop = currentStep?.isLoop === true
-  const currentUnitIndex = currentStep ? currentStep.unit : 0
+  const finished = total > 0 && currentIndex >= total - 1
+  /**
+   * Everything the screen says — the label, the direction, the colour
+   * sequence, "Marcar pasada hecha", the "Ir a" selector — is about the bead
+   * to string NEXT, the same one the canvas rings. It used to describe the
+   * step just finished, so right after closing a pass the header still named
+   * it while the canvas already highlighted the next one.
+   */
+  const workingIndex = finished ? total - 1 : currentIndex + 1
+  const workingStep = order[workingIndex]
+  const onFringe = workingStep ? isFringeStep(workingStep) : false
+  const onLoop = workingStep?.isLoop === true
+  const workingUnit = workingStep ? workingStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
   /**
    * The written sequence for the unit being worked — "3A, 2B" — read off the
@@ -117,9 +127,11 @@ export function WeavePage() {
    * as pages of a printout nobody follows bead by bead. Letters come from both
    * earrings of a pair, so they match the PDF and the editor.
    */
+  const letterEntries = useMemo(() => (left ? assignLettersAcross(piecesOf(left, pair)) : []), [left, pair])
+  const hexForLetter = useMemo(() => new Map(letterEntries.map((e) => [e.letter, e.hex])), [letterEntries])
   const wordChartLines = useMemo(() => {
     if (!left || !piece) return []
-    const letterForHex = letterMap(piecesOf(left, pair))
+    const letterForHex = new Map(letterEntries.map((e) => [e.hex, e.letter]))
     return buildWordChart(
       piece.technique,
       piece.cols,
@@ -130,7 +142,7 @@ export function WeavePage() {
       piece.rowShape,
       piece.loop,
     )
-  }, [left, piece, pair])
+  }, [left, piece, letterEntries])
 
   /**
    * Peyote only: the previous pass's beads, which this pass threads *through*
@@ -197,8 +209,8 @@ export function WeavePage() {
       return
     }
     const nextStart = onFringe
-      ? firstIndexOfNextFringeColumn(order, currentStep!.unit)
-      : firstIndexOfNextBodyRow(order, currentIndex)
+      ? firstIndexOfNextFringeColumn(order, workingStep!.unit)
+      : firstIndexOfNextBodyRow(order, workingIndex)
     setIndex(progressKey!, nextStart === -1 ? total - 1 : nextStart - 1, orderVersion)
   }
   function jumpTo(target: JumpTarget) {
@@ -226,23 +238,36 @@ export function WeavePage() {
       : t.weave.wakeLockRetrying
   const WakeLockIcon = !wakeLock.isSupported ? Moon : wakeLock.isActive ? Sun : RefreshCw
 
-  const currentRowLabel = onLoop
-    ? t.weave.loopStepLabel
-    : onFringe
-      ? t.weave.fringeColumnHeader(currentStep!.unit + 1)
-      : currentStep?.isBaseRow
-        ? t.weave.baseRow
-        : technique === 'peyote'
-          ? `${t.weave.pass} ${currentUnitIndex + 1}`
-          : `${t.weave.row} ${currentUnitIndex + 1}`
-  // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
-  const directionArrow = !onFringe && !onLoop && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
-  const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
+  // Peyote counts passes, but the ruler beside the chart counts drawn rows —
+  // so the label names both, and the canvas lights up that row's number.
+  const workingRow = workingStep && !workingStep.isLoop ? workingStep.cells[0].row : null
+  const currentRowLabel = finished
+    ? t.weave.finished
+    : onLoop
+      ? t.weave.loopStepLabel
+      : onFringe
+        ? t.weave.fringeColumnHeader(workingStep!.unit + 1)
+        : workingStep?.isBaseRow
+          ? t.weave.baseRow
+          : technique === 'peyote' && workingRow !== null
+            ? `${t.weave.pass} ${workingUnit + 1} · ${t.weave.chartRow(workingRow + 1)}`
+            : `${t.weave.row} ${workingUnit + 1}`
+  // A discreet direction indicator — which way the needle moves along the row being worked (meaningless for fringe steps, which hang straight down).
+  const directionArrow = !finished && !onFringe && !onLoop && workingStep ? (workingStep.direction === 'ltr' ? '→' : '←') : null
+  const directionLabel = workingStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
   const currentLine = onLoop
     ? wordChartLines.find((l) => l.isLoop)
     : onFringe
-      ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep!.unit)
-      : wordChartLines.find((l) => !l.isFringe && !l.isLoop && l.unitIndex === currentUnitIndex)
+      ? wordChartLines.find((l) => l.isFringe && l.unitIndex === workingStep!.unit)
+      : wordChartLines.find((l) => !l.isFringe && !l.isLoop && l.unitIndex === workingUnit)
+  const sequence = wordChartRuns(currentLine?.text ?? '')
+  // Beads of this unit already on the thread — which chip of the sequence is being worked.
+  const unitStart = workingStep
+    ? order.findIndex((s) => s.unit === workingStep.unit && !!s.isFringe === !!workingStep.isFringe && !!s.isLoop === !!workingStep.isLoop)
+    : 0
+  const beadsDoneInUnit = finished
+    ? Infinity
+    : beadsThrough(order, workingIndex - 1) - beadsThrough(order, unitStart - 1)
 
   // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
   // pass 1 and every row after it contributes two, so they're read straight
@@ -266,8 +291,8 @@ export function WeavePage() {
   const currentJumpValue = onLoop
     ? LOOP_JUMP_VALUE
     : onFringe
-      ? encodeJumpValue({ kind: 'fringe', index: currentStep!.unit })
-      : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
+      ? encodeJumpValue({ kind: 'fringe', index: workingStep!.unit })
+      : encodeJumpValue({ kind: 'body', index: workingUnit })
 
   return (
     <div
@@ -298,11 +323,6 @@ export function WeavePage() {
             )}{' '}
             · {Math.max(0, beadsWoven)} / {totalBeads} {t.weave.beadsWoven}
           </p>
-          {currentLine?.text && (
-            <p className="truncate font-mono text-sm text-text" title={currentLine.text}>
-              {currentLine.text}
-            </p>
-          )}
         </div>
         <span
           role="img"
@@ -332,6 +352,12 @@ export function WeavePage() {
         </div>
       )}
 
+      {!finished && sequence.runs.length > 0 && (
+        <div className="border-b border-border px-4 py-3" title={currentLine?.text}>
+          <WeaveSequence runs={sequence.runs} turn={sequence.turn} hexForLetter={hexForLetter} beadsDone={beadsDoneInUnit} />
+        </div>
+      )}
+
       <div className="relative min-h-0 flex-1">
         <WeaveCanvas
           technique={piece.technique}
@@ -347,6 +373,7 @@ export function WeavePage() {
           staggerPhase={piece.staggerPhase}
           rowShape={rowShape}
           loop={loop}
+          activeRow={finished ? null : workingRow}
         />
       </div>
 

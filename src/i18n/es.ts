@@ -296,6 +296,12 @@ export const t = {
     directionLtr: 'Tejiendo de izquierda a derecha',
     directionRtl: 'Tejiendo de derecha a izquierda',
     tapToAdvance: 'Tocar el patrón para avanzar',
+    /** La secuencia de colores de la pasada en curso, en grande. */
+    sequenceLabel: 'Secuencia de colores de la pasada',
+    turnBead: 'giro',
+    /** En peyote, junto a "Pasada N": en qué fila del gráfico (la regla del costado) está esa pasada. */
+    chartRow: (n: number) => `fila ${n} del gráfico`,
+    finished: '¡Patrón terminado!',
     /** Par de aros: cada aro se teje por separado y guarda su propio progreso. */
     earring: 'Aro',
     leftEarring: 'Aro izquierdo',
