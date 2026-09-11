@@ -4,9 +4,8 @@ import {
   Minus,
   PaintBucket,
   Eraser,
-  Square,
   Pipette,
-  BoxSelect,
+  SquareDashedMousePointer,
   Copy,
   ClipboardPaste,
   FlipHorizontal2,
@@ -16,6 +15,7 @@ import {
   Redo2,
 } from 'lucide-react'
 import { useEditorStore, type Tool } from '@/store/editorStore'
+import { EraseAreaIcon } from '@/components/icons/EraseAreaIcon'
 import { IconButton } from '@/components/shared/IconButton'
 import { t } from '@/i18n/es'
 
@@ -29,9 +29,9 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
   { id: 'line', icon: Minus, labelKey: 'line' },
   { id: 'fill', icon: PaintBucket, labelKey: 'fill' },
   { id: 'eraser', icon: Eraser, labelKey: 'eraser' },
-  { id: 'rectErase', icon: Square, labelKey: 'rectErase' },
+  { id: 'rectErase', icon: EraseAreaIcon, labelKey: 'rectErase' },
   { id: 'eyedropper', icon: Pipette, labelKey: 'eyedropper' },
-  { id: 'select', icon: BoxSelect, labelKey: 'select' },
+  { id: 'select', icon: SquareDashedMousePointer, labelKey: 'select' },
 ]
 
 interface ToolPanelProps {
