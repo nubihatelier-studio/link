@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { Cell, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
-import { maxFringeLength } from '@/engine/fringe'
+import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { cellsInSameUnit, directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
@@ -31,7 +31,7 @@ interface WeaveCanvasProps {
    */
   threadThroughCells?: Cell[]
   staggerPhase?: 0 | 1
-  /** Absent/undefined is treated as a full rectangle — only used to anchor the loop. */
+  /** Absent/undefined is treated as a full rectangle. Decides which body cells exist (and so are drawn), and anchors the loop. */
   rowShape?: RowShape[]
   /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
   loop?: LoopData
@@ -117,6 +117,12 @@ export function WeaveCanvas({
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
+        // A shaped body (a brick triangle, a rhombus) has no bead here: draw
+        // nothing, as the editor does, so the silhouette is what shows. These
+        // cells aren't in the weave order either, so drawing them used to mark
+        // them "already woven" — a block of solid dark squares around the
+        // body that hid its outline.
+        if (!isPaintableCell(row, col, cols, rows, undefined, rowShape)) continue
         const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
         const y = originY + pos.y * CELL_PX + inset

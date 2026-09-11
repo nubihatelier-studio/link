@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
 import { buildWeaveOrder } from '@/engine/weaveOrder'
+import { createShapedRowShape } from '@/engine/shape'
 import { WeaveCanvas } from './WeaveCanvas'
 
 // jsdom has no canvas layout engine, so `getBoundingClientRect()` on the <canvas> always comes back
@@ -107,5 +108,57 @@ describe('WeaveCanvas — avance por toque (Endurecimiento 5)', () => {
     fireEvent.pointerCancel(container, { pointerId: 1 })
     fireEvent.pointerUp(container, { clientX: NEXT_CELL_CENTER.x, clientY: NEXT_CELL_CENTER.y, pointerId: 1 })
     expect(onTapNext).not.toHaveBeenCalled()
+  })
+})
+
+describe('WeaveCanvas — cuerpos con forma', () => {
+  /**
+   * jsdom no dibuja: se reemplaza el contexto 2D por uno que anota el color
+   * de cada relleno, para contar qué mostacillas se pintaron.
+   */
+  function captureFills() {
+    const fills: string[] = []
+    const ctx = new Proxy(
+      { fillStyle: '', strokeStyle: '', globalAlpha: 1, lineWidth: 1, font: '', textAlign: 'left', textBaseline: 'alphabetic' },
+      {
+        get(target, prop) {
+          if (prop in target) return target[prop as keyof typeof target]
+          if (prop === 'fill') return () => fills.push(String(target.fillStyle))
+          return () => {}
+        },
+        set(target, prop, value) {
+          ;(target as Record<string, unknown>)[prop as string] = value
+          return true
+        },
+      },
+    )
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+    return { fills, restore: () => spy.mockRestore() }
+  }
+
+  it('un cuerpo triangular dibuja sólo sus mostacillas, no la grilla rectangular entera', () => {
+    const { fills, restore } = captureFills()
+    const rowShape = createShapedRowShape('triangle', 7, 7)
+    render(
+      <WeaveCanvas
+        technique="brick"
+        cols={7}
+        rows={7}
+        cells={{}}
+        fringe={createEmptyFringe(7)}
+        order={buildWeaveOrder('brick', 7, 7, undefined, rowShape)}
+        currentIndex={-1}
+        onTapNext={vi.fn()}
+        rowShape={rowShape}
+      />,
+    )
+    restore()
+
+    const emptyBeads = fills.filter((f) => f === '#3a3a3d').length
+    const beadsInTriangle = rowShape.reduce((sum, r) => sum + r.length, 0)
+    // Antes se dibujaban las 49 celdas del rectángulo, y las 21 de fuera
+    // quedaban como "ya tejidas", en gris oscuro opaco.
+    expect(emptyBeads).toBe(beadsInTriangle)
+    expect(emptyBeads).toBeLessThan(7 * 7)
   })
 })
