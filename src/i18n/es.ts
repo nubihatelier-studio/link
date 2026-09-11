@@ -109,6 +109,7 @@ export const t = {
   editor: {
     back: 'Volver',
     exportPdf: 'Exportar PDF',
+    moreActions: 'Más opciones',
     exportLetters: 'Letras en el gráfico',
     /** Control de 3 estados en la barra del editor — ver lib/letterVisibility.ts. */
     letterVisibility: {

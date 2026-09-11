@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { CaseSensitive, Download, Image, Keyboard, StickyNote, Type } from 'lucide-react'
+import { CaseSensitive, Download, Image, Keyboard, MoreHorizontal, StickyNote, Type } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { useEditorPrefsStore } from '@/store/editorPrefsStore'
@@ -86,6 +86,8 @@ export function EditorPage() {
   /** The "qué incluir" picker — see `ExportPdfDialog`. */
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
+  /** Phone only: the header's secondary actions, folded away so the pattern's name has room. */
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const letterVisibility = useEditorPrefsStore((s) => s.letterVisibility)
   const cycleLetterVisibility = useEditorPrefsStore((s) => s.cycleLetterVisibility)
@@ -313,7 +315,7 @@ export function EditorPage() {
           onClick={handleBackupPattern}
           aria-label={t.backup.exportPattern}
           title={t.backup.exportPattern}
-          className="rounded-full p-2 text-text-muted hover:bg-surface-2 hover:text-text"
+          className="hidden rounded-full p-2 text-text-muted hover:bg-surface-2 hover:text-text sm:block"
         >
           <Download size={18} />
         </button>
@@ -332,10 +334,15 @@ export function EditorPage() {
         >
           <Keyboard size={16} />
         </IconButton>
-        <IconButton active={!!note.trim()} label={t.editor.noteTitle} onClick={() => setNoteOpen(true)} className="h-9 w-9">
+        <IconButton
+          active={!!note.trim()}
+          label={t.editor.noteTitle}
+          onClick={() => setNoteOpen(true)}
+          className="hidden h-9 w-9 sm:flex"
+        >
           <StickyNote size={16} />
         </IconButton>
-        <div className="relative">
+        <div className="relative hidden sm:block">
           <IconButton
             label={t.editor.shareImage}
             active={imageMenuOpen}
@@ -365,9 +372,48 @@ export function EditorPage() {
             </>
           )}
         </div>
-        <Button onClick={() => setExportDialogOpen(true)} disabled={exporting} className="px-4 py-2 text-sm">
-          {exporting ? '…' : t.editor.exportPdf}
-        </Button>
+        {/* Hidden on the wrapper: `Button`'s own `inline-flex` would win over a `hidden` passed to it. */}
+        <div className="hidden sm:block">
+          <Button onClick={() => setExportDialogOpen(true)} disabled={exporting} className="px-4 py-2 text-sm">
+            {exporting ? '…' : t.editor.exportPdf}
+          </Button>
+        </div>
+        <div className="relative sm:hidden">
+          <IconButton
+            label={t.editor.moreActions}
+            active={moreMenuOpen}
+            onClick={() => setMoreMenuOpen((v) => !v)}
+            className="h-9 w-9"
+          >
+            <MoreHorizontal size={18} />
+          </IconButton>
+          {moreMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
+              <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-border bg-surface p-2 shadow-lg">
+                {[
+                  { label: exporting ? '…' : t.editor.exportPdf, onClick: () => setExportDialogOpen(true), disabled: exporting },
+                  { label: t.editor.shareImageDownloadPng, onClick: handleExportImage, disabled: exportingImage },
+                  { label: t.editor.shareImageInstagram, onClick: handleExportInstagramCard, disabled: exportingImage },
+                  { label: t.editor.noteTitle, onClick: () => setNoteOpen(true) },
+                  { label: t.backup.exportPattern, onClick: handleBackupPattern },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    disabled={item.disabled}
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      item.onClick()
+                    }}
+                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2 disabled:opacity-40"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -422,18 +468,18 @@ export function EditorPage() {
       </div>
 
       <nav className="flex flex-col gap-2 border-t border-border bg-surface px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 px-1">
+          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
             <button
               onClick={() => setColorDrawerOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
             >
               🎨 {t.editor.palette}
             </button>
             {shapeCapable && (
               <button
                 onClick={() => setShapeDrawerOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
                 ◆ {t.editor.shape.shortTitle}
               </button>
@@ -441,7 +487,7 @@ export function EditorPage() {
             {fringeCapable && (
               <button
                 onClick={() => setFringeDrawerOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
                 🪶 {t.editor.fringe.shortTitle}
               </button>
@@ -449,7 +495,7 @@ export function EditorPage() {
             {!onRightEarring && (
               <button
                 onClick={() => setLoopDrawerOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
                 🔗 {t.editor.loop.shortTitle}
               </button>
@@ -457,7 +503,7 @@ export function EditorPage() {
           </div>
           <button
             onClick={() => navigate(`/editor/${id}/weave`)}
-            className="rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
+            className="shrink-0 whitespace-nowrap rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
           >
             {t.editor.weaveMode}
           </button>
