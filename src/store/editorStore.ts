@@ -276,6 +276,8 @@ interface EditorState {
   strokeStart: () => void
   strokeCell: (row: number, col: number, hex: string | null) => void
   strokeEnd: () => void
+  /** Drops the stroke in progress as if it never happened — no undo step, nothing saved. For a touch that turns out to be the start of a pinch. */
+  strokeCancel: () => void
 
   setSelection: (rect: SelectionRect | null) => void
   eraseSelection: () => void
@@ -946,6 +948,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     if (side === 'right') set({ pair: { mode: 'independent', rightCells: cells } })
     const id = get().patternId
     if (id) scheduleAutosave(id, cells, side)
+  },
+
+  strokeCancel: () => {
+    const { strokeBase } = get()
+    set(strokeBase ? { cells: strokeBase, strokeBase: null } : { strokeBase: null })
   },
 
   // A fresh manual drag always means "the whole rect" — any color mask from

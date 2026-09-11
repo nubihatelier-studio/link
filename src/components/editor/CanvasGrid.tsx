@@ -14,6 +14,13 @@ import { t } from '@/i18n/es'
 
 const BASE_CELL_PX = 30
 const MARGIN = 28
+/**
+ * A second finger landing this soon after the first means the two were one
+ * pinch that didn't touch down together — so whatever the first finger
+ * painted in the meantime is undone, not kept. Later than this, the first
+ * finger was deliberately painting and its stroke stays.
+ */
+export const PINCH_GRACE_MS = 350
 
 export function CanvasGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -45,6 +52,14 @@ export function CanvasGrid() {
   const framedPatternId = useRef<string | null>(null)
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const pinch = useRef<{ startDist: number; startZoom: number; midX: number; midY: number } | null>(null)
+  /** When the current pencil/eraser stroke began — see `PINCH_GRACE_MS`. */
+  const strokeStartedAt = useRef(0)
+  /**
+   * Fill, eyedropper and paste act on a *tap*: they wait for the finger to
+   * lift, so a pinch that happens to start on the canvas never floods a
+   * region or pastes. Cleared the moment a second finger lands.
+   */
+  const pendingTap = useRef<{ row: number; col: number } | null>(null)
 
   const {
     patternId,
@@ -73,6 +88,7 @@ export function CanvasGrid() {
     strokeStart,
     strokeCell,
     strokeEnd,
+    strokeCancel,
     paintLine,
     pickColor,
     floodFill,
@@ -531,7 +547,11 @@ export function CanvasGrid() {
       // Second finger just landed: abandon whatever single-finger gesture
       // was in progress (closing its undo step properly) and switch to pinch.
       if (isFringeSculpting.current) fringeSculptEnd()
-      else if (isPointerDown.current) strokeEnd()
+      else if (isPointerDown.current && (tool === 'pencil' || tool === 'eraser')) {
+        if (performance.now() - strokeStartedAt.current < PINCH_GRACE_MS) strokeCancel()
+        else strokeEnd()
+      } else if (isPointerDown.current) setSelection(null)
+      pendingTap.current = null
       isPointerDown.current = false
       isFringeSculpting.current = false
       lastCell.current = null
@@ -569,28 +589,28 @@ export function CanvasGrid() {
     }
 
     if (pasteArmed && clipboard) {
-      pasteClipboardAt(cell.row, cell.col, { flipH: pasteFlipH, flipV: pasteFlipV })
+      pendingTap.current = cell
       return
     }
 
     switch (tool) {
       case 'pencil':
+        strokeStartedAt.current = performance.now()
         strokeStart()
         strokeCell(cell.row, cell.col, activeColor)
         lastCell.current = cell
         isPointerDown.current = true
         break
       case 'eraser':
+        strokeStartedAt.current = performance.now()
         strokeStart()
         strokeCell(cell.row, cell.col, null)
         lastCell.current = cell
         isPointerDown.current = true
         break
       case 'eyedropper':
-        pickColor(cell.row, cell.col)
-        break
       case 'fill':
-        floodFill(cell.row, cell.col, activeColor)
+        pendingTap.current = cell
         break
       case 'line':
         if (!lineStart) {
@@ -674,6 +694,15 @@ export function CanvasGrid() {
     if (activePointers.current.size < 2) pinch.current = null
     if (activePointers.current.size >= 1) return // still mid-pinch (or settling back to one finger): don't treat as a draw release
 
+    const tap = pendingTap.current
+    pendingTap.current = null
+    if (tap) {
+      if (pasteArmed && clipboard) pasteClipboardAt(tap.row, tap.col, { flipH: pasteFlipH, flipV: pasteFlipV })
+      else if (tool === 'fill') floodFill(tap.row, tap.col, activeColor)
+      else if (tool === 'eyedropper') pickColor(tap.row, tap.col)
+      return
+    }
+
     if (isFringeSculpting.current) {
       fringeSculptEnd()
       isFringeSculpting.current = false
@@ -693,7 +722,8 @@ export function CanvasGrid() {
       }
       lineArmedByThisPress.current = false
       lineDragged.current = false
-    } else if (tool === 'rectErase') {
+    } else if (tool === 'rectErase' && isPointerDown.current) {
+      // Only after a real one-finger drag — not when the last finger of a pinch lifts.
       useEditorStore.getState().eraseSelection()
       setSelection(null)
     }
