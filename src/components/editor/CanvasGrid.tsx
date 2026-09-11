@@ -87,6 +87,11 @@ export function CanvasGrid() {
     fringeSculptEnd,
   } = useEditorStore()
   const colorLetters = usePatternLetterMap()
+  // The right earring of a mirrored pair is a live reflection: shown, not
+  // painted (the store ignores paint there). Say so instead of silently
+  // swallowing the tap.
+  const readOnlyMirror = useEditorStore((s) => s.side === 'right' && s.pair?.mode === 'mirror')
+  const splitPairColors = useEditorStore((s) => s.splitPairColors)
   const letterVisibility = useEditorPrefsStore((s) => s.letterVisibility)
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
@@ -756,7 +761,18 @@ export function CanvasGrid() {
 
   return (
     <div className="relative h-full w-full">
-      {pasteArmed && clipboard && (
+      {readOnlyMirror && (
+        <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-surface-2/95 py-1 pl-4 pr-1 text-xs font-medium shadow-sm backdrop-blur">
+          <span>{t.editor.pair.readOnly}</span>
+          <button
+            onClick={splitPairColors}
+            className="rounded-full bg-accent-500 px-3 py-1 font-semibold text-accent-ink hover:bg-accent-400"
+          >
+            {t.editor.pair.editSeparately}
+          </button>
+        </div>
+      )}
+      {!readOnlyMirror && pasteArmed && clipboard && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/90 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
           Toca una celda para pegar · H/V voltear · Esc cancelar
         </div>

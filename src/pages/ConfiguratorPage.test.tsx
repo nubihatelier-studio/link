@@ -368,3 +368,59 @@ describe('ConfiguratorPage — plantilla "Pulsera" calibrada (Tarea 4)', () => {
     expect(gridFromPhysicalSizeMm(technique, measuredWidthMm, measuredHeightMm, bead)).toEqual({ cols, rows })
   })
 })
+
+describe('ConfiguratorPage — crear el par de aros', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], hydrated: true, migrationResult: null })
+  })
+
+  async function renderPage() {
+    const createPattern = vi.fn(
+      (
+        _config: PatternConfig,
+        _name?: string,
+        _fringe?: FringeData,
+        _rowShape?: RowShape[],
+        _loop?: LoopData,
+        _pair?: PatternDoc['pair'],
+      ) => 'new-id',
+    )
+    usePatternsStore.setState({ createPattern })
+    const user = userEvent.setup()
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    return { user, createPattern }
+  }
+
+  it('por defecto se crea un solo aro', async () => {
+    const { user, createPattern } = await renderPage()
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createPattern.mock.calls[0][5]).toBeUndefined()
+  })
+
+  it('con "Crear el par", el patrón nace como par en espejo y el total cuenta los dos aros', async () => {
+    const { user, createPattern } = await renderPage()
+    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) }))
+    const single = beadCount('brick', 7, 7, createShapedRowShape('triangle', 7, 7)) + totalFringeBeadCount({ lengths: [4, 6, 8, 9, 8, 6, 4], turnBeads: [] })
+    expect(screen.getByText(single.toLocaleString('es'))).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.configurator.pairAdd }))
+    expect(screen.getByText((single * 2).toLocaleString('es'))).toBeInTheDocument()
+    expect(screen.getByText(t.configurator.totalBeadsPair)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(t.configurator.estimatedSizeEach))).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createPattern.mock.calls[0][5]).toEqual({ mode: 'mirror' })
+  })
+
+  it('peyote no ofrece el par', async () => {
+    const { user } = await renderPage()
+    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.peyote) }))
+    expect(screen.queryByRole('button', { name: t.configurator.pairAdd })).not.toBeInTheDocument()
+  })
+})

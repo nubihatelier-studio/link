@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, LoopData, PatternDoc, RowShape, Technique } from '@/engine/types'
+import type { ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { normalizeLoop } from '@/engine/loop'
+import { rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
@@ -173,6 +174,32 @@ interface EditorState {
   loop: LoopData | undefined
   setLoop: (loop: LoopData | undefined) => void
 
+  /** The earring pair this pattern belongs to, if any — see `engine/types.ts#PairData`. */
+  pair: PairData | undefined
+  /**
+   * Which earring the canvas shows and edits. The working fields (`cells`,
+   * `fringe`, `rowShape`, `staggerPhase`) always describe THIS earring, so
+   * every tool works on the right one exactly as on the left; only where the
+   * result is saved differs (`pair.rightCells` instead of the pattern's own
+   * cells). Always 'left' for a single piece.
+   */
+  side: EarringSide
+  setSide: (side: EarringSide) => void
+  /**
+   * Makes the pattern a pair, changes how its right earring is kept, or
+   * (undefined) makes it a single piece again. Not part of undo history — the
+   * caller offers an undo toast for the changes that lose something.
+   */
+  setPair: (pair: PairData | undefined) => void
+  /** Gives the right earring colours of its own, starting from exactly what the mirror showed. */
+  splitPairColors: () => void
+  /**
+   * The left earring — the pattern as saved, after flushing any pending
+   * autosave. What exports and weave mode start from, whichever earring the
+   * canvas happens to be showing.
+   */
+  leftPiece: () => Piece | null
+
   history: EditorSnapshot[]
   future: EditorSnapshot[]
 
@@ -296,11 +323,60 @@ function pruneOrphanedCells(
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleAutosave(patternId: string, cells: ColorMap) {
+let pendingAutosave: (() => void) | null = null
+
+/**
+ * Saves the working cells 600ms after the last change — to the pattern's own
+ * cells, or to the right earring's when that's the side being edited. The
+ * side is captured when the save is scheduled, so switching earrings before
+ * it fires can never write one earring's colours into the other.
+ */
+function scheduleAutosave(patternId: string, cells: ColorMap, side: EarringSide = 'left') {
   if (autosaveTimer) clearTimeout(autosaveTimer)
-  autosaveTimer = setTimeout(() => {
+  const save = () => {
+    autosaveTimer = null
+    pendingAutosave = null
+    persistCells(patternId, cells, side)
+  }
+  pendingAutosave = save
+  autosaveTimer = setTimeout(save, 600)
+}
+
+/** Runs a scheduled autosave right away — before anything reads the saved pattern back. */
+function flushAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  pendingAutosave?.()
+}
+
+function persistCells(patternId: string, cells: ColorMap, side: EarringSide) {
+  if (side === 'left') {
     usePatternsStore.getState().setCells(patternId, cells)
-  }, 600)
+    return
+  }
+  usePatternsStore.getState().setPair(patternId, { mode: 'independent', rightCells: cells })
+}
+
+/** The left earring (the pattern as stored), as a piece. */
+function leftPieceOf(doc: PatternDoc): Piece {
+  return {
+    technique: doc.config.technique,
+    cols: doc.config.cols,
+    rows: doc.config.rows,
+    cells: doc.cells,
+    fringe: normalizeFringe(doc.fringe, doc.config.cols),
+    rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
+    staggerPhase: doc.config.staggerPhase ?? 0,
+    loop: normalizeLoop(doc.loop),
+  }
+}
+
+/**
+ * The right earring in 'mirror' mode is a live reflection with nothing of
+ * its own to paint — it's shown, not edited. Painting it would either be
+ * lost or silently repaint the left.
+ */
+function isReadOnlySide(state: { side: EarringSide; pair: PairData | undefined }): boolean {
+  return state.side === 'right' && state.pair?.mode === 'mirror'
 }
 
 let noteAutosaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -311,7 +387,34 @@ function scheduleNoteAutosave(patternId: string, note: string) {
   }, 600)
 }
 
-export const useEditorStore = create<EditorState>()((set, get) => ({
+export const useEditorStore = create<EditorState>()((set, get) => {
+  /** Loads one earring into the working fields, from what's saved. See `EditorState.side`. */
+  function showSide(side: EarringSide) {
+    const { patternId } = get()
+    if (!patternId) return
+    const doc = usePatternsStore.getState().getPattern(patternId)
+    if (!doc) return
+    const left = leftPieceOf(doc)
+    const piece = side === 'right' && doc.pair ? rightEarring(left, doc.pair) : left
+    set({
+      side: piece === left ? 'left' : 'right',
+      pair: doc.pair,
+      cells: { ...piece.cells },
+      fringe: piece.fringe!,
+      rowShape: piece.rowShape!,
+      staggerPhase: piece.staggerPhase,
+      // Undo steps describe one earring's cells — they don't carry over.
+      history: [],
+      future: [],
+      selection: null,
+      colorSelectionMask: null,
+      strokeBase: null,
+      pasteArmed: false,
+      fringeSculptMode: false,
+    })
+  }
+
+  return {
   patternId: null,
   name: '',
   technique: 'peyote',
@@ -328,6 +431,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   // the exact same single-commit trimming behavior as the quick shapes and
   // the drag gesture, instead of duplicating that logic a third time.
   setFringeLength: (col, rawLength) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { cols, fringeSymmetric } = get()
     const mirrorCol = cols - 1 - col
     const lengths: (number | undefined)[] = []
@@ -336,6 +441,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     get().sculptFringeLengths(lengths)
   },
   setFringeTurnBead: (col, isTurnBead) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { fringe } = get()
     if ((fringe.lengths[col] ?? 0) === 0) return
     const nextTurnBeads = [...fringe.turnBeads]
@@ -346,6 +453,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     if (id) usePatternsStore.getState().setFringe(id, nextFringe)
   },
   sculptFringeLengths: (lengths) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { fringe, rows: bodyRows, cells, cols } = get()
     const nextLengths = [...fringe.lengths]
     const nextTurnBeads = [...fringe.turnBeads]
@@ -385,6 +494,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   fringeSculptBase: null,
   fringeSculptStart: () => set({ fringeSculptBase: get().cells }),
   fringeSculptSetColumn: (col, rawLength) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { fringe, rows: bodyRows, cells, cols, fringeSymmetric } = get()
     const length = Math.max(0, Math.min(MAX_FRINGE_LENGTH, Math.round(rawLength)))
     const targets = fringeSymmetric ? [col, cols - 1 - col] : [col]
@@ -412,6 +523,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ fringe: { lengths: nextLengths, turnBeads: nextTurnBeads }, cells: nextCells })
   },
   fringeSculptEnd: () => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { fringeSculptBase, cells, history, rows, rowShape, fringe, staggerPhase, loop, patternId } = get()
     if (fringeSculptBase && fringeSculptBase !== cells) {
       set({ history: [...history, { cells: fringeSculptBase, rows, rowShape, fringe, staggerPhase, loop }].slice(-100), future: [] })
@@ -425,6 +538,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setFringeSymmetric: (on) => set({ fringeSymmetric: on }),
 
   growRowEdge: (row, edge) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { rowShape, cols, cells, rows, fringe, staggerPhase } = get()
     const shape = rowShape[row]
     if (!shape) return
@@ -450,6 +565,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   shrinkRowEdge: (row, edge) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { rowShape, cells, cols, rows, fringe, staggerPhase } = get()
     const shape = rowShape[row]
     if (!shape || shape.length <= 1) return // a row always keeps at least 1 bead
@@ -480,6 +597,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   addRowAtTop: () => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { cells, rows, rowShape, cols, fringe, staggerPhase } = get()
     const oldFirst = rowShape[0]
     const length = Math.max(1, oldFirst.length - 1)
@@ -512,6 +631,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   removeRowAtTop: () => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { rows, rowShape, cells, cols, fringe, staggerPhase } = get()
     if (rows <= 1) return // a pattern always keeps at least 1 row
     // Removing the top row reindexes every remaining row by -1 — the same
@@ -539,10 +660,47 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   loop: undefined,
   setLoop: (loop) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { cells, rows, rowShape, fringe, staggerPhase, loop: prevLoop, history } = get()
     set({ loop, history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop: prevLoop }].slice(-100), future: [] })
     const id = get().patternId
     if (id) usePatternsStore.getState().setLoop(id, loop)
+  },
+
+  pair: undefined,
+  side: 'left',
+  setSide: (side) => {
+    const { patternId, pair, side: current } = get()
+    if (!patternId || side === current || (side === 'right' && !pair)) return
+    // Whatever is still waiting to be saved belongs to the earring being left.
+    flushAutosave()
+    showSide(side)
+  },
+  setPair: (pair) => {
+    const { patternId, side } = get()
+    if (!patternId) return
+    flushAutosave()
+    usePatternsStore.getState().setPair(patternId, pair)
+    set({ pair })
+    // The right earring's view is derived from the pair: redraw it from the
+    // new one, or go back to the left when there's no longer a pair to show.
+    if (side === 'right') showSide(pair ? 'right' : 'left')
+  },
+  leftPiece: () => {
+    const { patternId } = get()
+    if (!patternId) return null
+    flushAutosave()
+    const doc = usePatternsStore.getState().getPattern(patternId)
+    return doc ? leftPieceOf(doc) : null
+  },
+  splitPairColors: () => {
+    const { patternId, pair } = get()
+    if (!patternId || pair?.mode !== 'mirror') return
+    flushAutosave()
+    const doc = usePatternsStore.getState().getPattern(patternId)
+    if (!doc) return
+    get().setPair(splitPair(leftPieceOf(doc)))
   },
 
   history: [],
@@ -611,6 +769,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       staggerPhase: doc.config.staggerPhase ?? 0,
       note: doc.note ?? '',
       loop: normalizeLoop(doc.loop),
+      pair: doc.pair,
+      side: 'left',
       history: [],
       future: [],
       weaveResetPending: null,
@@ -646,13 +806,17 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   },
 
   commit: (next) => {
-    const { cells, rows, rowShape, fringe, staggerPhase, loop, history } = get()
+    if (isReadOnlySide(get())) return
+    const { cells, rows, rowShape, fringe, staggerPhase, loop, history, side } = get()
     set({ cells: next, history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100), future: [] })
+    if (side === 'right') set({ pair: { mode: 'independent', rightCells: next } })
     const id = get().patternId
-    if (id) scheduleAutosave(id, next)
+    if (id) scheduleAutosave(id, next, side)
   },
 
   commitShapeChange: (next) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
     const { cells, rows, rowShape, fringe, staggerPhase, loop, history, patternId } = get()
     set({
       cells: next.cells,
@@ -757,6 +921,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   strokeStart: () => set({ strokeBase: get().cells }),
 
   strokeCell: (row, col, hex) => {
+    if (isReadOnlySide(get())) return
     const { cells, cols, rows, mirrorMode, fringe, rowShape } = get()
     const next = { ...cells }
     let changed = false
@@ -790,8 +955,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       future: [],
       strokeBase: null,
     })
+    const { side } = get()
+    if (side === 'right') set({ pair: { mode: 'independent', rightCells: cells } })
     const id = get().patternId
-    if (id) scheduleAutosave(id, cells)
+    if (id) scheduleAutosave(id, cells, side)
   },
 
   // A fresh manual drag always means "the whole rect" — any color mask from
@@ -886,7 +1053,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       future: [{ cells, rows, rowShape, fringe, staggerPhase, loop }, ...future].slice(0, 100),
     })
     const id = get().patternId
-    if (id) {
+    if (id && get().side === 'right') {
+      // On the right earring only its colours ever change (its shape follows the left).
+      set({ pair: { mode: 'independent', rightCells: prev.cells } })
+      persistCells(id, prev.cells, 'right')
+    } else if (id) {
       usePatternsStore.getState().setShapeStructure(id, prev)
       // Not folded into setShapeStructure (that call predates the loop and only
       // covers rows/rowShape/cells/fringe) — undoing a `setLoop` change needs its
@@ -910,9 +1081,13 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100),
     })
     const id = get().patternId
-    if (id) {
+    if (id && get().side === 'right') {
+      set({ pair: { mode: 'independent', rightCells: next.cells } })
+      persistCells(id, next.cells, 'right')
+    } else if (id) {
       usePatternsStore.getState().setShapeStructure(id, next)
       usePatternsStore.getState().setLoop(id, next.loop)
     }
   },
-}))
+}
+})

@@ -12,6 +12,7 @@ import {
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { loopBeadCount } from '@/engine/loop'
+import { isPairCapable } from '@/engine/pair'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import { toMm, fromMm, formatSizeMm } from '@/engine/units'
@@ -162,6 +163,8 @@ export function ConfiguratorPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null)
   /** The hanging loop the chosen template starts with, if any — see `TemplatePreset.loop`. */
   const [loop, setLoop] = useState<LoopData | undefined>(undefined)
+  /** Create the pattern as an earring pair (right = live mirror of the left) — see `engine/pair.ts`. Off unless asked for. */
+  const [makePair, setMakePair] = useState(false)
   /**
    * "Aro con flecos" starts from rows = columns — that's what gives its
    * trapezoid body + V fringe a well-proportioned, symmetric silhouette —
@@ -186,6 +189,7 @@ export function ConfiguratorPage() {
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
+  const pairChosen = makePair && isPairCapable(technique)
   const shapeActive = isShapeCapable(technique) && bodyShape !== 'rectangle'
   const size = useMemo(
     () =>
@@ -266,7 +270,8 @@ export function ConfiguratorPage() {
     const fringe: FringeData | undefined = fringePreviewLengths
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
       : undefined
-    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined, loop)
+    const pair = makePair && isPairCapable(technique) ? ({ mode: 'mirror' } as const) : undefined
+    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined, loop, pair)
     // "Aro con flecos" starts from a symmetric shape (rhombus body + V
     // fringe) — defaulting the length-symmetry toggle on too means a manual
     // tweak keeps that symmetry instead of silently drifting lopsided.
@@ -492,11 +497,29 @@ export function ConfiguratorPage() {
         </section>
       )}
 
+      {isPairCapable(technique) && (
+        <section className="mb-8">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.pair}</h2>
+            <button
+              onClick={() => setMakePair((v) => !v)}
+              aria-pressed={makePair}
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors
+                ${makePair ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+            >
+              {makePair ? t.configurator.pairRemove : t.configurator.pairAdd}
+            </button>
+          </div>
+          <p className="text-xs text-text-muted">{t.configurator.pairHint}</p>
+        </section>
+      )}
+
       <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
-        <p className="text-2xl font-bold">{total.toLocaleString('es')}</p>
-        <p className="text-sm text-text-muted">{t.configurator.totalBeads}</p>
+        <p className="text-2xl font-bold">{(pairChosen ? total * 2 : total).toLocaleString('es')}</p>
+        <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : t.configurator.totalBeads}</p>
         <p className="mt-2 text-sm text-text-muted">
-          {t.configurator.estimatedSize}: {formatSizeMm(size.widthMm, size.heightMm, unit)}
+          {pairChosen ? t.configurator.estimatedSizeEach : t.configurator.estimatedSize}:{' '}
+          {formatSizeMm(size.widthMm, size.heightMm, unit)}
         </p>
       </Card>
 

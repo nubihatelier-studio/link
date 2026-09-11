@@ -39,6 +39,12 @@ export const t = {
   },
   configurator: {
     title: 'Crear patrón',
+    pair: 'Crear el par (izquierdo y derecho)',
+    pairHint: 'El aro derecho se arma como espejo del izquierdo. Después se puede pintar por separado.',
+    pairAdd: '+ Crear el par',
+    pairRemove: 'Quitar el par',
+    totalBeadsPair: 'mostacillas para el par',
+    estimatedSizeEach: 'Tamaño de cada aro',
     technique: 'Técnica',
     /** Encabezado numerado del paso 2 en "Crear patrón" — deja explícito que la plantilla (paso 1) precarga la técnica, en vez de leerse como dos paneles que compiten por la misma decisión. */
     techniqueStepTitle: '2 · Técnica',
@@ -212,6 +218,27 @@ export const t = {
       addRowTop: '+ Agregar fila arriba',
       removeRowTop: 'Quitar fila',
       weaveResetNotice: 'Se reinició el progreso de tejido guardado — el orden de tejido cambió.',
+    },
+    /** Par de aros — ver engine/pair.ts. El que se diseña es el izquierdo; el derecho es su reflejo. */
+    pair: {
+      create: '+ Par de aros',
+      createHint: 'Arma el aro derecho como espejo del izquierdo, para diseños que no son simétricos',
+      left: 'Izquierdo',
+      right: 'Derecho',
+      sideLabel: 'Aro',
+      mirror: 'Espejo',
+      mirrorHint: 'El derecho es siempre el reflejo del izquierdo: cualquier cambio pasa solo',
+      independent: 'Por separado',
+      independentHint: 'El derecho tiene sus propios colores, por ejemplo para unas iniciales que en espejo se leerían al revés',
+      remove: 'Quitar el par',
+      readOnly: 'Este aro es el espejo del izquierdo',
+      editSeparately: 'Pintarlo por separado',
+      shapeFollowsLeft: 'La forma, los flecos y la argolla se editan en el izquierdo; el derecho los sigue en espejo.',
+      remirrored: 'El aro derecho volvió a ser el espejo del izquierdo.',
+      removed: 'Se quitó el par.',
+      /** Encabezado del editor: el total de mostacillas del par. */
+      beadsOfPair: (total: number) => `Par · ${total} mostacillas`,
+      notAvailable: 'El par de aros está disponible en loom y brick.',
     },
     loop: {
       title: 'Argolla de enganche 🔗',

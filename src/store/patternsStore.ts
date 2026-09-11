@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ColorMap, FringeData, LoopData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData, PairData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 import { requestPersistentStorageOnce } from '@/storage/persistence'
@@ -31,6 +31,7 @@ interface PatternsState {
     fringe?: FringeData,
     rowShape?: RowShape[],
     loop?: LoopData,
+    pair?: PairData,
   ) => string
   createPatternWithCells: (config: PatternConfig, cells: ColorMap, name?: string) => string
   renamePattern: (id: string, name: string) => void
@@ -47,6 +48,8 @@ interface PatternsState {
   ) => void
   setNote: (id: string, note: string) => void
   setLoop: (id: string, loop: LoopData | undefined) => void
+  /** Makes the pattern an earring pair, changes how its right earring is kept, or (undefined) makes it a single piece again. */
+  setPair: (id: string, pair: PairData | undefined) => void
   getPattern: (id: string) => PatternDoc | undefined
 }
 
@@ -130,7 +133,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     set({ patterns, order })
   },
 
-  createPattern: (config, name, fringe, rowShape, loop) => {
+  createPattern: (config, name, fringe, rowShape, loop, pair) => {
     const id = makeId()
     const doc: PatternDoc = {
       id,
@@ -140,6 +143,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       ...(fringe ? { fringe } : {}),
       ...(rowShape ? { rowShape } : {}),
       ...(loop ? { loop } : {}),
+      ...(pair ? { pair } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -290,6 +294,18 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       const doc = s.patterns[id]
       if (!doc) return s
       updated = { ...doc, loop, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setPair: (id, pair) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      const { pair: _previous, ...rest } = doc
+      updated = { ...rest, ...(pair ? { pair } : {}), updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

@@ -21,6 +21,7 @@ import { ColorPanel } from '@/components/editor/ColorPanel'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
+import { PairBar } from '@/components/editor/PairBar'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -71,6 +72,9 @@ export function EditorPage() {
     patternId,
     weaveResetPending,
     clearWeaveResetPending,
+    pair,
+    side,
+    leftPiece,
   } = useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
@@ -90,8 +94,11 @@ export function EditorPage() {
   const showLetters = letterVisibility !== 'never'
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
-  const fringeCapable = isFringeCapable(technique)
-  const shapeCapable = isShapeCapable(technique)
+  // On the right earring of a pair the shape, fringe and loop follow the left
+  // one (mirrored) and are edited there — see `PairBar`.
+  const onRightEarring = pair !== undefined && side === 'right'
+  const fringeCapable = isFringeCapable(technique) && !onRightEarring
+  const shapeCapable = isShapeCapable(technique) && !onRightEarring
 
   useEffect(() => {
     if (!id) return
@@ -205,7 +212,19 @@ export function EditorPage() {
   }
 
   const bead = getBeadType(beadTypeId)
-  const total = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe) + loopBeadCount(loop)
+  // Both earrings of a pair share one shape, so the pair is exactly twice one earring.
+  const beadsPerPiece = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe) + loopBeadCount(loop)
+  const beadsLabel = pair ? t.editor.pair.beadsOfPair(beadsPerPiece * 2) : `${beadsPerPiece} mostacillas`
+
+  /**
+   * What the exports draw: the saved pattern, which is the LEFT earring —
+   * never the working fields, which hold whichever earring is on screen.
+   */
+  function exportFields() {
+    const left = leftPiece()
+    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop }
+    return left
+  }
 
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
@@ -224,7 +243,7 @@ export function EditorPage() {
     setExporting(true)
     setExportError(null)
     try {
-      await exportPatternToPdf({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, note, loop, beadType: bead, showLetters, sections })
+      await exportPatternToPdf({ ...exportFields(), name, note, beadType: bead, showLetters, sections })
     } catch (err) {
       // Never swallow this: a silent failure looks exactly like a dead
       // button, which is what the weaver reported.
@@ -240,7 +259,7 @@ export function EditorPage() {
     setExportingImage(true)
     setExportError(null)
     try {
-      await exportPatternImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
+      await exportPatternImage({ ...exportFields(), name, beadType: bead, showLetters })
     } catch (err) {
       console.error('Export a PNG falló:', err)
       setExportError(t.editor.exportImageFailed)
@@ -254,7 +273,7 @@ export function EditorPage() {
     setExportingImage(true)
     setExportError(null)
     try {
-      await exportInstagramCardImage({ name, technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, beadType: bead, showLetters })
+      await exportInstagramCardImage({ ...exportFields(), name, beadType: bead, showLetters })
     } catch (err) {
       console.error('Export de tarjeta falló:', err)
       setExportError(t.editor.exportImageFailed)
@@ -276,7 +295,7 @@ export function EditorPage() {
             className="w-full truncate rounded bg-transparent text-lg font-bold outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
           />
           <p className="truncate text-xs text-text-muted">
-            {t.technique[technique]} · {cols}×{rows} · {bead.label} · {total} mostacillas
+            {t.technique[technique]} · {cols}×{rows} · {bead.label} · {beadsLabel}
           </p>
         </div>
         <button
@@ -369,6 +388,7 @@ export function EditorPage() {
               +
             </button>
           </div>
+          <PairBar />
           <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-surface">
             <CanvasGrid />
           </div>
@@ -385,9 +405,11 @@ export function EditorPage() {
               <FringePanel />
             </div>
           )}
-          <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
-            <LoopPanel />
-          </div>
+          {!onRightEarring && (
+            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
+              <LoopPanel />
+            </div>
+          )}
           <div className="min-h-0 flex-1">
             <ColorPanel />
           </div>
@@ -419,12 +441,14 @@ export function EditorPage() {
                 🪶 {t.editor.fringe.shortTitle}
               </button>
             )}
-            <button
-              onClick={() => setLoopDrawerOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
-            >
-              🔗 {t.editor.loop.shortTitle}
-            </button>
+            {!onRightEarring && (
+              <button
+                onClick={() => setLoopDrawerOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
+              >
+                🔗 {t.editor.loop.shortTitle}
+              </button>
+            )}
           </div>
           <button
             onClick={() => navigate(`/editor/${id}/weave`)}
