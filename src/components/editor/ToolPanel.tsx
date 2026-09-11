@@ -24,6 +24,7 @@ import { t } from '@/i18n/es'
 // emoji matters most for the native (Capacitor) build: emoji glyphs render
 // inconsistently across iOS/Android/OS versions, while lucide-react draws
 // the same stroked SVG everywhere.
+/** What paints: everything that puts color on (or takes it off) a bead, one tap at a time. */
 const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof typeof t.editor.tools }[] = [
   { id: 'pencil', icon: Pencil, labelKey: 'pencil' },
   { id: 'line', icon: Minus, labelKey: 'line' },
@@ -31,7 +32,6 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
   { id: 'eraser', icon: Eraser, labelKey: 'eraser' },
   { id: 'rectErase', icon: EraseAreaIcon, labelKey: 'rectErase' },
   { id: 'eyedropper', icon: Pipette, labelKey: 'eyedropper' },
-  { id: 'select', icon: SquareDashedMousePointer, labelKey: 'select' },
 ]
 
 interface ToolPanelProps {
@@ -93,6 +93,16 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
 
       <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
 
+      {/* Marcar, copiar y pegar son los tres pasos de una misma tarea: van
+          juntos en su propio grupo, en ese orden, para que se lean como uno.
+          Voltear y borrar la selección aparecen dentro del grupo cuando
+          tienen sentido, no fuera de él. */}
+      <IconButton label={t.editor.tools.select} active={tool === 'select'} onClick={() => setTool('select')}>
+        <SquareDashedMousePointer size={18} />
+      </IconButton>
+      <IconButton label={t.editor.tools.copy} disabled={!selection} onClick={copySelection}>
+        <Copy size={18} />
+      </IconButton>
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
         <ClipboardPaste size={18} />
       </IconButton>
@@ -106,12 +116,6 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
           </IconButton>
         </>
       )}
-
-      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
-
-      <IconButton label={t.editor.tools.copy} disabled={!selection} onClick={copySelection}>
-        <Copy size={18} />
-      </IconButton>
       {tool === 'select' && (
         <IconButton label={t.editor.eraseSelection} disabled={!selection} onClick={eraseSelection}>
           <Trash2 size={18} />
