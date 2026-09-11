@@ -215,7 +215,7 @@ export function CanvasGrid() {
     }
 
     // The reference bead style, shared with the PNG, the card and the PDF — see lib/beadStyle.ts.
-    const { inset, radius } = beadMetricsPx(cellPx)
+    const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(cellPx, technique)
     // Every 5th/10th cell gets a bolder edge (like cross-stitch chart
     // counting guides), so large grids stay readable and easy to click
     // precisely without losing count.
@@ -237,8 +237,8 @@ export function CanvasGrid() {
         const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * cellPx + inset
         const y = originY + pos.y * cellPx + inset
-        const w = cellPx - inset * 2
-        const h = cellPx - inset * 2
+        const w = beadW
+        const h = beadH
         const hex = cells[cellKey(row, col)]
 
         ctx.beginPath()
@@ -287,8 +287,8 @@ export function CanvasGrid() {
           const pos = cellPosition(technique, row, col, rows, staggerPhase)
           const x = MARGIN + pos.x * cellPx + inset
           const y = originY + pos.y * cellPx + inset
-          const w = cellPx - inset * 2
-          const h = cellPx - inset * 2
+          const w = beadW
+          const h = beadH
           const hex = cells[cellKey(row, col)]
 
           ctx.beginPath()
@@ -405,8 +405,8 @@ export function CanvasGrid() {
           ctx,
           MARGIN + pos.x * cellPx + inset,
           originY + pos.y * cellPx + inset,
-          cellPx - inset * 2,
-          cellPx - inset * 2,
+          beadW,
+          beadH,
           radius,
         )
         ctx.fillStyle = hex
@@ -473,7 +473,7 @@ export function CanvasGrid() {
         const pos = cellPosition(technique, c.row, c.col, rows, staggerPhase)
         ctx.globalAlpha = 0.55
         ctx.beginPath()
-        roundRect(ctx, MARGIN + pos.x * cellPx + inset, originY + pos.y * cellPx + inset, cellPx - inset * 2, cellPx - inset * 2, radius)
+        roundRect(ctx, MARGIN + pos.x * cellPx + inset, originY + pos.y * cellPx + inset, beadW, beadH, radius)
         ctx.fillStyle = activeColor
         ctx.fill()
         ctx.globalAlpha = 1

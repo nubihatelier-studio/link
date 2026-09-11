@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { Cell, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -113,7 +113,9 @@ export function WeaveCanvas({
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
-    const { inset, radius } = beadMetricsPx(CELL_PX)
+    const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(CELL_PX, technique)
+    // The space one row actually takes — outlines hug the bead, not a full square cell.
+    const rowStepPx = rowPitch(technique) * CELL_PX
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -126,8 +128,8 @@ export function WeaveCanvas({
         const pos = cellPosition(technique, row, col, undefined, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
         const y = originY + pos.y * CELL_PX + inset
-        const w = CELL_PX - inset * 2
-        const h = CELL_PX - inset * 2
+        const w = beadW
+        const h = beadH
         const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
         const idx = indexByCell.get(cellKey(row, col)) ?? -1
         const done = idx <= currentIndex
@@ -150,8 +152,8 @@ export function WeaveCanvas({
         const pos = cellPosition(technique, row, col, rows, staggerPhase)
         const x = MARGIN + pos.x * CELL_PX + inset
         const y = originY + pos.y * CELL_PX + inset
-        const w = CELL_PX - inset * 2
-        const h = CELL_PX - inset * 2
+        const w = beadW
+        const h = beadH
         const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
         const idx = indexByCell.get(cellKey(row, col)) ?? -1
         const done = idx <= currentIndex
@@ -206,7 +208,7 @@ export function WeaveCanvas({
       const y = originY + pos.y * CELL_PX
       ctx.globalAlpha = 0.22
       ctx.beginPath()
-      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, CELL_PX + 2, radius + 1)
+      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, rowStepPx + 2, radius + 1)
       ctx.fillStyle = '#c9a227'
       ctx.fill()
       ctx.globalAlpha = 1
@@ -223,7 +225,7 @@ export function WeaveCanvas({
         if (cell.row < 0) continue
         const pos = cellPosition(technique, cell.row, cell.col, rows, staggerPhase)
         ctx.beginPath()
-        roundRect(ctx, MARGIN + pos.x * CELL_PX, originY + pos.y * CELL_PX, CELL_PX, CELL_PX, radius)
+        roundRect(ctx, MARGIN + pos.x * CELL_PX, originY + pos.y * CELL_PX, CELL_PX, rowStepPx, radius)
         ctx.stroke()
       }
       ctx.setLineDash([])
@@ -236,7 +238,7 @@ export function WeaveCanvas({
       ctx.strokeStyle = '#c9a227'
       ctx.lineWidth = 3
       ctx.beginPath()
-      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, CELL_PX + 2, radius + 1)
+      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, rowStepPx + 2, radius + 1)
       ctx.stroke()
 
       if (direction) {

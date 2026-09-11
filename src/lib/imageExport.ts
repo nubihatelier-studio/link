@@ -113,7 +113,7 @@ export function renderPatternCanvas(
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
   // Same bead style as the editor — see lib/beadStyle.ts.
-  const { inset, radius } = beadMetricsPx(cellPx)
+  const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(cellPx, technique)
   if (showLetters) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -131,8 +131,8 @@ export function renderPatternCanvas(
     const pos = cellPosition(technique, row, col, rows, staggerPhase)
     const x = margin + pos.x * cellPx + inset
     const y = topMargin + pos.y * cellPx + inset
-    const w = cellPx - inset * 2
-    const h = cellPx - inset * 2
+    const w = beadW
+    const h = beadH
 
     context.beginPath()
     roundRect(context, x, y, w, h, radius)

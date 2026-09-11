@@ -1,3 +1,5 @@
+import type { Technique } from '@/engine/types'
+import { rowPitch } from '@/engine/geometry'
 import { contrastTextColor } from './color'
 
 /**
@@ -58,9 +60,18 @@ export function beadMetrics(cellW: number, cellH: number, minInset = 0, minRadiu
   }
 }
 
-/** Canvas bead geometry — same as `beadMetrics` with the on-screen floors applied. */
-export function beadMetricsPx(cellPx: number): BeadMetrics {
-  return beadMetrics(cellPx, cellPx, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
+/**
+ * Canvas bead geometry for a technique — `beadMetrics` with the on-screen
+ * floors applied, sized to the real distance between rows.
+ *
+ * The screen canvases used to size every bead to the full cell on both axes,
+ * the PDF's mistake again: peyote rows sit 0.75 of a cell apart (brick 0.85,
+ * see `geometry.ts#rowPitch`), so each bead overlapped the one below it and a
+ * peyote column read as one bar of colour instead of beads you can count.
+ * Loom's rows are a full cell apart, so it's unchanged.
+ */
+export function beadMetricsPx(cellPx: number, technique: Technique = 'loom'): BeadMetrics {
+  return beadMetrics(cellPx, rowPitch(technique) * cellPx, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
 }
 
 /**

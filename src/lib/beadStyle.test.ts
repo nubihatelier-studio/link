@@ -71,3 +71,19 @@ describe('el gráfico del PDF usa el mismo estilo que el editor', () => {
     expect(rowStep - bead.height).toBeCloseTo(bead.inset * 2, 10)
   })
 })
+
+describe('beadMetricsPx — los lienzos de pantalla (editor, modo tejido, PNG)', () => {
+  it.each(['loom', 'peyote', 'brick'] as const)('en %s cada mostacilla cabe en su fila: no se monta sobre la de abajo', (technique) => {
+    const cellPx = 30
+    const bead = beadMetricsPx(cellPx, technique)
+    const rowStep = rowPitch(technique) * cellPx
+    // Antes el alto era el de la celda completa: en peyote cada columna se veía como una barra.
+    expect(bead.height + bead.inset * 2).toBeCloseTo(rowStep, 10)
+    expect(bead.height).toBeLessThan(rowStep)
+  })
+
+  it('loom no cambia: sus filas están a una celda completa', () => {
+    const bead = beadMetricsPx(30, 'loom')
+    expect(bead.height).toBeCloseTo(bead.width, 10)
+  })
+})
