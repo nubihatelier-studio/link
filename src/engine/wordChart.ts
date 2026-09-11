@@ -11,16 +11,13 @@ export interface WordChartLine {
    * 0-based row index for a body line, the pass number for peyote
    * (`isPass: true` — see `weaveOrder.ts#buildPeyoteOrder`), or the fringe
    * column for a fringe line (`isFringe: true`) — fringes hang per column
-   * regardless of technique. Meaningless (0) for a `grouped` line (peyote's
-   * foundation pass), since that line doesn't belong to a single row.
+   * regardless of technique.
    */
   unitIndex: number
   /** Run-length-encoded sequence for this unit, e.g. "3A, 2B, 1A" (fringe lines add a trailing ", giro" when the deepest bead is a turn bead). */
   text: string
   /** Set only on the fringe section's lines, appended after every body line. */
   isFringe?: true
-  /** Set only on peyote's foundation pass — the first drawn row, strung in one go, see `weaveOrder.ts#buildPeyoteOrder`. */
-  grouped?: true
   /**
    * Set on peyote's body lines: the line counts the beads strung in one PASS
    * (the alternating positions), not the cells of a drawn row — so
@@ -44,11 +41,11 @@ export interface WordChartLine {
  * visual chart.
  *
  * A "line" is a maximal run of consecutive steps that share the same
- * grouping key (body row, fringe column, or "the one grouped step") — since
+ * grouping key (body row or peyote pass, fringe column, or the loop) — since
  * `buildWeaveOrder` already walks brick bottom-up, reverses direction every
- * row, orders fringe columns by the thread's natural direction, and bundles
- * peyote's foundation pass into one step, this function doesn't need to
- * know any of that: it just groups whatever comes out contiguously.
+ * row, splits peyote into passes and orders fringe columns by the thread's
+ * natural direction, this function doesn't need to know any of that: it
+ * just groups whatever comes out contiguously.
  */
 export function buildWordChart(
   technique: Technique,
@@ -67,7 +64,6 @@ export function buildWordChart(
   let lineMeta: {
     unitIndex: number
     isFringe?: true
-    grouped?: true
     isPass?: true
     isBaseRow?: true
     isLoop?: true
@@ -93,15 +89,14 @@ export function buildWordChart(
   }
 
   for (const step of order) {
-    const key = step.isLoop ? 'loop' : step.isFringe ? `fringe:${step.unit}` : step.grouped ? 'grouped' : `body:${step.unit}`
+    const key = step.isLoop ? 'loop' : step.isFringe ? `fringe:${step.unit}` : `body:${step.unit}`
     if (key !== currentKey) {
       flushLine()
       currentKey = key
-      const isPeyoteBody = technique === 'peyote' && !step.isFringe && !step.grouped && !step.isLoop
+      const isPeyoteBody = technique === 'peyote' && !step.isFringe && !step.isLoop
       lineMeta = {
         unitIndex: step.unit,
         ...(step.isFringe ? { isFringe: true as const } : {}),
-        ...(step.grouped ? { grouped: true as const } : {}),
         ...(isPeyoteBody ? { isPass: true as const } : {}),
         ...(step.isBaseRow ? { isBaseRow: true as const } : {}),
         ...(step.isLoop ? { isLoop: true as const } : {}),

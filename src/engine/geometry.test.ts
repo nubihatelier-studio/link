@@ -12,6 +12,7 @@ import {
   loopAnchorX,
   physicalSizeMm,
   rowPitch,
+  effectiveStaggerPhase,
 } from './geometry'
 import { createShapedRowShape } from './shape'
 import { isPaintableCell } from './fringe'
@@ -219,9 +220,31 @@ describe('cellPosition/cellAtPosition/beadCenterX/fringeAnchorX/cellAtPositionWi
     expect(cellPosition('brick', 1, 4, undefined, 1).x).toBe(4)
   })
 
-  it('loom and peyote never gain a phase-dependent x — only brick has a row-parity stagger', () => {
+  it('loom ignores the phase; peyote keeps its x and flips which columns sit half a bead lower', () => {
     expect(cellPosition('loom', 1, 4, undefined, 1)).toEqual(cellPosition('loom', 1, 4, undefined, 0))
-    expect(cellPosition('peyote', 1, 4, undefined, 1)).toEqual(cellPosition('peyote', 1, 4, undefined, 0))
+    expect(cellPosition('peyote', 1, 4, undefined, 1).x).toBe(cellPosition('peyote', 1, 4, undefined, 0).x)
+    // Fase 0: las columnas de índice par son las altas. Fase 1: al revés.
+    expect(cellPosition('peyote', 0, 0, undefined, 0).y).toBeLessThan(cellPosition('peyote', 0, 1, undefined, 0).y)
+    expect(cellPosition('peyote', 0, 1, undefined, 1).y).toBeLessThan(cellPosition('peyote', 0, 0, undefined, 1).y)
+  })
+
+  it('effectiveStaggerPhase: en peyote la columna de la derecha siempre queda alta (es la última de la base)', () => {
+    for (const cols of [4, 5, 6, 7, 8]) {
+      const phase = effectiveStaggerPhase({ technique: 'peyote', cols })
+      const rightmost = cellPosition('peyote', 0, cols - 1, undefined, phase).y
+      const nextToIt = cellPosition('peyote', 0, cols - 2, undefined, phase).y
+      expect(rightmost).toBeLessThan(nextToIt)
+    }
+    // Un peyote de 6 de ancho: suben las columnas 2, 4 y 6.
+    const phase = effectiveStaggerPhase({ technique: 'peyote', cols: 6 })
+    const ys = [0, 1, 2, 3, 4, 5].map((c) => cellPosition('peyote', 0, c, undefined, phase).y)
+    expect(ys[1]).toBeLessThan(ys[0])
+    expect(ys[3]).toBeLessThan(ys[2])
+    expect(ys[5]).toBeLessThan(ys[4])
+    // El guardado no manda en peyote; en brick sí.
+    expect(effectiveStaggerPhase({ technique: 'peyote', cols: 6, staggerPhase: 0 })).toBe(1)
+    expect(effectiveStaggerPhase({ technique: 'brick', cols: 6, staggerPhase: 1 })).toBe(1)
+    expect(effectiveStaggerPhase({ technique: 'brick', cols: 6 })).toBe(0)
   })
 
   it('cellAtPosition (the inverse) resolves the same physical point back to the same cell under a non-default phase, for every technique', () => {

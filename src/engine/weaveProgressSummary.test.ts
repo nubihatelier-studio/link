@@ -14,7 +14,7 @@ describe('summarizeWeaveProgress', () => {
       unitCount: 2,
       percent: 17,
       isFringe: false,
-      grouped: false,
+      isLoop: false,
       isPass: false,
     })
     // Last cell (row 1, col 2) — final index of 6 total.
@@ -23,29 +23,29 @@ describe('summarizeWeaveProgress', () => {
       unitCount: 2,
       percent: 100,
       isFringe: false,
-      grouped: false,
+      isLoop: false,
       isPass: false,
     })
   })
 
   it('peyote: cuenta pasadas, no filas de la grilla', () => {
     const config = { technique: 'peyote' as const, cols: 2, rows: 3, beadTypeId: 'x' }
-    // order[0] = primera pasada (las 2 mostacillas de la fila 1, unit 0);
-    // después cada fila se parte en dos pasadas de una mostacilla: 1 + 2 × 2 = 5.
+    // La base (pasada 0) son las 2 mostacillas de la fila 1, de a una; después
+    // cada fila se parte en dos pasadas de una mostacilla: 1 + 2 × 2 = 5.
     expect(summarizeWeaveProgress(config, 0)).toEqual({
       unitIndex: 0,
       unitCount: 5,
-      percent: 33, // 2 de 6 mostacillas ensartadas
+      percent: 17, // 1 de 6 mostacillas
       isFringe: false,
-      grouped: true,
+      isLoop: false,
       isPass: true,
     })
-    expect(summarizeWeaveProgress(config, 4)).toEqual({
+    expect(summarizeWeaveProgress(config, 5)).toEqual({
       unitIndex: 4,
       unitCount: 5,
       percent: 100,
       isFringe: false,
-      grouped: false,
+      isLoop: false,
       isPass: true,
     })
   })
@@ -65,7 +65,7 @@ describe('summarizeWeaveProgress', () => {
       unitCount: 2,
       percent: 100,
       isFringe: false,
-      grouped: false,
+      isLoop: false,
       isPass: false,
     })
   })
@@ -83,7 +83,7 @@ describe('summarizeWeaveProgress', () => {
       const config = { technique: 'brick' as const, cols: 2, rows: 2, beadTypeId: 'x' }
       const fringe: FringeData = { lengths: [2, 0], turnBeads: [false, false] }
       const summary = summarizeWeaveProgress(config, 4, fringe) // index 4 = first fringe bead
-      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, grouped: false, isPass: false })
+      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, isLoop: false, isPass: false })
     })
   })
 

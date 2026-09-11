@@ -130,6 +130,26 @@ function physicalRowPitch(technique: Technique): number {
   }
 }
 
+/**
+ * The stagger phase a pattern is actually drawn with.
+ *
+ * Brick keeps whatever the pattern stores — adding a row at the top flips it
+ * (see `editorStore#addRowAtTop`).
+ *
+ * Peyote's isn't a choice: it follows from how the piece is started. The
+ * foundation is strung left to right, and when the work turns for the first
+ * real pass, the LAST bead strung — the rightmost column — is the one that
+ * rises. So the rightmost column is always a high one, and the columns
+ * alternate from there: on a 6-wide piece columns 2, 4 and 6 are high. The
+ * chart used to draw it the other way round (1, 3, 5 high), which left an
+ * extra bead poking above the foundation at the top of every high column
+ * and put the whole weave order out of step with the drawing.
+ */
+export function effectiveStaggerPhase(config: { technique: Technique; cols: number; staggerPhase?: 0 | 1 }): 0 | 1 {
+  if (config.technique === 'peyote') return config.cols % 2 === 0 ? 1 : 0
+  return config.staggerPhase ?? 0
+}
+
 export function isOddIndex(i: number): boolean {
   return i % 2 === 1
 }
@@ -186,7 +206,8 @@ export function cellPosition(
       return { x: col, y: row }
     case 'peyote': {
       const pitch = PEYOTE_ROW_COMPACTION
-      const yOffset = isOddIndex(col) ? pitch / 2 : 0
+      // Which columns sit half a bead lower — see `effectiveStaggerPhase`.
+      const yOffset = isOddIndex(col + staggerPhase) ? pitch / 2 : 0
       return { x: col, y: row * pitch + yOffset }
     }
     case 'brick': {
@@ -342,7 +363,7 @@ export function cellAtPosition(
     case 'peyote': {
       const pitch = PEYOTE_ROW_COMPACTION
       const col = Math.floor(xUnits)
-      const yOffset = isOddIndex(col) ? pitch / 2 : 0
+      const yOffset = isOddIndex(col + staggerPhase) ? pitch / 2 : 0
       const row = Math.floor((yUnits - yOffset) / pitch)
       return { row, col }
     }

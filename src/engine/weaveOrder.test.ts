@@ -148,35 +148,37 @@ function passesOf(order: ReturnType<typeof buildWeaveOrder>) {
 }
 
 describe('buildWeaveOrder — peyote (pasadas reales, no el zigzag dibujado)', () => {
-  it('la primera pasada es sólo la primera fila dibujada: sus mostacillas ya son el zigzag de la base', () => {
-    const order = buildWeaveOrder('peyote', 3, 2)
-    expect(order[0].grouped).toBe(true)
-    expect(order[0].cells).toEqual([
-      { row: 0, col: 0 },
-      { row: 0, col: 1 },
-      { row: 0, col: 2 },
+  it('el recorrido de un peyote de 6 de ancho es exactamente el que marcó la tejedora, paso por paso', () => {
+    const order = buildWeaveOrder('peyote', 6, 4)
+    const steps = order.slice(0, 18).map((st) => st.cells.map((c) => `${c.row},${c.col}`).join(' '))
+    expect(steps).toEqual([
+      // 1–6: la base, de a una, de izquierda a derecha (el zigzag: 1 baja, 2 alta, 3 baja…)
+      '0,0', '0,1', '0,2', '0,3', '0,4', '0,5',
+      // 7–9: vuelta de derecha a izquierda por las columnas altas (6, 4, 2)
+      '1,5', '1,3', '1,1',
+      // 10–12: ida por las bajas (1, 3, 5)
+      '1,0', '1,2', '1,4',
+      // 13–15: vuelta por 6, 4, 2 · 16–18: ida por 1, 3, 5
+      '2,5', '2,3', '2,1',
+      '2,0', '2,2', '2,4',
     ])
-    // La segunda fila ya no queda tragada en la primera pasada: avanza de a una.
-    expect(order.slice(1).every((s) => !s.grouped && s.cells.length === 1 && s.cells[0].row === 1)).toBe(true)
+    // Cada paso es una sola mostacilla, también en la base.
+    expect(order.every((st) => st.cells.length === 1 && !st.grouped)).toBe(true)
   })
 
-  it('desde la segunda fila, cada pasada toma las posiciones alternadas de la fila, de a una mostacilla', () => {
-    const order = buildWeaveOrder('peyote', 3, 4)
-    // order[0] = la primera pasada (fila 0, ltr, "turno 0").
-    // Fila 1 se parte en dos pasadas: columnas pares (0, 2) y luego la impar (1).
-    const pass1 = order.filter((s) => !s.grouped && s.unit === 1)
-    expect(pass1.map((s) => s.cells[0])).toEqual([{ row: 1, col: 2 }, { row: 1, col: 0 }])
-    expect(pass1.every((s) => s.direction === 'rtl')).toBe(true)
+  it('la base es la primera pasada (0) y va de izquierda a derecha', () => {
+    const base = buildWeaveOrder('peyote', 6, 4).filter((st) => st.unit === 0)
+    expect(base).toHaveLength(6)
+    expect(base.every((st) => st.cells[0].row === 0 && st.direction === 'ltr')).toBe(true)
+  })
 
-    const pass2 = order.filter((s) => !s.grouped && s.unit === 2)
-    expect(pass2.map((s) => s.cells[0])).toEqual([{ row: 1, col: 1 }])
-    expect(pass2.every((s) => s.direction === 'ltr')).toBe(true)
-
-    // Y después la fila 2, otra vez partida en pares e impares.
-    const pass3 = order.filter((s) => !s.grouped && s.unit === 3)
-    expect(pass3.map((s) => s.cells[0])).toEqual([{ row: 2, col: 2 }, { row: 2, col: 0 }])
-    const pass4 = order.filter((s) => !s.grouped && s.unit === 4)
-    expect(pass4.map((s) => s.cells[0])).toEqual([{ row: 2, col: 1 }])
+  it('las columnas altas son siempre las de la última mostacilla de la base: en ancho impar, las pares', () => {
+    // 3 de ancho: la base termina en la columna 2 (índice par), que es la que sube.
+    const order = buildWeaveOrder('peyote', 3, 3)
+    const pass1 = order.filter((st) => st.unit === 1).map((st) => st.cells[0])
+    expect(pass1).toEqual([{ row: 1, col: 2 }, { row: 1, col: 0 }])
+    const pass2 = order.filter((st) => st.unit === 2).map((st) => st.cells[0])
+    expect(pass2).toEqual([{ row: 1, col: 1 }])
   })
 
   it('visits every cell exactly once', () => {
@@ -186,11 +188,10 @@ describe('buildWeaveOrder — peyote (pasadas reales, no el zigzag dibujado)', (
     expect(seen.size).toBe(30)
   })
 
-  it('un patrón de una sola fila es sólo su primera pasada', () => {
+  it('un patrón de una sola fila es sólo su base, de a una', () => {
     const order = buildWeaveOrder('peyote', 4, 1)
-    expect(order).toHaveLength(1)
-    expect(order[0].grouped).toBe(true)
-    expect(totalBeadCount(order)).toBe(4)
+    expect(order).toHaveLength(4)
+    expect(order.every((st) => st.unit === 0 && !st.grouped)).toBe(true)
   })
 
   it('ignores rowShape (not shape-capable)', () => {
@@ -226,12 +227,11 @@ describe('directionAtStep with staggerPhase (Ronda I)', () => {
   })
 })
 
-describe('directionAtStep with a grouped step (peyote foundation pass)', () => {
-  it('uses the last cell of the current step and the first cell of the next — works whether either side is grouped', () => {
+describe('directionAtStep al pasar de la base a la primera pasada (peyote)', () => {
+  it('de la última mostacilla de la base a la primera de la pasada: misma columna, una mostacilla más abajo', () => {
     const order = buildWeaveOrder('peyote', 3, 3)
-    // order[0] = foundation, 3 cells, last cell {row:0,col:2}. order[1] = first bead of pass 1, direction rtl -> {row:1,col:2}.
-    // Same column on both ends (dx=0), one row pitch apart vertically.
-    const direction = directionAtStep('peyote', order, 0)
+    // 3 de ancho: base (0,0) (0,1) (0,2), y la pasada 1 empieza en (1,2), justo debajo.
+    const direction = directionAtStep('peyote', order, 2)
     expect(direction?.dx).toBe(0)
     expect(direction?.dy).toBeCloseTo(rowPitch('peyote'), 10)
   })
@@ -286,9 +286,9 @@ describe('firstIndexOfNextBodyRow — direction-agnostic "mark row done" (Tarea 
     expect(firstIndexOfNextBodyRow(order, 1)).toBe(3)
   })
 
-  it('jumping from the foundation pass lands on the first bead of the second row (index 1)', () => {
+  it('marcar hecha la base salta a la primera mostacilla de la pasada 1', () => {
     const order = buildWeaveOrder('peyote', 3, 4)
-    expect(firstIndexOfNextBodyRow(order, 0)).toBe(1)
+    expect(firstIndexOfNextBodyRow(order, 0)).toBe(3) // después de las 3 mostacillas de la base
   })
 
   it('returns -1 once the fringe section is reached (no more body rows) — matches the pre-existing fallback behavior', () => {
@@ -331,19 +331,19 @@ describe('jumpTargetToIndex — mapeo del selector "Ir a" a índice de paso', ()
     expect(jumpTargetToIndex(bodyOnlyOrder, { kind: 'fringe', index: 0 })).toBe(-1)
   })
 
-  it('kind "foundation" (peyote) lands on index 0, the grouped step', () => {
+  it('en peyote "Ir a" apunta a pasadas: la 0 es la base, la 1 empieza después de ella', () => {
     const peyoteOrder = buildWeaveOrder('peyote', 4, 4)
-    expect(jumpTargetToIndex(peyoteOrder, { kind: 'foundation', index: 0 })).toBe(0)
+    expect(jumpTargetToIndex(peyoteOrder, { kind: 'body', index: 0 })).toBe(0)
+    expect(jumpTargetToIndex(peyoteOrder, { kind: 'body', index: 1 })).toBe(4)
   })
 })
 
 describe('totalBeadCount / beadsThrough — counting with grouped steps (Tarea 4)', () => {
-  it('a grouped step (peyote foundation) counts as all of its beads at once', () => {
-    const order = buildWeaveOrder('peyote', 4, 5)
-    // foundation = 4 cells (row 0), then rows 1-4 = 4*4 = 16 single-bead steps.
-    expect(totalBeadCount(order)).toBe(4 + 16)
-    expect(beadsThrough(order, 0)).toBe(4) // completing just the foundation step already counts 4 beads
-    expect(beadsThrough(order, 1)).toBe(5) // + 1 bead from the first pass
+  it('a grouped step (a woven loop\'s ring) counts as all of its beads at once', () => {
+    const order = buildWeaveOrder('loom', 2, 1, undefined, undefined, 8)
+    expect(totalBeadCount(order)).toBe(2 + 8)
+    expect(beadsThrough(order, 1)).toBe(2)
+    expect(beadsThrough(order, 2)).toBe(10) // the ring's 8 beads land in one step
   })
 
   it('beadsThrough(-1) is 0 (nothing woven yet)', () => {
@@ -408,73 +408,56 @@ describe('Tests exigidos — verificación literal de la tarea', () => {
     }
   })
 
-  it('(c) peyote de 8 de ancho: la primera pasada es la primera fila, y cada pasada siguiente son las posiciones alternadas', () => {
+  it('(c) peyote de 8 de ancho: la base de a una, y cada pasada siguiente son las posiciones alternadas', () => {
     const order = buildWeaveOrder('peyote', 8, 5)
 
-    // La primera pasada: la fila 1 del gráfico, sus 8 mostacillas en zigzag.
-    expect(order[0].grouped).toBe(true)
-    expect(order[0].unit).toBe(0)
-    expect(order[0].cells).toHaveLength(8)
-    expect(order[0].cells.every((c) => c.row === 0)).toBe(true)
+    // La base: las 8 mostacillas de la fila 1, de a una.
+    const base = order.filter((st) => st.unit === 0)
+    expect(base).toHaveLength(8)
+    expect(base.every((st) => st.cells[0].row === 0 && st.cells.length === 1)).toBe(true)
 
-    const passes = passesOf(order)
-    // 4 filas de grilla después de la primera, 2 pasadas por fila.
-    expect(passes).toHaveLength(8)
+    const passes = passesOf(order).filter((p) => p.unit > 0)
+    expect(passes).toHaveLength(8) // 4 filas × 2 pasadas
+    for (const pass of passes) expect(pass.cells).toHaveLength(4)
 
-    // Cada pasada son 4 mostacillas: las posiciones alternadas de su fila.
-    for (const pass of passes) expect(pass.cells).toHaveLength(8 / 2)
-
-    // La segunda fila ya avanza por pasadas: primero las columnas pares, después las impares.
-    expect(passes[0].cells.map((c) => c.col).sort((a, b) => a - b)).toEqual([0, 2, 4, 6])
-    expect(passes[1].cells.map((c) => c.col).sort((a, b) => a - b)).toEqual([1, 3, 5, 7])
+    // La segunda fila: primero las altas (las de la última mostacilla de la base, impares), después las bajas.
+    expect(passes[0].cells.map((c) => c.col)).toEqual([7, 5, 3, 1])
+    expect(passes[1].cells.map((c) => c.col)).toEqual([0, 2, 4, 6])
     expect(passes[0].cells.every((c) => c.row === 1)).toBe(true)
-    expect(passes[1].cells.every((c) => c.row === 1)).toBe(true)
-
-    // La tercera fila sigue igual, y así.
-    expect(passes[2].cells.map((c) => c.col).sort((a, b) => a - b)).toEqual([0, 2, 4, 6])
     expect(passes[2].cells.every((c) => c.row === 2)).toBe(true)
 
-    // Las direcciones alternan, empezando en rtl (la primera pasada fue ltr).
     expect(passes.map((p) => p.direction)).toEqual(['rtl', 'ltr', 'rtl', 'ltr', 'rtl', 'ltr', 'rtl', 'ltr'])
-
-    // Las pasadas se numeran corridas desde la primera pasada, que es la 0.
     expect(passes.map((p) => p.unit)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
   })
 
   it('(c bis) las mostacillas por las que pasa la aguja son las de la pasada anterior, y no son pasos', () => {
     const order = buildWeaveOrder('peyote', 8, 5)
-    const sorted = (cells: { row: number; col: number }[]) =>
-      [...cells].sort((a, b) => a.row - b.row || a.col - b.col)
+    const sorted = (cells: { row: number; col: number }[]) => [...cells].sort((a, b) => a.row - b.row || a.col - b.col)
 
-    // La pasada 2 (columnas impares de la segunda fila) enhebra por las pares
-    // de esa misma fila, que son las de la pasada 1.
-    const secondPassStart = order.findIndex((s) => !s.grouped && s.unit === 2)
-    expect(sorted(peyoteThreadThroughCells(order, secondPassStart))).toEqual([
-      { row: 1, col: 0 },
-      { row: 1, col: 2 },
-      { row: 1, col: 4 },
-      { row: 1, col: 6 },
+    // La pasada 1 (altas de la segunda fila) pasa por las bajas de la base.
+    const firstPassStart = order.findIndex((st) => st.unit === 1)
+    expect(sorted(peyoteThreadThroughCells(order, firstPassStart, 8))).toEqual([
+      { row: 0, col: 0 },
+      { row: 0, col: 2 },
+      { row: 0, col: 4 },
+      { row: 0, col: 6 },
     ])
 
-    // La primera pasada real enhebra por las mostacillas bajas de la base —
-    // las impares de la primera fila, dentro de la primera pasada agrupada.
-    const firstPassStart = order.findIndex((s) => !s.grouped && s.unit === 1)
-    expect(sorted(peyoteThreadThroughCells(order, firstPassStart))).toEqual([
-      { row: 0, col: 1 },
-      { row: 0, col: 3 },
-      { row: 0, col: 5 },
-      { row: 0, col: 7 },
+    // La pasada 2 (bajas de la segunda fila) pasa por las altas de esa misma fila.
+    const secondPassStart = order.findIndex((st) => st.unit === 2)
+    expect(sorted(peyoteThreadThroughCells(order, secondPassStart, 8))).toEqual([
+      { row: 1, col: 1 },
+      { row: 1, col: 3 },
+      { row: 1, col: 5 },
+      { row: 1, col: 7 },
     ])
 
-    // Ninguna de esas celdas es un paso de la pasada actual: se pasa por ellas,
-    // no se ensartan.
-    const currentPassCells = order.filter((s) => !s.grouped && s.unit === 1).flatMap((s) => s.cells)
-    for (const c of peyoteThreadThroughCells(order, firstPassStart)) {
-      expect(currentPassCells).not.toContainEqual(c)
-    }
+    // Ninguna es un paso de la pasada actual.
+    const current = order.filter((st) => st.unit === 1).flatMap((st) => st.cells)
+    for (const c of peyoteThreadThroughCells(order, firstPassStart, 8)) expect(current).not.toContainEqual(c)
 
-    // La primera pasada agrupada no enhebra por ninguna anterior.
-    expect(peyoteThreadThroughCells(order, 0)).toEqual([])
+    // La base no pasa por nada.
+    expect(peyoteThreadThroughCells(order, 0, 8)).toEqual([])
   })
 
   it('(d) loom: el recorrido no cambia (test de no regresión)', () => {
@@ -557,10 +540,8 @@ describe('buildWeaveOrder — woven loop (Tarea 3): worked last, as its own grou
     expect(withLoop).toBe(without + 8)
   })
 
-  it('jumpTargetToIndex("foundation") still finds peyote\'s real foundation pass, not the loop, when both exist', () => {
+  it('la argolla nunca se confunde con una pasada de peyote al saltar', () => {
     const order = buildWeaveOrder('peyote', 6, 6, undefined, undefined, 8)
-    const foundationIndex = jumpTargetToIndex(order, { kind: 'foundation', index: 0 })
-    expect(order[foundationIndex].isLoop).toBeUndefined()
-    expect(order[foundationIndex].grouped).toBe(true)
+    expect(order[jumpTargetToIndex(order, { kind: 'body', index: 0 })].isLoop).toBeUndefined()
   })
 })

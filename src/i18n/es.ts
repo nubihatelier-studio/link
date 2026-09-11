@@ -280,10 +280,6 @@ export const t = {
     markPassDone: 'Marcar pasada hecha',
     /** Las mostacillas de la pasada anterior por las que se pasa la aguja — la referencia que se busca al tejer. */
     threadThroughHint: 'La aguja pasa por las mostacillas marcadas con contorno',
-    /** Peyote's foundation pass — the first drawn row, strung in one go (it's already the zigzag base). */
-    foundationPass: 'Primera pasada',
-    foundationPassHint: (n: number) => `Ensarta estas ${n} mostacillas de una vez`,
-    markFoundationDone: 'Marcar primera pasada hecha',
     /** Woven loop's own final weave-mode step — see `engine/weaveOrder.ts#appendLoopStep`. */
     loopStepLabel: 'Arandela',
     loopStepHint: (n: number) => `Ensarta estas ${n} mostacillas formando el aro`,

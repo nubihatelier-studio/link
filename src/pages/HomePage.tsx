@@ -292,8 +292,8 @@ export function HomePage() {
             <p className="text-sm text-text-muted">
               {heroSummary.isFringe
                 ? t.weave.fringeUnitLabel
-                : heroSummary.grouped
-                  ? t.weave.foundationPass
+                : heroSummary.isLoop
+                  ? t.weave.loopStepLabel
                   : `${heroSummary.isPass ? t.weave.pass : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
               · {heroSummary.percent}%
             </p>

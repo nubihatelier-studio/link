@@ -5,6 +5,7 @@ import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { normalizeLoop } from '@/engine/loop'
+import { effectiveStaggerPhase } from '@/engine/geometry'
 import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
@@ -752,7 +753,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),
       rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
-      staggerPhase: doc.config.staggerPhase ?? 0,
+      staggerPhase: effectiveStaggerPhase(doc.config),
       note: doc.note ?? '',
       loop: normalizeLoop(doc.loop),
       pair: doc.pair,

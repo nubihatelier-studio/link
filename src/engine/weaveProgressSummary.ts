@@ -2,7 +2,7 @@ import type { FringeData, PatternConfig, RowShape } from './types'
 import { beadsThrough, buildWeaveOrder, isFringeStep, totalBeadCount } from './weaveOrder'
 
 export interface WeaveProgressSummary {
-  /** 0-based index of the current row (peyote: the current PASS — see `isPass`) — pinned to the last unit while `isFringe` is true, meaningless (0) while `grouped` is true (see below). */
+  /** 0-based index of the current row (peyote: the current PASS — see `isPass`) — pinned to the last unit while `isFringe` is true, meaningless (0) while `isLoop` is true. */
   unitIndex: number
   /** Total rows in the body, or total passes for peyote. */
   unitCount: number
@@ -10,8 +10,8 @@ export interface WeaveProgressSummary {
   percent: number
   /** True once progress has moved past the body into the fringe zone — callers should show a fringe-specific label instead of "Fila X de Y" (unitIndex/unitCount stop advancing here). */
   isFringe: boolean
-  /** True while progress is still on peyote's foundation pass — callers should show that label instead of "Fila X de Y". */
-  grouped: boolean
+  /** True on a woven loop's ring, the last step — callers should show that label instead of "Fila X de Y". */
+  isLoop: boolean
   /**
    * True for peyote: the units counted here are passes, not grid rows (see
    * `weaveOrder.ts#buildPeyoteOrder`), so callers should read "Pasada X de Y".
@@ -51,7 +51,7 @@ export function summarizeWeaveProgress(
   const unitIndex = isFringe ? unitCount - 1 : step.unit
   const percent = Math.round((beadsThrough(order, clampedIndex) / totalBeadCount(order)) * 100)
 
-  return { unitIndex, unitCount, percent, isFringe, grouped: step.grouped, isPass }
+  return { unitIndex, unitCount, percent, isFringe, isLoop: step.isLoop === true, isPass }
 }
 
 /**

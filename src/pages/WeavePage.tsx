@@ -30,7 +30,7 @@ import { UndoToast } from '@/components/shared/UndoToast'
 import { Toast } from '@/components/shared/Toast'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 
-/** Serializes a JumpTarget as an <option value> for the "Ir a" selector — plain numeric values can't tell a body row, a fringe column, and the foundation pass apart. */
+/** Serializes a JumpTarget as an <option value> for the "Ir a" selector — plain numeric values can't tell a body row and a fringe column apart. */
 function encodeJumpValue(target: JumpTarget): string {
   return `${target.kind}:${target.index}`
 }
@@ -46,7 +46,7 @@ const LOOP_JUMP_VALUE = 'loop:0'
 /** Inverse of encodeJumpValue — parses the selector's raw string value back into a JumpTarget. */
 function decodeJumpValue(value: string): JumpTarget {
   const [kind, index] = value.split(':')
-  return { kind: kind === 'fringe' ? 'fringe' : kind === 'foundation' ? 'foundation' : 'body', index: Number(index) }
+  return { kind: kind === 'fringe' ? 'fringe' : 'body', index: Number(index) }
 }
 
 export function WeavePage() {
@@ -107,10 +107,7 @@ export function WeavePage() {
   const beadsWoven = beadsThrough(order, currentIndex)
   const currentStep = order[currentIndex]
   const onFringe = currentStep ? isFringeStep(currentStep) : false
-  // The woven loop's step is `grouped` too (it's strung in one go), so it has to
-  // be ruled out before anything treats it as peyote's foundation pass.
   const onLoop = currentStep?.isLoop === true
-  const onFoundation = (currentStep?.grouped ?? false) && !onLoop
   const currentUnitIndex = currentStep ? currentStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
   /**
@@ -141,8 +138,8 @@ export function WeavePage() {
    * a weaver hunts for — see `weaveOrder.ts#peyoteThreadThroughCells`.
    */
   const threadThroughCells = useMemo(
-    () => (technique === 'peyote' ? peyoteThreadThroughCells(order, currentIndex + 1) : []),
-    [technique, order, currentIndex],
+    () => (technique === 'peyote' && piece ? peyoteThreadThroughCells(order, currentIndex + 1, piece.cols) : []),
+    [technique, order, currentIndex, piece],
   )
 
   // A saved index from before this technique's traversal order was corrected points at a
@@ -233,13 +230,11 @@ export function WeavePage() {
     ? t.weave.loopStepLabel
     : onFringe
       ? t.weave.fringeColumnHeader(currentStep!.unit + 1)
-      : onFoundation
-        ? t.weave.foundationPass
-        : currentStep?.isBaseRow
-          ? t.weave.baseRow
-          : technique === 'peyote'
-            ? `${t.weave.pass} ${currentUnitIndex + 1}`
-            : `${t.weave.row} ${currentUnitIndex + 1}`
+      : currentStep?.isBaseRow
+        ? t.weave.baseRow
+        : technique === 'peyote'
+          ? `${t.weave.pass} ${currentUnitIndex + 1}`
+          : `${t.weave.row} ${currentUnitIndex + 1}`
   // A discreet direction indicator — which way the needle moves along the current row (meaningless for fringe steps, which hang straight down).
   const directionArrow = !onFringe && !onLoop && currentStep ? (currentStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = currentStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
@@ -247,27 +242,20 @@ export function WeavePage() {
     ? wordChartLines.find((l) => l.isLoop)
     : onFringe
       ? wordChartLines.find((l) => l.isFringe && l.unitIndex === currentStep!.unit)
-      : onFoundation
-        ? wordChartLines.find((l) => l.grouped)
-        : wordChartLines.find((l) => !l.isFringe && !l.grouped && !l.isLoop && l.unitIndex === currentUnitIndex)
+      : wordChartLines.find((l) => !l.isFringe && !l.isLoop && l.unitIndex === currentUnitIndex)
 
   // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
-  // pass 1 (the first drawn row, in one go) and every row after it contributes two passes,
-  // so the options are read straight off the order rather than counted from
-  // `rows`. Brick's widest row keeps its numeric slot but reads "Fila base".
-  const peyotePassCount = useMemo(
-    () => (technique === 'peyote' ? new Set(order.filter((s) => !s.grouped && !s.isFringe && !s.isLoop).map((s) => s.unit)).size : 0),
-    [technique, order],
-  )
+  // pass 1 and every row after it contributes two, so they're read straight
+  // off the order rather than counted from `rows`. Brick's widest row keeps
+  // its numeric slot but reads "Fila base".
+  const peyotePassCount =
+    technique === 'peyote' ? new Set(order.filter((s) => !s.isFringe && !s.isLoop).map((s) => s.unit)).size : 0
   const rowJumpOptions: { target: JumpTarget; label: string }[] =
-    technique === 'peyote' && rows >= 2
-      ? [
-          { target: { kind: 'foundation', index: 0 }, label: t.weave.foundationPass },
-          ...Array.from({ length: peyotePassCount }, (_, i) => ({
-            target: { kind: 'body' as const, index: i + 1 },
-            label: `${t.weave.pass} ${i + 2}`,
-          })),
-        ]
+    technique === 'peyote'
+      ? Array.from({ length: peyotePassCount }, (_, i) => ({
+          target: { kind: 'body' as const, index: i },
+          label: `${t.weave.pass} ${i + 1}`,
+        }))
       : Array.from({ length: rows }, (_, i) => ({
           target: { kind: 'body' as const, index: i },
           label: technique === 'brick' && i === rows - 1 ? t.weave.baseRow : `${t.weave.row} ${i + 1}`,
@@ -279,9 +267,7 @@ export function WeavePage() {
     ? LOOP_JUMP_VALUE
     : onFringe
       ? encodeJumpValue({ kind: 'fringe', index: currentStep!.unit })
-      : onFoundation
-        ? encodeJumpValue({ kind: 'foundation', index: 0 })
-        : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
+      : encodeJumpValue({ kind: 'body', index: currentUnitIndex })
 
   return (
     <div
@@ -391,11 +377,9 @@ export function WeavePage() {
               ? t.weave.markLoopDone
               : onFringe
                 ? t.weave.markFringeDone
-                : onFoundation
-                  ? t.weave.markFoundationDone
-                  : technique === 'peyote'
-                    ? t.weave.markPassDone
-                    : t.weave.markRowDone}
+                : technique === 'peyote'
+                  ? t.weave.markPassDone
+                  : t.weave.markRowDone}
           </button>
           <button
             onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}

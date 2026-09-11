@@ -58,25 +58,20 @@ describe('buildWordChart — brick (Tarea 2: fila más ancha primero, serpentina
 })
 
 describe('buildWordChart — peyote (primera pasada = la fila 1, después pasadas de a una)', () => {
-  it('la primera línea es la primera pasada: la fila 1, agrupada; la fila 2 ya va por pasadas', () => {
+  it('la primera línea es la base (la fila 1, de izquierda a derecha); después, una línea por pasada', () => {
     const cells: ColorMap = {
       '0,0': '#111111',
       '0,1': '#222222',
       '1,0': '#111111',
       '1,1': '#222222',
-      '2,0': '#111111',
-      '2,1': '#222222',
     }
-    const lines = buildWordChart('peyote', 2, 3, cells, letterForHex)
-    // La primera pasada (0) son las dos mostacillas de la fila 1. Cada fila
-    // siguiente se parte en dos pasadas de una mostacilla: la columna par (0)
-    // y después la impar (1) — cada línea cuenta lo que va a la aguja.
+    const lines = buildWordChart('peyote', 2, 2, cells, letterForHex)
+    // 2 de ancho: la columna de la derecha (1) es la alta, así que la pasada 1
+    // es la suya y la pasada 2 la de la izquierda.
     expect(lines).toEqual([
-      { unitIndex: 0, text: '1A, 1B', grouped: true },
-      { unitIndex: 1, text: '1A', isPass: true },
-      { unitIndex: 2, text: '1B', isPass: true },
-      { unitIndex: 3, text: '1A', isPass: true },
-      { unitIndex: 4, text: '1B', isPass: true },
+      { unitIndex: 0, text: '1A, 1B', isPass: true },
+      { unitIndex: 1, text: '1B', isPass: true },
+      { unitIndex: 2, text: '1A', isPass: true },
     ])
   })
 
@@ -85,13 +80,13 @@ describe('buildWordChart — peyote (primera pasada = la fila 1, después pasada
     const cells: ColorMap = {}
     for (let col = 0; col < 10; col++) {
       cells[`0,${col}`] = '#111111'
-      // Fila 2: las columnas pares (la pasada 1) van A, A, A, B, B.
-      cells[`1,${col}`] = col % 2 === 0 && col >= 6 ? '#222222' : '#111111'
+      // Fila 2: las columnas impares (altas en 10 de ancho — la pasada 1) van A, A, A, B, B.
+      cells[`1,${col}`] = col % 2 === 1 && col >= 7 ? '#222222' : '#111111'
       cells[`2,${col}`] = '#111111'
     }
     const lines = buildWordChart('peyote', 10, 3, cells, letterForHex)
     const firstPass = lines.find((l) => l.isPass && l.unitIndex === 1)!
-    // La pasada va rtl (columnas 8, 6, 4, 2, 0), así que las dos B van primero.
+    // La pasada va rtl (columnas 9, 7, 5, 3, 1), así que las dos B van primero.
     expect(firstPass.text).toBe('2B, 3A')
     const beadsInLine = firstPass.text.split(', ').reduce((sum, token) => sum + parseInt(token, 10), 0)
     expect(beadsInLine).toBe(5)
@@ -185,7 +180,7 @@ describe('buildWordChart with a woven loop (Tarea 3)', () => {
   it('appends its own line at the very end, all beads the loop\'s uniform color (not looked up from `cells`)', () => {
     const loop: LoopData = { variant: 'woven', beadCount: 8, color: '#222222' }
     const lines = buildWordChart('loom', 2, 2, cells, letterForHex, undefined, undefined, loop)
-    expect(lines[lines.length - 1]).toEqual({ unitIndex: 0, text: '8B', grouped: true, isLoop: true })
+    expect(lines[lines.length - 1]).toEqual({ unitIndex: 0, text: '8B', isLoop: true })
   })
 
   it('no loop line at all for a metal loop, or when there\'s no loop', () => {

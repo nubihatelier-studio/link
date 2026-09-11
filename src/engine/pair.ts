@@ -3,6 +3,7 @@ import { cellKey, parseCellKey } from './cellKey'
 import { isPaintableCell, normalizeFringe } from './fringe'
 import { normalizeRowShape } from './shape'
 import { normalizeLoop } from './loop'
+import { effectiveStaggerPhase } from './geometry'
 
 /**
  * Everything needed to draw, weave, count or export one physical piece. The
@@ -29,7 +30,7 @@ export function leftPieceOf(doc: PatternDoc): Piece {
     cells: doc.cells,
     fringe: normalizeFringe(doc.fringe, doc.config.cols),
     rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
-    staggerPhase: doc.config.staggerPhase ?? 0,
+    staggerPhase: effectiveStaggerPhase(doc.config),
     loop: normalizeLoop(doc.loop),
   }
 }

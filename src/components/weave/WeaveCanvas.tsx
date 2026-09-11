@@ -71,9 +71,8 @@ export function WeaveCanvas({
     return m
   }, [order])
 
-  // "Next bead" ring/arrow always target the upcoming step's first cell — for a grouped step
-  // (peyote's foundation pass) that's as precise as a single ring can be; the full set of beads
-  // it covers is what the word chart/hands-busy instruction spells out.
+  // "Next bead" ring/arrow always target the upcoming step's first cell — every body and fringe
+  // step is a single bead, so that's exact.
   // The loop is its own final step and isn't part of the grid (its synthetic
   // cells carry row -1 purely as a counting key), so the "next bead" ring and
   // the tap target follow the drawn arch instead of a cell position.

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { PatternDoc } from '@/engine/types'
-import { cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, loopAnchorX, effectiveStaggerPhase } from '@/engine/geometry'
 import { maxFringeLength } from '@/engine/fringe'
 import { parseCellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits } from '@/engine/loop'
@@ -25,7 +25,8 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, size, size)
 
-    const { technique, cols, rows, staggerPhase = 0 } = pattern.config
+    const { technique, cols, rows } = pattern.config
+    const staggerPhase = effectiveStaggerPhase(pattern.config)
     const { loop } = pattern
     const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(pattern.fringe))
     // The loop hangs above row 0, so it only adds height — the body is pushed
