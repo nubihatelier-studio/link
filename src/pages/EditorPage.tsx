@@ -16,7 +16,7 @@ import { exportInstagramCardImage, exportPatternImage } from '@/lib/imageExport'
 import { exportPatternBackup } from '@/storage/backup'
 import { t } from '@/i18n/es'
 import { CanvasGrid } from '@/components/editor/CanvasGrid'
-import { ToolPanel } from '@/components/editor/ToolPanel'
+import { HistoryButtons, ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
@@ -285,7 +285,10 @@ export function EditorPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    // `dvh`, not `vh`: on an iPhone 100vh is taller than what Safari shows, so
+    // the whole page scrolled — the header slid under the clock and the tools
+    // ended up below the fold.
+    <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-3 border-b border-border px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <button onClick={() => navigate('/')} className="rounded-full p-2 hover:bg-surface-2" aria-label={t.editor.back}>
           ←
@@ -459,8 +462,18 @@ export function EditorPage() {
             {t.editor.weaveMode}
           </button>
         </div>
-        <div className="no-scrollbar flex justify-center gap-2 overflow-x-auto">
-          <ToolPanel orientation="horizontal" />
+        <div className="flex items-center gap-1">
+          {/* `w-max mx-auto` rather than `justify-center`: a centred row that
+              overflows can't be scrolled back to its first tool. */}
+          <div className="no-scrollbar min-w-0 flex-1 overflow-x-auto">
+            <div className="mx-auto w-max">
+              <ToolPanel orientation="horizontal" showHistory={false} />
+            </div>
+          </div>
+          {/* Undo / redo stay within reach instead of at the far end of the scrolling row. */}
+          <div className="flex shrink-0 items-center gap-1 border-l border-border pl-1">
+            <HistoryButtons />
+          </div>
         </div>
       </nav>
 

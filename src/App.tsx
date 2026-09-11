@@ -27,14 +27,14 @@ function App() {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas">
+      <div className="flex min-h-dvh items-center justify-center bg-canvas">
         <img src="/logo.png" alt="" className="h-12 w-12 animate-pulse rounded-full" />
       </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-canvas text-text">
+    <main className="min-h-dvh bg-canvas text-text">
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/new" element={<ConfiguratorPage />} />

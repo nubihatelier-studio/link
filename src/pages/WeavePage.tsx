@@ -296,7 +296,7 @@ export function WeavePage() {
 
   return (
     <div
-      className="flex h-screen flex-col"
+      className="flex h-dvh flex-col"
       onTouchStart={(e) => (touchStartX.current = e.touches[0].clientX)}
       onTouchEnd={(e) => {
         if (touchStartX.current == null) return

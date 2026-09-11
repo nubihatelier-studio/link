@@ -36,16 +36,14 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
 
 interface ToolPanelProps {
   orientation?: 'vertical' | 'horizontal'
+  /** Undo / redo at the end of the panel. The phone toolbar pins them outside its scrolling row instead. */
+  showHistory?: boolean
 }
 
-export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
+export function ToolPanel({ orientation = 'vertical', showHistory = true }: ToolPanelProps) {
   const {
     tool,
     setTool,
-    undo,
-    redo,
-    history,
-    future,
     selection,
     clipboard,
     copySelection,
@@ -120,14 +118,27 @@ export function ToolPanel({ orientation = 'vertical' }: ToolPanelProps) {
         </IconButton>
       )}
 
-      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
+      {showHistory && (
+        <>
+          <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
+          <HistoryButtons />
+        </>
+      )}
+    </div>
+  )
+}
 
+/** Undo and redo — the two buttons reached for most, so the phone toolbar keeps them always in view. */
+export function HistoryButtons() {
+  const { undo, redo, history, future } = useEditorStore()
+  return (
+    <>
       <IconButton label={t.editor.tools.undo} disabled={history.length === 0} onClick={undo}>
         <Undo2 size={18} />
       </IconButton>
       <IconButton label={t.editor.tools.redo} disabled={future.length === 0} onClick={redo}>
         <Redo2 size={18} />
       </IconButton>
-    </div>
+    </>
   )
 }
