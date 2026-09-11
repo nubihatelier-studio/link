@@ -4,7 +4,6 @@ import {
   ArrowDownLeft,
   ArrowDownRight,
   ArrowRight,
-  BoxSelect,
   ChevronDown,
   FlipHorizontal2,
   FlipVertical2,
@@ -12,6 +11,7 @@ import {
   Plus,
   Replace,
   Shuffle,
+  SquareDashedMousePointer,
 } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import type { GradientDirection } from '@/engine/gradient'
@@ -299,7 +299,7 @@ export function ColorPanel({
                     onClick={() => handleSelectColor(p.hex)}
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3"
                   >
-                    <BoxSelect size={13} />
+                    <SquareDashedMousePointer size={13} />
                   </button>
                   <button
                     aria-label={t.advancedColor.replaceAll}
