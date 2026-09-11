@@ -93,6 +93,26 @@ export interface LoopData {
   color: string
 }
 
+/** Which earring of a pair — the one you design is the left; the right is its mirror. */
+export type EarringSide = 'left' | 'right'
+
+/**
+ * A pattern that's one earring of a matching pair. Earrings come in twos,
+ * and when the design isn't symmetric (a diagonal fringe, an off-centre
+ * motif) the second one has to be the mirror image of the first, not a copy.
+ *
+ * - `'mirror'`: the right earring is always the live mirror of the left —
+ *   nothing stored, nothing to keep in sync, it simply can't drift.
+ * - `'independent'`: the right earring's colours are its own
+ *   (`rightCells`, in the right earring's own on-screen coordinates), for
+ *   when a straight mirror is wrong — initials or a word would read
+ *   backwards on the right earring. Its SHAPE still follows the left
+ *   (body, fringe lengths, loop), mirrored: only the colours come apart.
+ *
+ * Absent = a single piece, which is every pattern created before this.
+ */
+export type PairData = { mode: 'mirror' } | { mode: 'independent'; rightCells: ColorMap }
+
 export interface PatternDoc {
   id: string
   name: string
@@ -112,6 +132,8 @@ export interface PatternDoc {
   note?: string
   /** Hanging loop at the top tip — see `LoopData`. Absent = no loop (default for every pattern). */
   loop?: LoopData
+  /** One earring of a pair — see `PairData`. Absent = a single piece. */
+  pair?: PairData
   createdAt: number
   updatedAt: number
 }

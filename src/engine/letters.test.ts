@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from './types'
-import { assignLetters, letterForIndex, letterMap, type LetterPattern } from './letters'
+import { assignLetters, assignLettersAcross, letterForIndex, letterMap, type LetterPattern } from './letters'
+import { mirrorPiece, rightEarring, splitPair } from './pair'
 import { cellKey } from './cellKey'
 
 /** Letters in order, e.g. ['A','B','C'] — the shape most assertions here care about. */
@@ -273,5 +274,41 @@ describe('assignLetters — casos borde', () => {
     const cells: ColorMap = { [cellKey(0, 0)]: RED, [cellKey(9, 9)]: GREEN }
     const entries = assignLetters({ technique: 'loom', cols: 1, rows: 1, cells })
     expect(labels(entries)).toEqual({ [RED]: 'A', [GREEN]: 'B' })
+  })
+})
+
+describe('assignLettersAcross — un par de aros comparte una sola notación', () => {
+  const left = {
+    technique: 'loom' as const,
+    cols: 3,
+    rows: 1,
+    staggerPhase: 0 as const,
+    cells: { '0,0': RED, '0,1': GREEN, '0,2': GREEN },
+  }
+
+  it('en espejo: las mismas letras que el aro solo, y los conteos del par (el doble)', () => {
+    const alone = assignLetters(left)
+    const pair = assignLettersAcross([left, mirrorPiece(left)])
+    expect(labels(pair)).toEqual(labels(alone))
+    expect(pair.find((e) => e.hex === RED)!.count).toBe(2)
+    expect(pair.find((e) => e.hex === GREEN)!.count).toBe(4)
+  })
+
+  it('separado: un color que sólo está en el derecho también recibe su letra, después de los del izquierdo', () => {
+    const split = splitPair(left)
+    if (split.mode !== 'independent') throw new Error('esperaba un par separado')
+    // En el aro derecho el rojo quedó reflejado en la columna 2; se repinta de azul.
+    expect(split.rightCells['0,2']).toBe(RED)
+    const right = rightEarring(left, { mode: 'independent', rightCells: { ...split.rightCells, '0,2': BLUE } })
+    const pair = assignLettersAcross([left, right])
+    expect(labels(pair)).toEqual({ [RED]: 'A', [GREEN]: 'B', [BLUE]: 'C' })
+    // El rojo quedó sólo en el izquierdo: una mostacilla, no dos.
+    expect(pair.find((e) => e.hex === RED)!.count).toBe(1)
+  })
+
+  it('letterMap acepta las piezas del par y rotula igual en los dos aros', () => {
+    const map = letterMap([left, mirrorPiece(left)])
+    expect(map.get(RED)).toBe('A')
+    expect(map.get(GREEN)).toBe('B')
   })
 })

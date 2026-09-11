@@ -75,27 +75,43 @@ export interface LetterPattern {
  * only place that color appears) sorts last too — same rule, no special case.
  */
 export function assignLetters(pattern: LetterPattern): LetterEntry[] {
-  const { technique, cols, rows, cells, fringe, rowShape, loop } = pattern
-  const counts = countByHex(cells, loop)
+  return assignLettersAcross([pattern])
+}
 
-  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop))
+/**
+ * `assignLetters` over several physical pieces at once — an earring pair's
+ * left and right (see `engine/pair.ts`). One notation for the pair: a colour
+ * reads the same letter on both earrings, a colour that only appears on the
+ * right one still gets a letter, and counts add up across both, which is
+ * what the materials list needs to buy beads for the whole pair. Pieces are
+ * walked in order, each along its own weave order, so the left earring's
+ * colours come first.
+ */
+export function assignLettersAcross(pieces: LetterPattern[]): LetterEntry[] {
+  const counts = new Map<string, number>()
+  for (const piece of pieces) {
+    for (const [hex, count] of countByHex(piece.cells, piece.loop)) counts.set(hex, (counts.get(hex) ?? 0) + count)
+  }
+
   const seen: string[] = []
   const seenSet = new Set<string>()
-
   function see(hex: string | undefined) {
     if (!hex || seenSet.has(hex) || !counts.has(hex)) return
     seenSet.add(hex)
     seen.push(hex)
   }
 
-  for (const step of order) {
-    if (step.isLoop) {
-      // A woven ring's beads aren't in `cells` (a ring isn't addressable by
-      // row/col — see `weaveOrder.ts#WeaveStep.isLoop`); its color is uniform.
-      see(loop?.variant === 'woven' ? loop.color : undefined)
-      continue
+  for (const { technique, cols, rows, cells, fringe, rowShape, loop } of pieces) {
+    const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop))
+    for (const step of order) {
+      if (step.isLoop) {
+        // A woven ring's beads aren't in `cells` (a ring isn't addressable by
+        // row/col — see `weaveOrder.ts#WeaveStep.isLoop`); its color is uniform.
+        see(loop?.variant === 'woven' ? loop.color : undefined)
+        continue
+      }
+      for (const { row, col } of step.cells) see(cells[cellKey(row, col)])
     }
-    for (const { row, col } of step.cells) see(cells[cellKey(row, col)])
   }
 
   // Defensive, and normally a no-op: a painted cell the traversal doesn't
@@ -104,16 +120,21 @@ export function assignLetters(pattern: LetterPattern): LetterEntry[] {
   // materials list with no letter to label it. Appended in cell-key order so
   // the result stays deterministic rather than depending on object insertion.
   if (seenSet.size < counts.size) {
-    for (const key of Object.keys(cells).sort()) see(cells[key])
+    for (const piece of pieces) for (const key of Object.keys(piece.cells).sort()) see(piece.cells[key])
     for (const hex of counts.keys()) see(hex)
   }
 
   return seen.map((hex, i) => ({ hex, letter: letterForIndex(i), count: counts.get(hex) ?? 0 }))
 }
 
-/** `assignLetters` as a hex → letter lookup, for the renderers that only need the label. */
-export function letterMap(pattern: LetterPattern): Map<string, string> {
-  return new Map(assignLetters(pattern).map((e) => [e.hex, e.letter]))
+/**
+ * `assignLetters` as a hex → letter lookup, for the renderers that only need
+ * the label. Pass every piece of an earring pair so both earrings share one
+ * set of letters — see `assignLettersAcross`.
+ */
+export function letterMap(pattern: LetterPattern | LetterPattern[]): Map<string, string> {
+  const pieces = Array.isArray(pattern) ? pattern : [pattern]
+  return new Map(assignLettersAcross(pieces).map((e) => [e.hex, e.letter]))
 }
 
 /**
