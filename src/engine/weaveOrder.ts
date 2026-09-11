@@ -348,41 +348,29 @@ export function firstIndexOfUnit(order: WeaveOrder, unit: number): number {
 }
 
 /**
- * Index of the first step of the next body row after `afterIndex` — the
- * "mark row done" jump target. Direction-agnostic on purpose: brick now
- * walks rows from the widest to the tip (decreasing), while loom and
- * peyote's rows from 3 on walk increasing, so "next row" can't be assumed
- * to mean `unit + 1` — this just looks for the next step whose `unit`
- * differs from the current one, in whichever direction the order actually
- * goes. Returns -1 once the fringe section is reached (no more body rows)
- * or at the end of the order.
+ * Index of the first step of whatever comes next after `afterIndex`: the next
+ * body row, the first strand of the fringe, or the hanging loop. This is where
+ * "marcar hecha" jumps, and it deliberately crosses from one section of the
+ * piece into the next — closing the last body row of an earring lands on the
+ * first fringe bead, where it used to land on "terminado", skipping every
+ * fringe (going back one bead at a time walked them correctly, which is how
+ * the weaver noticed). Closing the last fringe strand lands on the hanging
+ * loop instead of marking it woven too.
+ *
+ * Direction-agnostic on purpose: brick walks rows from the widest one to the
+ * tip (decreasing), while loom and peyote walk increasing, so "next row" can't
+ * be assumed to mean `unit + 1` — this looks for the next step belonging to a
+ * different unit or a different section, whichever way the order actually
+ * goes. Returns -1 at the end of the order.
  */
-export function firstIndexOfNextBodyRow(order: WeaveOrder, afterIndex: number): number {
+export function firstIndexOfNextUnit(order: WeaveOrder, afterIndex: number): number {
   const current = order[afterIndex]
   if (!current) return -1
+  const sectionOf = (step: WeaveStep) => (step.isLoop ? 'loop' : step.isFringe ? 'fringe' : 'body')
+  const section = sectionOf(current)
   for (let i = afterIndex + 1; i < order.length; i++) {
     const step = order[i]
-    if (step.isFringe) return -1
-    if (step.unit !== current.unit) return i
-  }
-  return -1
-}
-
-/**
- * Index of the first fringe bead in the next column after `afterCol` — the
- * fringe-zone counterpart to `firstIndexOfUnit` ("marcar columna de fleco
- * hecha" jumps here instead). Fringe columns aren't visited in strictly
- * ascending order any more (see `buildBrickOrder`'s "natural direction"
- * doc comment), so this can't just search by `col > afterCol` — it finds
- * `afterCol`'s own fringe run and returns the index right after it ends.
- * Returns -1 if there's no next fringe run (the last one, or fringe
- * columns are exhausted).
- */
-export function firstIndexOfNextFringeColumn(order: WeaveOrder, afterCol: number): number {
-  const afterColStart = order.findIndex((step) => step.isFringe && step.unit === afterCol)
-  if (afterColStart === -1) return -1
-  for (let i = afterColStart; i < order.length; i++) {
-    if (order[i].isFringe && order[i].unit !== afterCol) return i
+    if (sectionOf(step) !== section || step.unit !== current.unit) return i
   }
   return -1
 }

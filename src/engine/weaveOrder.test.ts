@@ -7,8 +7,7 @@ import {
   beadsThrough,
   buildWeaveOrder,
   directionAtStep,
-  firstIndexOfNextBodyRow,
-  firstIndexOfNextFringeColumn,
+  firstIndexOfNextUnit,
   firstIndexOfUnit,
   isFringeStep,
   jumpTargetToIndex,
@@ -238,26 +237,6 @@ describe('directionAtStep al pasar de la base a la primera pasada (peyote)', () 
   })
 })
 
-describe('firstIndexOfNextFringeColumn', () => {
-  it('finds the index right after the current column\'s fringe run ends', () => {
-    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }
-    const order = buildWeaveOrder('brick', 3, 2, fringe)
-    // Body (row1 ltr, row0 rtl) ends at the left edge (row0 rtl) -> fringe ascends: col0 (2 beads), col2 (1 bead).
-    expect(firstIndexOfNextFringeColumn(order, 0)).toBe(8)
-  })
-
-  it('returns -1 past the last fringe column', () => {
-    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }
-    const order = buildWeaveOrder('brick', 3, 2, fringe)
-    expect(firstIndexOfNextFringeColumn(order, 2)).toBe(-1)
-  })
-
-  it('returns -1 when there is no fringe at all', () => {
-    const order = buildWeaveOrder('brick', 3, 2)
-    expect(firstIndexOfNextFringeColumn(order, 0)).toBe(-1)
-  })
-})
-
 describe('firstIndexOfUnit', () => {
   it('finds the first traversal index for a given row', () => {
     const order = buildWeaveOrder('loom', 4, 4)
@@ -273,34 +252,44 @@ describe('firstIndexOfUnit', () => {
   })
 })
 
-describe('firstIndexOfNextBodyRow — direction-agnostic "mark row done" (Tarea 4)', () => {
-  it('finds the next row in WALK order for brick (decreasing row index)', () => {
+describe('firstIndexOfNextUnit — a dónde salta "marcar hecha"', () => {
+  it('sigue el orden real de tejido: en ladrillo las filas van de la más ancha a la punta', () => {
     const order = buildWeaveOrder('brick', 3, 3)
-    // Currently on row 2 (index 0-2) -> next body row is row 1, starting at index 3.
-    expect(firstIndexOfNextBodyRow(order, 1)).toBe(3)
-    // Currently on row 1 (index 3-5) -> next body row is row 0, starting at index 6.
-    expect(firstIndexOfNextBodyRow(order, 4)).toBe(6)
+    expect(firstIndexOfNextUnit(order, 1)).toBe(3)
+    expect(firstIndexOfNextUnit(order, 4)).toBe(6)
   })
 
-  it('finds the next row in walk order for loom/peyote (increasing row index)', () => {
-    const order = buildWeaveOrder('loom', 3, 3)
-    expect(firstIndexOfNextBodyRow(order, 1)).toBe(3)
+  it('en telar y peyote las filas corren al revés, y funciona igual', () => {
+    expect(firstIndexOfNextUnit(buildWeaveOrder('loom', 3, 3), 1)).toBe(3)
+    // Cerrar la base del peyote lleva a la primera mostacilla de la pasada 1.
+    expect(firstIndexOfNextUnit(buildWeaveOrder('peyote', 3, 4), 0)).toBe(3)
   })
 
-  it('marcar hecha la base salta a la primera mostacilla de la pasada 1', () => {
-    const order = buildWeaveOrder('peyote', 3, 4)
-    expect(firstIndexOfNextBodyRow(order, 0)).toBe(3) // después de las 3 mostacillas de la base
-  })
-
-  it('returns -1 once the fringe section is reached (no more body rows) — matches the pre-existing fallback behavior', () => {
+  it('al cerrar la última fila del cuerpo pasa al primer fleco, no al final del aro', () => {
     const fringe: FringeData = { lengths: [1, 1, 1], turnBeads: [false, false, false] }
     const order = buildWeaveOrder('brick', 3, 1, fringe)
-    expect(firstIndexOfNextBodyRow(order, 0)).toBe(-1)
+    const next = firstIndexOfNextUnit(order, 0)
+    expect(order[next].isFringe).toBe(true)
+    expect(next).toBeLessThan(order.length - 1) // quedan flecos por tejer
   })
 
-  it('returns -1 at the very end of the order', () => {
-    const order = buildWeaveOrder('loom', 2, 1)
-    expect(firstIndexOfNextBodyRow(order, 1)).toBe(-1)
+  it('de un fleco pasa al fleco siguiente', () => {
+    const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [false, false, false] }
+    const order = buildWeaveOrder('brick', 3, 2, fringe)
+    // El cuerpo termina en el borde izquierdo: los flecos van columna 0 (2 mostacillas) y columna 2 (1).
+    expect(firstIndexOfNextUnit(order, 6)).toBe(8)
+  })
+
+  it('del último fleco pasa a la argolla, sin darla por tejida', () => {
+    const fringe: FringeData = { lengths: [1, 0, 0], turnBeads: [false, false, false] }
+    const order = buildWeaveOrder('brick', 3, 1, fringe, undefined, 4)
+    const last = order.length - 1
+    expect(order[last].isLoop).toBe(true)
+    expect(firstIndexOfNextUnit(order, last - 1)).toBe(last)
+  })
+
+  it('devuelve -1 al final del orden', () => {
+    expect(firstIndexOfNextUnit(buildWeaveOrder('loom', 2, 1), 1)).toBe(-1)
   })
 })
 

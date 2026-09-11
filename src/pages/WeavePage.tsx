@@ -6,8 +6,7 @@ import { useWeaveStore, weaveProgressKey } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
 import {
   buildWeaveOrder,
-  firstIndexOfNextBodyRow,
-  firstIndexOfNextFringeColumn,
+  firstIndexOfNextUnit,
   peyoteThreadThroughCells,
   isFringeStep,
   jumpTargetToIndex,
@@ -208,9 +207,7 @@ export function WeavePage() {
       setIndex(progressKey!, total - 1, orderVersion)
       return
     }
-    const nextStart = onFringe
-      ? firstIndexOfNextFringeColumn(order, workingStep!.unit)
-      : firstIndexOfNextBodyRow(order, workingIndex)
+    const nextStart = firstIndexOfNextUnit(order, workingIndex)
     setIndex(progressKey!, nextStart === -1 ? total - 1 : nextStart - 1, orderVersion)
   }
   function jumpTo(target: JumpTarget) {

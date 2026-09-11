@@ -426,6 +426,56 @@ describe('WeavePage — par de aros', () => {
   })
 })
 
+describe('WeavePage — al terminar el cuerpo de un aro siguen los flecos', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    usePatternsStore.setState({
+      patterns: { [PATTERN_WITH_FRINGE.id]: PATTERN_WITH_FRINGE },
+      order: [PATTERN_WITH_FRINGE.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderEarring() {
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN_WITH_FRINGE.id}/weave`]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  // 8×6 en ladrillo: 48 mostacillas de cuerpo (índices 0-47, la punta es 40-47)
+  // y 24 de flecos (48-71).
+  it('"Marcar pasada hecha" en la última fila deja el primer fleco, no el aro terminado', async () => {
+    const user = userEvent.setup()
+    useWeaveStore.getState().setIndex(PATTERN_WITH_FRINGE.id, 39, WEAVE_ORDER_VERSION.brick)
+    await renderEarring()
+
+    await user.click(screen.getByRole('button', { name: t.weave.markRowDone }))
+
+    // Antes saltaba a 71: el aro se daba por terminado y se perdían los 24 flecos.
+    expect(useWeaveStore.getState().getIndex(PATTERN_WITH_FRINGE.id)).toBe(47)
+    expect(screen.queryByText(new RegExp(t.weave.finished))).not.toBeInTheDocument()
+  })
+
+  it('y de ahí sigue fleco por fleco, uno por columna', async () => {
+    const user = userEvent.setup()
+    useWeaveStore.getState().setIndex(PATTERN_WITH_FRINGE.id, 47, WEAVE_ORDER_VERSION.brick)
+    await renderEarring()
+
+    // El primer fleco (columna de 1 mostacilla) se cierra con una sola marca;
+    // estando en el fleco, el botón se llama "Marcar fleco hecho".
+    await user.click(screen.getByRole('button', { name: t.weave.markFringeDone }))
+    expect(useWeaveStore.getState().getIndex(PATTERN_WITH_FRINGE.id)).toBe(48)
+    expect(screen.queryByText(new RegExp(t.weave.finished))).not.toBeInTheDocument()
+  })
+})
+
 describe('WeavePage — todo habla de la próxima mostacilla', () => {
   const STRIP: PatternDoc = {
     id: 'p_tira',
