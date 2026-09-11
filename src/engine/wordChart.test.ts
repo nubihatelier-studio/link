@@ -57,25 +57,26 @@ describe('buildWordChart — brick (Tarea 2: fila más ancha primero, serpentina
   })
 })
 
-describe('buildWordChart — peyote (Tarea 3: primera pasada doble, luego serpentina)', () => {
-  it('the first line is the foundation pass (rows 1-2 together, alternating across the width), grouped', () => {
+describe('buildWordChart — peyote (primera pasada = la fila 1, después pasadas de a una)', () => {
+  it('la primera línea es la primera pasada: la fila 1, agrupada; la fila 2 ya va por pasadas', () => {
     const cells: ColorMap = {
       '0,0': '#111111',
-      '1,0': '#111111',
       '0,1': '#222222',
+      '1,0': '#111111',
       '1,1': '#222222',
       '2,0': '#111111',
       '2,1': '#222222',
     }
     const lines = buildWordChart('peyote', 2, 3, cells, letterForHex)
-    // La primera pasada es la 0. La fila 3 se parte en dos pasadas de una
-    // mostacilla cada una: la columna par (0) y después la impar (1) — cada
-    // línea cuenta las mostacillas ensartadas en esa pasada, no celdas de la
-    // grilla.
+    // La primera pasada (0) son las dos mostacillas de la fila 1. Cada fila
+    // siguiente se parte en dos pasadas de una mostacilla: la columna par (0)
+    // y después la impar (1) — cada línea cuenta lo que va a la aguja.
     expect(lines).toEqual([
-      { unitIndex: 0, text: '2A, 2B', grouped: true },
+      { unitIndex: 0, text: '1A, 1B', grouped: true },
       { unitIndex: 1, text: '1A', isPass: true },
       { unitIndex: 2, text: '1B', isPass: true },
+      { unitIndex: 3, text: '1A', isPass: true },
+      { unitIndex: 4, text: '1B', isPass: true },
     ])
   })
 
@@ -84,9 +85,9 @@ describe('buildWordChart — peyote (Tarea 3: primera pasada doble, luego serpen
     const cells: ColorMap = {}
     for (let col = 0; col < 10; col++) {
       cells[`0,${col}`] = '#111111'
-      cells[`1,${col}`] = '#111111'
-      // Fila 3: las columnas pares (la pasada 1) van A, A, A, B, B.
-      cells[`2,${col}`] = col % 2 === 0 && col >= 6 ? '#222222' : '#111111'
+      // Fila 2: las columnas pares (la pasada 1) van A, A, A, B, B.
+      cells[`1,${col}`] = col % 2 === 0 && col >= 6 ? '#222222' : '#111111'
+      cells[`2,${col}`] = '#111111'
     }
     const lines = buildWordChart('peyote', 10, 3, cells, letterForHex)
     const firstPass = lines.find((l) => l.isPass && l.unitIndex === 1)!

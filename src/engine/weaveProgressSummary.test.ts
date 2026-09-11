@@ -30,21 +30,19 @@ describe('summarizeWeaveProgress', () => {
 
   it('peyote: cuenta pasadas, no filas de la grilla', () => {
     const config = { technique: 'peyote' as const, cols: 2, rows: 3, beadTypeId: 'x' }
-    // order[0] = primera pasada (4 mostacillas, unit 0); después la fila 3 se
-    // parte en dos pasadas de una mostacilla: unit 1 (col par) y unit 2 (impar).
-    // Son 3 pasadas en total, que aquí coincide con las 3 filas por casualidad
-    // del tamaño — el test de abajo con más filas las separa.
+    // order[0] = primera pasada (las 2 mostacillas de la fila 1, unit 0);
+    // después cada fila se parte en dos pasadas de una mostacilla: 1 + 2 × 2 = 5.
     expect(summarizeWeaveProgress(config, 0)).toEqual({
       unitIndex: 0,
-      unitCount: 3,
-      percent: 67, // 4 de 6 mostacillas ensartadas
+      unitCount: 5,
+      percent: 33, // 2 de 6 mostacillas ensartadas
       isFringe: false,
       grouped: true,
       isPass: true,
     })
-    expect(summarizeWeaveProgress(config, 2)).toEqual({
-      unitIndex: 2,
-      unitCount: 3,
+    expect(summarizeWeaveProgress(config, 4)).toEqual({
+      unitIndex: 4,
+      unitCount: 5,
       percent: 100,
       isFringe: false,
       grouped: false,
@@ -52,12 +50,12 @@ describe('summarizeWeaveProgress', () => {
     })
   })
 
-  it('peyote: el total de pasadas no es el total de filas — cada fila después de la primera pasada aporta dos', () => {
+  it('peyote: el total de pasadas no es el total de filas — cada fila después de la primera aporta dos', () => {
     const config = { technique: 'peyote' as const, cols: 8, rows: 5, beadTypeId: 'x' }
-    // Primera pasada (filas 1-2) + 3 filas × 2 pasadas = 7 pasadas, no 5 filas.
+    // Primera pasada (fila 1) + 4 filas × 2 pasadas = 9 pasadas, no 5 filas.
     const summary = summarizeWeaveProgress(config, 0)!
     expect(summary.isPass).toBe(true)
-    expect(summary.unitCount).toBe(7)
+    expect(summary.unitCount).toBe(9)
   })
 
   it('clamps an out-of-range index to the last cell instead of throwing', () => {

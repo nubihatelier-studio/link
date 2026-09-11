@@ -68,9 +68,10 @@ export function beadsThrough(order: WeaveOrder, index: number): number {
 export const WEAVE_ORDER_VERSION: Record<Technique, number> = {
   loom: 1,
   brick: 2,
-  // 3: peyote walks passes (alternating positions) instead of the drawn
-  // zigzag — a saved index points at a different bead entirely.
-  peyote: 3,
+  // 3: peyote walks passes (alternating positions) instead of the drawn zigzag.
+  // 4: the foundation is the first drawn row alone, not the first two — every
+  //    step after it shifts. Either way a saved index points at another bead.
+  peyote: 4,
 }
 
 /**
@@ -202,39 +203,33 @@ function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowSha
  * different passes — the even columns sitting at height `r`, and the odd
  * columns half a bead below them. Beads of one pass are all at the same
  * height and therefore all in the same logical row, even though the chart
- * draws them as a zigzag. Walking the drawn zigzag cell by cell (what this
- * did before) followed the picture instead of the needle.
+ * draws them as a zigzag.
  *
- * So, after the foundation, each grid row from row 3 on yields two passes:
- * its even columns, then its odd columns. Each pass turns the work at its end
- * (serpentine), continuing the alternation the foundation starts.
+ * That's also why the foundation is the FIRST drawn row alone: its `cols`
+ * beads, strung in one go, are already the zigzag — the high beads and the
+ * low ones, the "rows 1 and 2" of every peyote tutorial. Stringing the second
+ * drawn row along with it (as this did before) swallowed two real passes into
+ * the first step: the needle jumped twelve beads at once on a six-wide piece,
+ * and the second row never advanced bead by bead.
  *
- * Unchanged, and deliberately so: the first two rows are still strung
- * together as one grouped foundation pass — a flat strip alternating between
- * the two rows across the width — and directions still alternate. `unit` is
- * the pass number now (foundation = 0), which is what the UI counts and what
- * the word chart groups its lines by. Fringe columns stay column-based (a
- * strand hangs from a column regardless of technique).
+ * So: the foundation is drawn row 0, one grouped step. From drawn row 1 on,
+ * each drawn row yields two passes — its even columns, then its odd ones —
+ * one bead per step, each pass turning the work at its end (serpentine),
+ * continuing the alternation the foundation starts. `unit` is the pass
+ * number (foundation = 0), which is what the UI counts and what the word
+ * chart groups its lines by. Fringe columns stay column-based (a strand
+ * hangs from a column regardless of technique).
  */
 function buildPeyoteOrder(cols: number, rows: number): WeaveOrder {
   const order: WeaveOrder = []
   if (rows === 0 || cols === 0) return order
 
-  if (rows === 1) {
-    // No second row to pair with — degrades to a single plain row.
-    for (let col = 0; col < cols; col++) order.push({ cells: [{ row: 0, col }], unit: 0, direction: 'ltr', grouped: false })
-    return order
-  }
-
   const foundationCells: Cell[] = []
-  for (let col = 0; col < cols; col++) {
-    foundationCells.push({ row: 0, col })
-    foundationCells.push({ row: 1, col })
-  }
+  for (let col = 0; col < cols; col++) foundationCells.push({ row: 0, col })
   order.push({ cells: foundationCells, unit: 0, direction: 'ltr', grouped: true })
 
   let pass = 0
-  for (let row = 2; row < rows; row++) {
+  for (let row = 1; row < rows; row++) {
     // Even columns first: they sit half a bead higher than the odd ones in the
     // same drawn row (see `cellPosition`), so that's the pass the needle
     // reaches first coming down the work.

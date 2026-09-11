@@ -19,7 +19,7 @@ export interface WordChartLine {
   text: string
   /** Set only on the fringe section's lines, appended after every body line. */
   isFringe?: true
-  /** Set only on peyote's foundation pass — the first two rows strung together, see `weaveOrder.ts#buildPeyoteOrder`. */
+  /** Set only on peyote's foundation pass — the first drawn row, strung in one go, see `weaveOrder.ts#buildPeyoteOrder`. */
   grouped?: true
   /**
    * Set on peyote's body lines: the line counts the beads strung in one PASS

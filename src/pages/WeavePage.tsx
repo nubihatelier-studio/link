@@ -252,7 +252,7 @@ export function WeavePage() {
         : wordChartLines.find((l) => !l.isFringe && !l.grouped && !l.isLoop && l.unitIndex === currentUnitIndex)
 
   // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
-  // pass 1 (rows 1-2 in one go) and every row after it contributes two passes,
+  // pass 1 (the first drawn row, in one go) and every row after it contributes two passes,
   // so the options are read straight off the order rather than counted from
   // `rows`. Brick's widest row keeps its numeric slot but reads "Fila base".
   const peyotePassCount = useMemo(
