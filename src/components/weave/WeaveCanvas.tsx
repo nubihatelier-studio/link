@@ -4,7 +4,7 @@ import { cellPosition, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/g
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { cellsInSameUnit, directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
+import { cellsInSameUnit, directionAtStep, peyoteThreadPath, type ThreadStop, type WeaveOrder } from '@/engine/weaveOrder'
 import { beadMetricsPx, beadPath as roundRect } from '@/lib/beadStyle'
 import { weaveCellPx } from '@/lib/fitZoom'
 import { TAP_SLOP_PX } from './tapGesture'
@@ -52,6 +52,17 @@ const CONTAINER_PADDING_PX = 16
  * dark squares — while the rest of the pattern faded to a quarter.)
  */
 const WOVEN_ALPHA = 0.4
+/** The thread, in the pink the weaver drew it in — clear of every bead colour's ring (gold) and outline (blue). */
+const THREAD_COLOR = '#e5579b'
+/**
+ * The thread already woven stays in view, lighter, so the last turn and the
+ * wave of the previous pass can be followed back. Only that far: drawn all
+ * the way to the foundation, the passes cross over each other into a lattice
+ * that hides the path instead of teaching it.
+ */
+const THREAD_WOVEN_ALPHA = 0.5
+/** How far past the edge bead's centre the thread swings when it turns (in beads) — clear of the bead itself. */
+const THREAD_TURN_REACH = 0.9
 
 export function WeaveCanvas({
   technique,
@@ -103,7 +114,10 @@ export function WeaveCanvas({
   // The loop's ring sits above row 0, so it pushes the body down instead of
   // widening the grid — `MARGIN` stays the X origin, `originY` is the Y one.
   const originY = MARGIN + loopUnits * CELL_PX
-  const width = bounds.width * CELL_PX + MARGIN
+  // Peyote draws the thread turning around the right edge too, so it needs a
+  // little room there (the left has the ruler gutter already).
+  const rightGutter = technique === 'peyote' ? CELL_PX * THREAD_TURN_REACH : 0
+  const width = bounds.width * CELL_PX + MARGIN + rightGutter
   const height = bounds.height * CELL_PX + originY
 
   const indexByCell = useMemo(() => {
@@ -135,9 +149,20 @@ export function WeaveCanvas({
     const gridOrigin = cellPosition(technique, 0, 0, rows, staggerPhase)
     return { x: MARGIN + (anchorXUnits - gridOrigin.x) * CELL_PX, y: originY }
   }, [technique, cols, rows, rowShape, staggerPhase, originY, CELL_PX])
+  /**
+   * Peyote: the thread's real path, up to and including the step about to be
+   * worked — see `engine/weaveOrder.ts#peyoteThreadPath`. It replaces the
+   * arrow, because in peyote "which way" isn't the whole story: the needle
+   * goes through a bead of the previous pass between every new one. The
+   * other techniques (and a peyote fringe) keep the arrow.
+   */
+  const threadStops = useMemo(
+    () => (technique === 'peyote' && nextStep && !nextStep.isFringe && !nextStep.isLoop ? peyoteThreadPath(order, currentIndex + 1, cols) : null),
+    [technique, order, currentIndex, cols, nextStep],
+  )
   const direction = useMemo(
-    () => directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase),
-    [technique, order, currentIndex, rows, staggerPhase],
+    () => (threadStops ? null : directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase)),
+    [threadStops, technique, order, currentIndex, rows, staggerPhase],
   )
 
   useEffect(() => {
@@ -295,7 +320,13 @@ export function WeaveCanvas({
       roundRect(ctx, x - 1, y - 1, CELL_PX + 2, rowStepPx + 2, radius + 1)
       ctx.stroke()
 
-      if (direction) {
+      if (threadStops) {
+        const centerOf = (cell: Cell) => {
+          const p = cellPosition(technique, cell.row, cell.col, rows, staggerPhase)
+          return { x: MARGIN + p.x * CELL_PX + CELL_PX / 2, y: originY + p.y * CELL_PX + rowStepPx / 2 }
+        }
+        drawThread(ctx, threadStops, currentIndex + 1, centerOf, CELL_PX)
+      } else if (direction) {
         const cx = x + CELL_PX / 2
         const cy = y + CELL_PX / 2
         const len = CELL_PX * 0.9
@@ -328,7 +359,7 @@ export function WeaveCanvas({
       ctx.font = '700 12px system-ui, sans-serif'
       ctx.fillText(String(activeRow + 1), MARGIN - 4, originY + pos.y * CELL_PX + CELL_PX / 2 + 4)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, threadStops, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
 
   /**
    * Keeps the next bead in view. A strip fitted to its width is taller than the
@@ -442,4 +473,88 @@ function drawArrow(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: nu
   ctx.lineTo(x1 - headLen * Math.cos(angle + Math.PI / 6), y1 - headLen * Math.sin(angle + Math.PI / 6))
   ctx.closePath()
   ctx.fill()
+}
+
+/**
+ * The thread through a peyote piece, as the weaver would draw it on the chart:
+ * a tail coming in from the left, straight through the foundation, then
+ * waving along each pass between the new beads and the ones it goes back
+ * through, and swinging out around the edge wherever it turns. The previous
+ * pass and what's done of this one are drawn lighter; the stretch of `activeStep` — the bead being strung
+ * and the bead it then goes through — is drawn bold and ends in an arrowhead
+ * where the needle comes out.
+ */
+function drawThread(
+  ctx: CanvasRenderingContext2D,
+  stops: ThreadStop[],
+  activeStep: number,
+  centerOf: (cell: Cell) => { x: number; y: number },
+  cellPx: number,
+) {
+  if (stops.length === 0) return
+  const points = stops.map((stop) => centerOf(stop.cell))
+  const reach = cellPx * THREAD_TURN_REACH
+  const firstActive = Math.max(0, stops.findIndex((stop) => stop.step === activeStep))
+  const activePass = stops[firstActive].pass
+  const firstShown = stops.findIndex((stop) => stop.pass >= activePass - 1)
+
+  /** Continues the current path from point i-1 to point i (or starts it: at the tail, or where the shown thread begins). */
+  const segmentTo = (i: number) => {
+    const to = points[i]
+    if (i === 0) {
+      ctx.moveTo(to.x - cellPx, to.y)
+      ctx.lineTo(to.x, to.y)
+      return
+    }
+    if (i === firstShown) {
+      ctx.moveTo(to.x, to.y)
+      return
+    }
+    const from = points[i - 1]
+    const stop = stops[i]
+    if (stop.turnBefore) {
+      const edgeX = stop.turnSide === 'right' ? Math.max(from.x, to.x) + reach : Math.min(from.x, to.x) - reach
+      ctx.bezierCurveTo(edgeX, from.y, edgeX, to.y, to.x, to.y)
+    } else {
+      ctx.lineTo(to.x, to.y)
+    }
+  }
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.strokeStyle = THREAD_COLOR
+
+  // Thread already woven.
+  if (firstActive > firstShown) {
+    ctx.globalAlpha = THREAD_WOVEN_ALPHA
+    ctx.lineWidth = Math.max(1.5, cellPx * 0.08)
+    ctx.beginPath()
+    for (let i = firstShown; i < firstActive; i++) segmentTo(i)
+    ctx.stroke()
+  }
+
+  // The stretch the needle is about to make.
+  ctx.globalAlpha = 1
+  ctx.lineWidth = Math.max(2.5, cellPx * 0.12)
+  ctx.beginPath()
+  if (firstActive > 0) ctx.moveTo(points[firstActive - 1].x, points[firstActive - 1].y)
+  for (let i = firstActive; i < points.length; i++) segmentTo(i)
+  ctx.stroke()
+
+  // Arrowhead where it comes out, pointing the way it's travelling.
+  const tip = points[points.length - 1]
+  const last = stops[stops.length - 1]
+  const before = points.length > 1 ? points[points.length - 2] : { x: tip.x - cellPx, y: tip.y }
+  // Coming out of a turn the thread heads back into the piece, away from the edge it wrapped.
+  const angle = last.turnBefore ? (last.turnSide === 'right' ? Math.PI : 0) : Math.atan2(tip.y - before.y, tip.x - before.x)
+  const head = Math.max(7, cellPx * 0.32)
+  ctx.fillStyle = THREAD_COLOR
+  ctx.beginPath()
+  ctx.moveTo(tip.x + Math.cos(angle) * head * 0.35, tip.y + Math.sin(angle) * head * 0.35)
+  ctx.lineTo(tip.x - head * Math.cos(angle - Math.PI / 6), tip.y - head * Math.sin(angle - Math.PI / 6))
+  ctx.lineTo(tip.x - head * Math.cos(angle + Math.PI / 6), tip.y - head * Math.sin(angle + Math.PI / 6))
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
 }

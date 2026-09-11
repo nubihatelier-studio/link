@@ -12,6 +12,7 @@ import {
   firstIndexOfUnit,
   isFringeStep,
   jumpTargetToIndex,
+  peyoteThreadPath,
   peyoteThreadThroughCells,
   totalBeadCount,
 } from './weaveOrder'
@@ -543,5 +544,44 @@ describe('buildWeaveOrder — woven loop (Tarea 3): worked last, as its own grou
   it('la argolla nunca se confunde con una pasada de peyote al saltar', () => {
     const order = buildWeaveOrder('peyote', 6, 6, undefined, undefined, 8)
     expect(order[jumpTargetToIndex(order, { kind: 'body', index: 0 })].isLoop).toBeUndefined()
+  })
+})
+
+describe('peyoteThreadPath — el recorrido del hilo', () => {
+  const at = (stops: ReturnType<typeof peyoteThreadPath>) => stops.map((s) => `${s.kind === 'through' ? '·' : ''}${s.cell.row},${s.cell.col}`)
+
+  it('la base va derecho de izquierda a derecha, por las 6 mostacillas', () => {
+    const order = buildWeaveOrder('peyote', 6, 4)
+    expect(at(peyoteThreadPath(order, 5, 6))).toEqual(['0,0', '0,1', '0,2', '0,3', '0,4', '0,5'])
+  })
+
+  it('en cada pasada el hilo alterna: mostacilla nueva, y la de la pasada anterior que queda al lado', () => {
+    const order = buildWeaveOrder('peyote', 6, 4)
+    const stops = peyoteThreadPath(order, 11, 6) // base + pasada 1 + pasada 2
+    expect(at(stops).slice(6)).toEqual([
+      // pasada 1, de derecha a izquierda: nueva bajo la 6, por la 5 de la base, nueva bajo la 4…
+      '1,5', '·0,4', '1,3', '·0,2', '1,1', '·0,0',
+      // pasada 2, de izquierda a derecha: nueva bajo la 1, por la alta de la columna 2…
+      '1,0', '·1,1', '1,2', '·1,3', '1,4', '·1,5',
+    ])
+  })
+
+  it('al terminar una pasada da la vuelta por fuera del borde, del lado donde terminó', () => {
+    const order = buildWeaveOrder('peyote', 6, 4)
+    const stops = peyoteThreadPath(order, 11, 6)
+    const turns = stops.filter((s) => s.turnBefore)
+    expect(turns.map((s) => [s.pass, s.turnSide])).toEqual([
+      [1, 'right'], // la base terminó a la derecha
+      [2, 'left'], // la pasada 1 terminó a la izquierda
+    ])
+  })
+
+  it('cada vuelta baja exactamente a la mostacilla de abajo: el hilo no cruza el tejido', () => {
+    const order = buildWeaveOrder('peyote', 6, 6)
+    const stops = peyoteThreadPath(order, order.length - 1, 6)
+    for (let i = 1; i < stops.length; i++) {
+      if (!stops[i].turnBefore) continue
+      expect(stops[i].cell.col).toBe(stops[i - 1].cell.col)
+    }
   })
 })

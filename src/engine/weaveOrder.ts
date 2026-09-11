@@ -405,3 +405,59 @@ export function jumpTargetToIndex(order: WeaveOrder, target: JumpTarget): number
     ? order.findIndex((step) => step.isFringe && step.unit === target.index)
     : firstIndexOfUnit(order, target.index)
 }
+
+/** One point the thread passes through, in the order it gets there. */
+export interface ThreadStop {
+  cell: Cell
+  /** 'new' — a bead just strung; 'through' — a bead of the previous pass the needle goes back through. */
+  kind: 'new' | 'through'
+  /** Index of the weave step this stop belongs to. */
+  step: number
+  /** The pass this stop belongs to (peyote's foundation is 0). */
+  pass: number
+  /** The thread turns the work right before this stop — it wraps around the edge of the piece to get here. */
+  turnBefore?: true
+  /** Which side of the piece that turn wraps around. */
+  turnSide?: 'left' | 'right'
+}
+
+/**
+ * The thread's real path through a peyote piece, up to and including step
+ * `uptoIndex` — what Weave Mode draws instead of an arrow.
+ *
+ * The foundation is strung straight across, left to right. From then on each
+ * step is two stops: the new bead, and the previous-pass bead sitting next to
+ * it in the direction of travel, which the needle goes back through before
+ * picking up the next one. That's why the thread waves up and down along a
+ * pass instead of running flat. At the end of a pass it wraps around the edge
+ * of the piece (`turnBefore`) and comes down to the first bead of the next.
+ */
+export function peyoteThreadPath(order: WeaveOrder, uptoIndex: number, cols: number): ThreadStop[] {
+  const stops: ThreadStop[] = []
+  const highParity = (cols - 1) % 2
+  let previousPass = -1
+  let previousDirection: WeaveDirection = 'ltr'
+  for (let i = 0; i <= uptoIndex && i < order.length; i++) {
+    const step = order[i]
+    if (step.isFringe || step.isLoop) break
+    const cell = step.cells[0]
+    const startsPass = step.unit !== previousPass && i > 0
+    const stop: ThreadStop = { cell, kind: 'new', step: i, pass: step.unit }
+    if (startsPass) {
+      stop.turnBefore = true
+      stop.turnSide = previousDirection === 'ltr' ? 'right' : 'left'
+    }
+    stops.push(stop)
+
+    if (step.unit > 0) {
+      const throughCol = cell.col + (step.direction === 'ltr' ? 1 : -1)
+      if (throughCol >= 0 && throughCol < cols) {
+        const isHigh = cell.col % 2 === highParity
+        stops.push({ cell: { row: isHigh ? cell.row - 1 : cell.row, col: throughCol }, kind: 'through', step: i, pass: step.unit })
+      }
+    }
+    previousPass = step.unit
+    previousDirection = step.direction
+  }
+  return stops
+}
