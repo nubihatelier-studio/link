@@ -208,6 +208,12 @@ interface EditorState {
   slots: string[]
   activeSlot: SlotId
   addSlot: (hex?: string) => void
+  /**
+   * Paint with this color: selects the slot that already holds it, or adds
+   * one. Never recolors the active slot — overwriting it is what made a
+   * color picked from the swatches or the eyedropper seem not to stay.
+   */
+  chooseColor: (hex: string) => void
   zoom: number
   /**
    * Purely an editing aid — a thin dashed line marking where the body ends
@@ -778,6 +784,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     set({ tool, selection: keep ? get().selection : null, colorSelectionMask: keep ? get().colorSelectionMask : null })
   },
   setActiveSlot: (slot) => set({ activeSlot: slot }),
+  chooseColor: (hex) => {
+    const slot = get().slots.findIndex((s) => s.toLowerCase() === hex.toLowerCase())
+    if (slot >= 0) set({ activeSlot: slot })
+    else get().addSlot(hex)
+  },
   setSlotColor: (slot, hex) => {
     set((s) => {
       const next = [...s.slots]
@@ -856,14 +867,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
   pickColor: (row, col) => {
     const hex = get().cells[cellKey(row, col)]
-    if (hex) {
-      const slot = get().activeSlot
-      set((s) => {
-        const next = [...s.slots]
-        next[slot] = hex
-        return { slots: next }
-      })
-    }
+    if (hex) get().chooseColor(hex)
   },
 
   mergeColors: (fromHex, toHex) => {

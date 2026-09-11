@@ -18,6 +18,7 @@ import { t } from '@/i18n/es'
 import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { HistoryButtons, ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
+import { ColorStrip } from '@/components/editor/ColorStrip'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
@@ -468,14 +469,9 @@ export function EditorPage() {
       </div>
 
       <nav className="flex flex-col gap-2 border-t border-border bg-surface px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
+        <ColorStrip onOpenPalette={() => setColorDrawerOpen(true)} />
         <div className="flex items-center gap-2 px-1">
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-            <button
-              onClick={() => setColorDrawerOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
-            >
-              🎨 {t.editor.palette}
-            </button>
             {shapeCapable && (
               <button
                 onClick={() => setShapeDrawerOpen(true)}
@@ -526,13 +522,21 @@ export function EditorPage() {
       {colorDrawerOpen && (
         <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setColorDrawerOpen(false)}>
           <div
-            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
+            className="flex max-h-[70dvh] w-full flex-col rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-center py-2">
-              <div className="h-1 w-10 rounded-full bg-surface-3" />
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5">
+              <h2 className="text-sm font-semibold">{t.editor.colorsTitle}</h2>
+              <button
+                onClick={() => setColorDrawerOpen(false)}
+                className="rounded-full bg-accent-500 px-4 py-1.5 text-sm font-semibold text-accent-ink"
+              >
+                {t.editor.colorsDone}
+              </button>
             </div>
-            <ColorPanel />
+            <div className="min-h-0 flex-1">
+              <ColorPanel onColorChosen={() => setColorDrawerOpen(false)} />
+            </div>
           </div>
         </div>
       )}
