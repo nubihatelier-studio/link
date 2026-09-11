@@ -72,3 +72,27 @@ export function cellPxAtZoom(zoom: number): number {
 function clampRound(zoom: number, min: number, max: number): number {
   return Math.round(Math.max(min, Math.min(max, zoom)))
 }
+
+/** Weave mode never draws a bead smaller than this — below it the next bead is hard to find and to tap. */
+export const MIN_WEAVE_CELL_PX = 18
+/** …nor bigger than this: past it a narrow strip turns into a few giant blocks on a wide screen. */
+export const MAX_WEAVE_CELL_PX = 56
+
+/**
+ * Bead size (CSS px) for weave mode, from the space it has. Same framing rule
+ * as the editor's opening zoom (`initialFitZoom`): a strip fills the width
+ * and scrolls down — weave mode follows the next bead as it goes — while any
+ * other shape fits whole. Unlike the editor it may grow a small pattern past
+ * 100%: here the pattern is all there is on screen, and bigger beads are
+ * easier to read with a needle in the other hand.
+ */
+export function weaveCellPx(input: FitZoomInput): number {
+  const { boundsWidth, boundsHeight, viewportWidth, viewportHeight, margin } = input
+  const usableWidth = viewportWidth - margin * 2
+  const usableHeight = viewportHeight - margin * 2
+  if (boundsWidth <= 0 || boundsHeight <= 0 || usableWidth <= 0 || usableHeight <= 0) return 24
+  const byWidth = usableWidth / boundsWidth
+  const byHeight = usableHeight / boundsHeight
+  const fit = isTallPattern(boundsWidth, boundsHeight) ? byWidth : Math.min(byWidth, byHeight)
+  return Math.floor(Math.max(MIN_WEAVE_CELL_PX, Math.min(MAX_WEAVE_CELL_PX, fit)))
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Cell, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
@@ -6,6 +6,7 @@ import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { cellsInSameUnit, directionAtStep, type WeaveOrder } from '@/engine/weaveOrder'
 import { beadMetricsPx, beadPath as roundRect } from '@/lib/beadStyle'
+import { weaveCellPx } from '@/lib/fitZoom'
 import { TAP_SLOP_PX } from './tapGesture'
 
 interface WeaveCanvasProps {
@@ -37,8 +38,18 @@ interface WeaveCanvasProps {
   loop?: LoopData
 }
 
-const CELL_PX = 24
+/** Bead size before the container has been measured (and in tests, where nothing is). */
+const DEFAULT_CELL_PX = 24
 const MARGIN = 28
+/** The wrapper's `p-4` padding, on each side. */
+const CONTAINER_PADDING_PX = 16
+/**
+ * Beads already woven stay visible but step back; what's still to come is
+ * drawn at full colour, because that's what's being read. (It used to be the
+ * other way round: done beads at full strength — and unpainted ones as solid
+ * dark squares — while the rest of the pattern faded to a quarter.)
+ */
+const WOVEN_ALPHA = 0.4
 
 export function WeaveCanvas({
   technique,
@@ -56,12 +67,39 @@ export function WeaveCanvas({
   loop,
 }: WeaveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const pointerStart = useRef<{ x: number; y: number; pointerId: number } | null>(null)
   const pointerCancelled = useRef(false)
   const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  const loopUnits = loopReserveUnits(loop)
+
+  /**
+   * Bead size follows the space weave mode has — see `lib/fitZoom.ts#weaveCellPx`.
+   * Re-measured when the window or the phone's orientation changes.
+   */
+  const [cellPx, setCellPx] = useState(DEFAULT_CELL_PX)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+    const measure = () =>
+      setCellPx(
+        weaveCellPx({
+          boundsWidth: bounds.width,
+          boundsHeight: bounds.height + loopUnits,
+          viewportWidth: container.clientWidth - CONTAINER_PADDING_PX * 2,
+          viewportHeight: container.clientHeight - CONTAINER_PADDING_PX * 2,
+          margin: MARGIN,
+        }),
+      )
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [bounds.width, bounds.height, loopUnits])
+  const CELL_PX = cellPx
   // The loop's ring sits above row 0, so it pushes the body down instead of
   // widening the grid — `MARGIN` stays the X origin, `originY` is the Y one.
-  const originY = MARGIN + loopReserveUnits(loop) * CELL_PX
+  const originY = MARGIN + loopUnits * CELL_PX
   const width = bounds.width * CELL_PX + MARGIN
   const height = bounds.height * CELL_PX + originY
 
@@ -93,7 +131,7 @@ export function WeaveCanvas({
     const anchorXUnits = loopAnchorX(technique, cols, rowShape, staggerPhase)
     const gridOrigin = cellPosition(technique, 0, 0, rows, staggerPhase)
     return { x: MARGIN + (anchorXUnits - gridOrigin.x) * CELL_PX, y: originY }
-  }, [technique, cols, rows, rowShape, staggerPhase, originY])
+  }, [technique, cols, rows, rowShape, staggerPhase, originY, CELL_PX])
   const direction = useMemo(
     () => directionAtStep(technique, order, currentIndex + 1, rows, staggerPhase),
     [technique, order, currentIndex, rows, staggerPhase],
@@ -112,6 +150,11 @@ export function WeaveCanvas({
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, width, height)
 
+    const styles = getComputedStyle(canvas)
+    // An unpainted bead is the theme's own empty-bead grey, as in the editor — not a fixed dark block.
+    const emptyColor = styles.getPropertyValue('--nb-surface-3').trim() || '#3a3a3d'
+    const rulerColor = styles.getPropertyValue('--nb-text-muted').trim() || '#a3a0a8'
+
     const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(CELL_PX, technique)
     // The space one row actually takes — outlines hug the bead, not a full square cell.
     const rowStepPx = rowPitch(technique) * CELL_PX
@@ -129,11 +172,11 @@ export function WeaveCanvas({
         const y = originY + pos.y * CELL_PX + inset
         const w = beadW
         const h = beadH
-        const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
+        const hex = cells[cellKey(row, col)] ?? emptyColor
         const idx = indexByCell.get(cellKey(row, col)) ?? -1
         const done = idx <= currentIndex
 
-        ctx.globalAlpha = done ? 1 : 0.25
+        ctx.globalAlpha = done ? WOVEN_ALPHA : 1
         ctx.beginPath()
         roundRect(ctx, x, y, w, h, radius)
         ctx.fillStyle = hex
@@ -153,11 +196,11 @@ export function WeaveCanvas({
         const y = originY + pos.y * CELL_PX + inset
         const w = beadW
         const h = beadH
-        const hex = cells[cellKey(row, col)] ?? '#3a3a3d'
+        const hex = cells[cellKey(row, col)] ?? emptyColor
         const idx = indexByCell.get(cellKey(row, col)) ?? -1
         const done = idx <= currentIndex
 
-        ctx.globalAlpha = done ? 1 : 0.25
+        ctx.globalAlpha = done ? WOVEN_ALPHA : 1
         ctx.beginPath()
         roundRect(ctx, x, y, w, h, radius)
         ctx.fillStyle = hex
@@ -170,7 +213,7 @@ export function WeaveCanvas({
     // reached), but as a ring above the top tip rather than as grid cells.
     if (loop) {
       const { x: anchorX, y: anchorY } = loopAnchor
-      ctx.globalAlpha = loopDone ? 1 : 0.25
+      ctx.globalAlpha = loopDone ? WOVEN_ALPHA : 1
       if (loop.variant === 'woven') {
         for (const { dx, dy } of loopBeadOffsets(loopBeadCount(loop))) {
           ctx.beginPath()
@@ -252,7 +295,7 @@ export function WeaveCanvas({
     }
 
     // ruler
-    ctx.fillStyle = '#a3a0a8'
+    ctx.fillStyle = rulerColor
     ctx.font = '10px system-ui, sans-serif'
     ctx.textAlign = 'center'
     const step = cols > 40 ? 10 : cols > 20 ? 5 : 1
@@ -266,7 +309,37 @@ export function WeaveCanvas({
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX])
+
+  /**
+   * Keeps the next bead in view. A strip fitted to its width is taller than the
+   * screen, and having to scroll to find where you are is exactly what weave
+   * mode is meant to save — so when the next bead drifts out of the visible
+   * area, the canvas glides to bring it back to the middle. It doesn't move
+   * while the bead is still on screen, so it never fights a manual pan.
+   */
+  useEffect(() => {
+    const container = containerRef.current
+    const canvas = canvasRef.current
+    if (!container || !canvas || !nextCell || typeof container.scrollBy !== 'function') return
+    const pos = cellPosition(technique, nextCell.row, nextCell.col, rows, staggerPhase)
+    const canvasRect = canvas.getBoundingClientRect()
+    const viewRect = container.getBoundingClientRect()
+    const beadTop = canvasRect.top + originY + pos.y * CELL_PX
+    const beadLeft = canvasRect.left + MARGIN + pos.x * CELL_PX
+    const margin = CELL_PX
+    const outOfView =
+      beadTop < viewRect.top + margin ||
+      beadTop + CELL_PX > viewRect.bottom - margin ||
+      beadLeft < viewRect.left + margin ||
+      beadLeft + CELL_PX > viewRect.right - margin
+    if (!outOfView) return
+    container.scrollBy({
+      top: beadTop + CELL_PX / 2 - (viewRect.top + viewRect.height / 2),
+      left: beadLeft + CELL_PX / 2 - (viewRect.left + viewRect.width / 2),
+      behavior: 'smooth',
+    })
+  }, [nextCell, technique, rows, staggerPhase, originY, CELL_PX])
 
   function isNearNextCell(clientX: number, clientY: number): boolean {
     const canvas = canvasRef.current
@@ -319,12 +392,15 @@ export function WeaveCanvas({
 
   return (
     <div
+      ref={containerRef}
       className="no-scrollbar h-full w-full overflow-auto p-4"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
     >
-      <canvas ref={canvasRef} className="cursor-pointer" />
+      <div className="flex min-h-full min-w-full items-center justify-center">
+        <canvas ref={canvasRef} className="cursor-pointer" />
+      </div>
     </div>
   )
 }

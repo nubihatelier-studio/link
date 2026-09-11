@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { gridBoundsUnits } from '@/engine/geometry'
 import { MIN_LETTER_CELL_PX, shouldShowLetters } from './letterVisibility'
-import { cellPxAtZoom, initialFitZoom, isTallPattern, TALL_PATTERN_RATIO } from './fitZoom'
+import {
+  cellPxAtZoom,
+  initialFitZoom,
+  isTallPattern,
+  MAX_WEAVE_CELL_PX,
+  MIN_WEAVE_CELL_PX,
+  TALL_PATTERN_RATIO,
+  weaveCellPx,
+} from './fitZoom'
 
 const MARGIN = 28
 
@@ -116,5 +124,30 @@ describe('initialFitZoom — casos borde', () => {
 
   it('un contenedor todavía sin medir (0×0) cae en el 100% de siempre', () => {
     expect(initialFitZoom({ boundsWidth: 4, boundsHeight: 41, viewportWidth: 0, viewportHeight: 0, margin: MARGIN })).toBe(100)
+  })
+})
+
+describe('weaveCellPx — el modo tejido usa el espacio que tiene', () => {
+  it('una tira en el celular se ajusta al ancho, con mostacillas grandes', () => {
+    const px = weaveCellPx({ boundsWidth: PULSERA.width, boundsHeight: PULSERA.height, ...MOBILE })
+    expect(px * PULSERA.width).toBeLessThanOrEqual(MOBILE.viewportWidth - MARGIN * 2)
+    expect(px).toBeGreaterThan(30)
+  })
+
+  it('un aro entra completo en la pantalla', () => {
+    const px = weaveCellPx({ boundsWidth: ARO.width, boundsHeight: ARO.height, ...DESKTOP })
+    expect(px * ARO.height).toBeLessThanOrEqual(DESKTOP.viewportHeight - MARGIN * 2)
+    expect(px * ARO.width).toBeLessThanOrEqual(DESKTOP.viewportWidth - MARGIN * 2)
+  })
+
+  it('nunca baja del mínimo legible ni se dispara en pantallas anchas', () => {
+    const huge = gridBoundsUnits('loom', 200, 200)
+    expect(weaveCellPx({ boundsWidth: huge.width, boundsHeight: huge.height, ...MOBILE })).toBe(MIN_WEAVE_CELL_PX)
+    const tiny = gridBoundsUnits('loom', 2, 2)
+    expect(weaveCellPx({ boundsWidth: tiny.width, boundsHeight: tiny.height, ...DESKTOP })).toBe(MAX_WEAVE_CELL_PX)
+  })
+
+  it('sin medidas todavía, vuelve al tamaño de siempre', () => {
+    expect(weaveCellPx({ boundsWidth: 6, boundsHeight: 60, viewportWidth: 0, viewportHeight: 0, margin: MARGIN })).toBe(24)
   })
 })
