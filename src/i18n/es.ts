@@ -238,6 +238,8 @@ export const t = {
       removed: 'Se quitó el par.',
       /** Encabezado del editor: el total de mostacillas del par. */
       beadsOfPair: (total: number) => `Par · ${total} mostacillas`,
+      /** Subtítulo de la tarjeta de Instagram. */
+      pairShort: 'par de aros',
       notAvailable: 'El par de aros está disponible en loom y brick.',
     },
     loop: {
@@ -326,8 +328,12 @@ export const t = {
     notes: 'Notas',
     /** Metal (unwoven) loop's own materials-list line — see `engine/types.ts#LoopData`. */
     metalLoopMaterial: '1 argolla metálica',
-    /** Word chart: the sequence a weaver actually reads from when working off paper. */
-    fringeLabel: 'Fleco',
+    metalLoopMaterialPair: '2 argollas metálicas',
+    /** Par de aros: rótulo sobre cada gráfico, y el total del encabezado. */
+    leftEarring: 'Aro izquierdo',
+    rightEarring: 'Aro derecho',
+    pairTotal: (total: number) => `Par de aros · Total: ${total} mostacillas`,
+    eachEarring: 'cada aro',
   },
   /** "Qué incluir" section picker in the PDF export dialog — las tres secciones vienen marcadas. */
   exportDialog: {

@@ -1,11 +1,12 @@
-import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
+import type { ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, physicalSizeMm, beadCount, loopAnchorX, rowPitch } from '@/engine/geometry'
+import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { assignLetters, type LetterEntry } from '@/engine/letters'
+import { assignLettersAcross, type LetterEntry } from '@/engine/letters'
+import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetrics, contrastTextColor } from './beadStyle'
 import { catalogMatchForHex } from './color'
 import { formatSizeMm } from '@/engine/units'
@@ -34,6 +35,12 @@ export interface ExportPatternOptions {
   showLetters?: boolean
   /** Which sections to print — see `PdfSections`. Omitted means all of them. */
   sections?: Partial<PdfSections>
+  /**
+   * The earring pair these options are the left earring of, if any — see
+   * `engine/pair.ts`. The chart then prints both earrings side by side, and
+   * the materials and thread cover the pair.
+   */
+  pair?: PairData
 }
 
 /**
@@ -162,6 +169,10 @@ const COLUMN_GUTTER_MM = 10
 /** Y position where content below the title + spec line starts — matches the fixed positions `drawHeaderBlock` draws at (16, 23), same convention the ficha page always used. */
 const HEADER_BOTTOM_MM = 30
 const FOOTER_RESERVE_MM = 10
+/** Space between the two charts of an earring pair, in cells. */
+const PAIR_GAP_CELLS = 2
+/** Room above a pair's charts for the "Aro izquierdo" / "Aro derecho" labels. */
+const PAIR_LABEL_MM = 6
 
 export interface OnePageLayout {
   orientation: 'portrait' | 'landscape'
@@ -397,8 +408,11 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
     totalFringeBeadCount(opts.fringe) +
     loopBeadCount(opts.loop)
   const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
+  // A pair is two earrings of the same size: the size is per earring, the total is the pair's.
+  const sizeLabel = `${formatSizeMm(size.widthMm, size.heightMm)}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
+  const totalLabel = opts.pair ? t.pdf.pairTotal(total * 2) : `Total: ${total} mostacillas`
   doc.text(
-    `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${formatSizeMm(size.widthMm, size.heightMm)} · Total: ${total} mostacillas`,
+    `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${sizeLabel} · ${totalLabel}`,
     margin,
     23,
   )
@@ -467,7 +481,7 @@ function drawMaterialsColumn(
     doc.setDrawColor(120)
     doc.rect(x, ly - boxSize, boxSize, boxSize, 'S')
     doc.setTextColor(0)
-    doc.text(t.pdf.metalLoopMaterial, x + boxSize + 3, ly)
+    doc.text(opts.pair ? t.pdf.metalLoopMaterialPair : t.pdf.metalLoopMaterial, x + boxSize + 3, ly)
     ly += rowH
   }
 
@@ -476,14 +490,15 @@ function drawMaterialsColumn(
   doc.setLineWidth(0.2)
   doc.line(x, extrasY, x + width, extrasY)
 
-  const threadM = estimateThreadMeters(
-    opts.technique,
-    opts.cols,
-    opts.rows,
-    opts.beadType.widthMm,
-    totalFringeBeadCount(opts.fringe),
-    opts.rowShape,
-  )
+  const threadM =
+    estimateThreadMeters(
+      opts.technique,
+      opts.cols,
+      opts.rows,
+      opts.beadType.widthMm,
+      totalFringeBeadCount(opts.fringe),
+      opts.rowShape,
+    ) * (opts.pair ? 2 : 1)
   const needle = suggestedNeedle(opts.beadType)
 
   doc.setFont('helvetica', 'bold')
@@ -555,13 +570,51 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const base = chartCellMm(opts.technique)
   const bodyRows = opts.rows + maxFringeLength(opts.fringe)
   const loopRows = loopReserveUnits(opts.loop)
+
+  // An earring pair prints both earrings side by side, each under its own
+  // label; a single piece prints as it always has.
+  const left: Piece = {
+    technique: opts.technique,
+    cols: opts.cols,
+    rows: opts.rows,
+    cells: opts.cells,
+    fringe: opts.fringe,
+    rowShape: opts.rowShape,
+    staggerPhase: opts.staggerPhase ?? 0,
+    loop: opts.loop,
+  }
+  const pieces = piecesOf(left, opts.pair)
+  const isPair = pieces.length > 1
+  const pieceWidthUnits = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe)).width
+  // Width the layout has to fit, in cells: one chart, or two plus the gap between them.
+  const chartCols = isPair ? pieceWidthUnits * 2 + PAIR_GAP_CELLS : opts.cols
+  // The labels above a pair's charts need room too — expressed in rows, like
+  // the loop's reserve, so the layout decision and the cell fit account for it.
+  const labelRows = isPair ? PAIR_LABEL_MM / base.h : 0
   // Includes the loop's own reserved height so the one-page/paginated layout
   // decision and cell-fit both leave room for it — `drawChart` itself is
   // still only ever given `bodyRows` (the loop isn't part of its grid).
-  const totalRows = bodyRows + loopRows
+  const totalRows = bodyRows + loopRows + labelRows
   // With no chart there's nothing to fit, so the side-by-side layout is moot:
-  // the materials go full width on the first page and the word chart follows.
-  const onePage = sections.chart ? chooseOnePageLayout(base, opts.cols, totalRows, margin) : null
+  // the materials go full width on the first page.
+  const onePage = sections.chart ? chooseOnePageLayout(base, chartCols, totalRows, margin) : null
+
+  /** Draws every piece's chart (and loop) left to right from `originX`, the body starting at `bodyTop`. */
+  function drawPieces(originX: number, bodyTop: number, cellW: number, cellH: number) {
+    pieces.forEach((piece, i) => {
+      const x = originX + i * (pieceWidthUnits + PAIR_GAP_CELLS) * cellW
+      const pieceOpts: ExportPatternOptions = { ...opts, ...piece }
+      if (isPair) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(60)
+        doc.text(i === 0 ? t.pdf.leftEarring : t.pdf.rightEarring, x, bodyTop - loopRows * cellH - 6)
+      }
+      drawChart(doc, pieceOpts, bodyRows, letterForHex, showLetters, x, bodyTop, cellW, cellH)
+      if (piece.loop) drawLoop(doc, pieceOpts, piece.loop, letterForHex, showLetters, x, bodyTop, cellW, cellH)
+    })
+    doc.setTextColor(0)
+  }
 
   // Lazy-loaded: jsPDF is only needed the first time someone actually exports.
   const { jsPDF } = await import('jspdf')
@@ -569,18 +622,11 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // One assignment for the whole document — chart cells, word chart and
-  // materials legend all label a color the same way, and the same way the
-  // editor does (see `engine/letters.ts`).
-  const palette = assignLetters({
-    technique: opts.technique,
-    cols: opts.cols,
-    rows: opts.rows,
-    cells: opts.cells,
-    fringe: opts.fringe,
-    rowShape: opts.rowShape,
-    loop: opts.loop,
-  })
+  // One assignment for the whole document — every chart and the materials
+  // legend label a color the same way, and the same way the editor does (see
+  // `engine/letters.ts`). For a pair it spans both earrings, and the counts
+  // are the pair's.
+  const palette = assignLettersAcross(pieces)
   const letterForHex = new Map(palette.map((p) => [p.hex, p.letter]))
 
   drawHeaderBlock(doc, opts, margin)
@@ -590,9 +636,8 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
     const columnHeight = pageHeight - margin - columnTop
     // Materials off means the chart gets the whole sheet instead of half of it.
     const columnWidth = sections.materials ? (pageWidth - margin * 2 - COLUMN_GUTTER_MM) / 2 : pageWidth - margin * 2
-    const bodyTop = columnTop + loopRows * onePage.cellH
-    drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
-    if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, onePage.cellW, onePage.cellH)
+    const bodyTop = columnTop + (loopRows + labelRows) * onePage.cellH
+    drawPieces(margin, bodyTop, onePage.cellW, onePage.cellH)
     if (sections.materials) {
       drawMaterialsColumn(
         doc,
@@ -623,16 +668,15 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
       const chartTop = margin + 8
       const availW = pageWidth - margin * 2
       const availH = pageHeight - chartTop - margin - 6
-      const { w: cellW, h: cellH } = fitChartCellToOnePage(base, opts.cols, totalRows, availW, availH)
-      const bodyTop = chartTop + loopRows * cellH
+      const { w: cellW, h: cellH } = fitChartCellToOnePage(base, chartCols, totalRows, availW, availH)
+      const bodyTop = chartTop + (loopRows + labelRows) * cellH
 
       doc.addPage()
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
       doc.setTextColor(0)
       doc.text(opts.name || 'Patrón Nubih', margin, 10)
-      drawChart(doc, opts, bodyRows, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
-      if (opts.loop) drawLoop(doc, opts, opts.loop, letterForHex, showLetters, margin, bodyTop, cellW, cellH)
+      drawPieces(margin, bodyTop, cellW, cellH)
     }
   }
 

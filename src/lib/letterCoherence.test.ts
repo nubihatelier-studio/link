@@ -181,3 +181,47 @@ describe('coherencia de letras en toda la app (Tarea 3)', () => {
     expect(text).toContain('×4')
   })
 })
+
+describe('PDF de un par de aros', () => {
+  const aro: Pattern = {
+    technique: 'brick',
+    cols: 3,
+    rows: 2,
+    cells: { '1,0': RED, '1,1': GOLD, '1,2': GOLD, '0,0': GOLD, '0,1': GOLD, '0,2': GOLD },
+  }
+
+  it('imprime los dos aros rotulados, y el total del par en el encabezado', async () => {
+    await exportPatternToPdf({ name: 'Aros', ...aro, pair: { mode: 'mirror' }, beadType: bead, sections: ALL_PDF_SECTIONS })
+    const text = pdfText(lastDoc!)
+    expect(text).toContain(t.pdf.leftEarring)
+    expect(text).toContain(t.pdf.rightEarring)
+    expect(text).toContain(t.pdf.pairTotal(12))
+    expect(lastDoc!.getNumberOfPages()).toBe(1) // sigue siendo una hoja
+  })
+
+  it('los materiales cuentan las mostacillas de los dos aros', async () => {
+    await exportPatternToPdf({ name: 'Aros', ...aro, pair: { mode: 'mirror' }, beadType: bead, sections: ALL_PDF_SECTIONS })
+    const text = pdfText(lastDoc!)
+    // Brick arranca por la fila base, que empieza con la roja: la roja es A.
+    expect(text).toMatch(materialsRow('A', catalogMatchForHex(RED).color.code))
+    expect(text).toMatch(materialsRow('B', catalogMatchForHex(GOLD).color.code))
+    expect(text).toContain('×2') // 1 roja por aro
+    expect(text).toContain('×10') // 5 doradas por aro
+  })
+
+  it('separado, un color que sólo lleva el derecho aparece en materiales con su letra', async () => {
+    await exportPatternToPdf({
+      name: 'Aros',
+      ...aro,
+      pair: { mode: 'independent', rightCells: { '1,0': TEAL, '1,1': GOLD, '1,2': RED, '0,0': GOLD, '0,1': GOLD, '0,2': GOLD } },
+      beadType: bead,
+      sections: ALL_PDF_SECTIONS,
+    })
+    expect(pdfText(lastDoc!)).toMatch(materialsRow('C', catalogMatchForHex(TEAL).color.code))
+  })
+
+  it('un solo aro no lleva rótulos de izquierdo y derecho', async () => {
+    await exportPatternToPdf({ name: 'Aro', ...aro, beadType: bead, sections: ALL_PDF_SECTIONS })
+    expect(pdfText(lastDoc!)).not.toContain(t.pdf.rightEarring)
+  })
+})

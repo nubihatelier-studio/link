@@ -222,8 +222,10 @@ export function EditorPage() {
    */
   function exportFields() {
     const left = leftPiece()
-    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop }
-    return left
+    // `pair` is read after `leftPiece()` flushed any pending save, so it holds the right earring's latest colours.
+    const currentPair = useEditorStore.getState().pair
+    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair }
+    return { ...left, pair: currentPair }
   }
 
   function handleBackupPattern() {

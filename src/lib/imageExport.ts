@@ -1,9 +1,10 @@
-import type { BeadTypeDef, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
+import type { BeadTypeDef, ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
 import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { letterMap } from '@/engine/letters'
+import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from './beadStyle'
 import { shareOrDownloadFile } from './shareFile'
 import { t } from '@/i18n/es'
@@ -25,6 +26,8 @@ export interface ExportImageOptions {
   loop?: LoopData
   /** Draw the materials-list letter (A/B/C…) inside each bead, colored for contrast. Default true. */
   showLetters?: boolean
+  /** The earring pair these options are the left earring of, if any — the image then shows both earrings. See `engine/pair.ts`. */
+  pair?: PairData
 }
 
 const MIN_CELL_PX = 10
@@ -84,6 +87,8 @@ export function renderPatternCanvas(
   opts: ExportImageOptions,
   backgroundHex: string,
   targetLongSidePx: number,
+  /** Letters to label with — pass the pair's, so both earrings share them. Defaults to this piece's own. */
+  letters?: Map<string, string>,
 ): HTMLCanvasElement {
   const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0, loop } = opts
   const loopBeads = loopBeadCount(loop)
@@ -104,7 +109,7 @@ export function renderPatternCanvas(
   ctx.fillStyle = backgroundHex
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const letterForHex = letterMap({ technique, cols, rows, cells, fringe, rowShape, loop })
+  const letterForHex = letters ?? letterMap({ technique, cols, rows, cells, fringe, rowShape, loop })
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
   // Same bead style as the editor — see lib/beadStyle.ts.
@@ -244,7 +249,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   ctx.font = '400 30px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(245,244,246,0.8)'
   ctx.fillText(
-    `${t.technique[opts.technique]} · ${opts.cols}×${opts.rows} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm`,
+    `${t.technique[opts.technique]} · ${opts.cols}×${opts.rows} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm${opts.pair ? ` · ${t.editor.pair.pairShort}` : ''}`,
     INSTAGRAM_CARD_WIDTH / 2,
     180,
   )
@@ -260,7 +265,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   ctx.fill()
 
   const patternPadding = 60
-  const patternCanvas = renderPatternCanvas(
+  const patternCanvas = renderExportCanvas(
     opts,
     '#ffffff',
     Math.max(1, Math.min(panelW, panelH) - patternPadding * 2),
@@ -307,6 +312,47 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   return card
 }
 
+/**
+ * The exported chart: the pattern alone, or — for an earring pair — both
+ * earrings side by side, left then right, labelled with one set of letters.
+ * Both earrings share one shape, so they render at the same scale and line
+ * up; the gap between them is two beads wide.
+ */
+export function renderExportCanvas(opts: ExportImageOptions, backgroundHex: string, targetLongSidePx: number): HTMLCanvasElement {
+  if (!opts.pair) return renderPatternCanvas(opts, backgroundHex, targetLongSidePx)
+
+  const left: Piece = {
+    technique: opts.technique,
+    cols: opts.cols,
+    rows: opts.rows,
+    cells: opts.cells,
+    fringe: opts.fringe,
+    rowShape: opts.rowShape,
+    staggerPhase: opts.staggerPhase ?? 0,
+    loop: opts.loop,
+  }
+  const pieces = piecesOf(left, opts.pair)
+  const letters = letterMap(pieces)
+  const canvases = pieces.map((piece) => renderPatternCanvas({ ...opts, ...piece }, backgroundHex, targetLongSidePx, letters))
+
+  const bounds = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe))
+  const cellPx = canvases[0].width / (bounds.width + 1.2) // renderPatternCanvas pads 0.6 cell each side
+  const gap = Math.round(cellPx * 2)
+  const composed = document.createElement('canvas')
+  composed.width = canvases.reduce((sum, c) => sum + c.width, 0) + gap
+  composed.height = Math.max(...canvases.map((c) => c.height))
+  const ctx = composed.getContext('2d')
+  if (!ctx) return canvases[0]
+  ctx.fillStyle = backgroundHex
+  ctx.fillRect(0, 0, composed.width, composed.height)
+  let x = 0
+  for (const canvas of canvases) {
+    ctx.drawImage(canvas, x, 0)
+    x += canvas.width + gap
+  }
+  return composed
+}
+
 function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('No se pudo generar la imagen'))), mimeType, quality)
@@ -319,7 +365,7 @@ function sanitizeFilename(name: string): string {
 
 /** High-res PNG export of the pattern chart alone (no card framing) — the "share the actual chart" option. */
 export async function exportPatternImage(opts: ExportImageOptions): Promise<void> {
-  const canvas = renderPatternCanvas(opts, '#ffffff', 1800)
+  const canvas = renderExportCanvas(opts, '#ffffff', 1800)
   const blob = await canvasToBlob(canvas, 'image/png')
   await shareOrDownloadFile(blob, `${sanitizeFilename(opts.name)}.png`)
 }
