@@ -43,6 +43,7 @@ export class SqliteAdapter implements StorageAdapter {
         rows INTEGER NOT NULL,
         bead_type_id TEXT NOT NULL,
         cells_json TEXT NOT NULL,
+        extra_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -53,12 +54,17 @@ export class SqliteAdapter implements StorageAdapter {
         updated_at INTEGER NOT NULL
       );
     `)
-    // weave_progress predates `order_version` — add it for installs upgrading from an older
-    // version of the table; ignore the error on a fresh install where the column already exists.
-    try {
-      await this.connection.execute('ALTER TABLE weave_progress ADD COLUMN order_version INTEGER')
-    } catch {
-      // Column already exists — nothing to do.
+    // Both tables grew a column after they first shipped — add it for installs upgrading from an
+    // older version; on a fresh install the column already exists and the error is ignored.
+    for (const statement of [
+      'ALTER TABLE weave_progress ADD COLUMN order_version INTEGER',
+      'ALTER TABLE patterns ADD COLUMN extra_json TEXT',
+    ]) {
+      try {
+        await this.connection.execute(statement)
+      } catch {
+        // Column already exists — nothing to do.
+      }
     }
   }
 
@@ -83,8 +89,8 @@ export class SqliteAdapter implements StorageAdapter {
   async savePattern(doc: PatternDoc): Promise<void> {
     const db = await this.db()
     await db.run(
-      `INSERT INTO patterns (id, name, technique, cols, rows, bead_type_id, cells_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO patterns (id, name, technique, cols, rows, bead_type_id, cells_json, extra_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          technique = excluded.technique,
@@ -92,18 +98,9 @@ export class SqliteAdapter implements StorageAdapter {
          rows = excluded.rows,
          bead_type_id = excluded.bead_type_id,
          cells_json = excluded.cells_json,
+         extra_json = excluded.extra_json,
          updated_at = excluded.updated_at`,
-      [
-        doc.id,
-        doc.name,
-        doc.config.technique,
-        doc.config.cols,
-        doc.config.rows,
-        doc.config.beadTypeId,
-        JSON.stringify(doc.cells),
-        doc.createdAt,
-        doc.updatedAt,
-      ],
+      patternToRowValues(doc),
     )
   }
 
@@ -140,11 +137,35 @@ export class SqliteAdapter implements StorageAdapter {
   }
 }
 
-function rowToPattern(row: Record<string, unknown>): PatternDoc {
+/**
+ * Everything about a pattern that doesn't have a column of its own — fringe,
+ * body shape, loop, note, stagger phase, the earring pair, and whatever
+ * `PatternDoc` grows next — travels in `extra_json`.
+ *
+ * This table used to list its fields one by one and silently dropped every
+ * field added after it was written: on iOS/Android a pattern lost its fringe,
+ * shape, loop, note and stagger phase the next time it was loaded, while the
+ * web build (IndexedDB stores the whole document) kept them. Taking "the
+ * rest" by exclusion instead of by listing means a new field is persisted by
+ * default rather than lost by default.
+ */
+export function patternToRowValues(doc: PatternDoc): (string | number)[] {
+  const { id, name, config, cells, createdAt, updatedAt, ...rest } = doc
+  const { technique, cols, rows, beadTypeId, ...restConfig } = config
+  const extra = { ...rest, config: restConfig }
+  return [id, name, technique, cols, rows, beadTypeId, JSON.stringify(cells), JSON.stringify(extra), createdAt, updatedAt]
+}
+
+export function rowToPattern(row: Record<string, unknown>): PatternDoc {
+  // Rows saved before `extra_json` existed have it as null — they load as they always did.
+  const extra = row.extra_json ? (JSON.parse(row.extra_json as string) as Partial<PatternDoc> & { config?: object }) : {}
+  const { config: extraConfig, ...extraFields } = extra
   return {
+    ...extraFields,
     id: row.id as string,
     name: row.name as string,
     config: {
+      ...extraConfig,
       technique: row.technique as PatternDoc['config']['technique'],
       cols: row.cols as number,
       rows: row.rows as number,
