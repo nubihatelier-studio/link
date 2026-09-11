@@ -7,6 +7,7 @@ import type { StorageAdapter, WeaveProgressRecord } from '@/storage/types'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { WEAVE_ORDER_VERSION } from '@/engine/weaveOrder'
+import { t } from '@/i18n/es'
 
 // Defaults to "supported and acquires successfully" so the pre-existing tests below (which don't
 // care about wake lock at all) render the "active" state without extra setup; the dedicated
@@ -350,5 +351,74 @@ describe('WeavePage — progreso guardado invalidado por cambio de orden de teji
     expect(
       screen.queryByText(/Corregimos el orden de tejido de esta técnica\. Tu progreso guardado ya no calzaba/),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('WeavePage — par de aros', () => {
+  const PAIR: PatternDoc = {
+    id: 'p_par',
+    name: 'Aros',
+    config: { technique: 'brick', cols: 3, rows: 2, beadTypeId: 'miyuki-delica-11' },
+    cells: { '1,0': '#1c1c1e', '1,1': '#c9a227', '1,2': '#c9a227', '0,0': '#c9a227', '0,1': '#c9a227', '0,2': '#c9a227' },
+    pair: { mode: 'mirror' },
+    createdAt: 1,
+    updatedAt: 1,
+  }
+
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    usePatternsStore.setState({ patterns: { [PAIR.id]: PAIR }, order: [PAIR.id], hydrated: true, migrationResult: null })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderAt(path: string) {
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('un par ofrece elegir el aro, y parte en el izquierdo', async () => {
+    await renderAt(`/editor/${PAIR.id}/weave`)
+    expect(screen.getByRole('group', { name: t.weave.earring })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.weave.leftEarring })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('cada aro guarda su propio progreso', async () => {
+    const user = userEvent.setup()
+    await renderAt(`/editor/${PAIR.id}/weave`)
+
+    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    expect(useWeaveStore.getState().getIndex(PAIR.id)).toBe(1)
+
+    await user.click(screen.getByRole('button', { name: t.weave.rightEarring }))
+    expect(useWeaveStore.getState().getIndex(`${PAIR.id}#derecho`)).toBe(-1)
+    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    expect(useWeaveStore.getState().getIndex(`${PAIR.id}#derecho`)).toBe(0)
+    // El izquierdo quedó donde estaba.
+    expect(useWeaveStore.getState().getIndex(PAIR.id)).toBe(1)
+  })
+
+  it('el aro derecho se teje reflejado: su secuencia empieza por el otro extremo', async () => {
+    const user = userEvent.setup()
+    await renderAt(`/editor/${PAIR.id}/weave`)
+    // brick arranca por la fila base (fila 1), de izquierda a derecha: negro primero.
+    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    expect(screen.getByText('1A, 2B')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.weave.rightEarring }))
+    await user.click(screen.getByRole('button', { name: new RegExp(t.weave.next) }))
+    // Reflejado, el negro queda al final de la fila base. Mismas letras que el izquierdo.
+    expect(screen.getByText('2B, 1A')).toBeInTheDocument()
+  })
+
+  it('?aro=derecho abre directo en el aro derecho', async () => {
+    await renderAt(`/editor/${PAIR.id}/weave?aro=derecho`)
+    expect(screen.getByRole('button', { name: t.weave.rightEarring })).toHaveAttribute('aria-pressed', 'true')
   })
 })

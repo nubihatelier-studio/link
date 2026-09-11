@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Moon, RefreshCw, Sun } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
-import { useWeaveStore } from '@/store/weaveStore'
+import { useWeaveStore, weaveProgressKey } from '@/store/weaveStore'
 import { useWeavePrefsStore } from '@/store/weavePrefsStore'
 import {
   buildWeaveOrder,
@@ -16,15 +16,16 @@ import {
   WEAVE_ORDER_VERSION,
   type JumpTarget,
 } from '@/engine/weaveOrder'
-import { normalizeFringe } from '@/engine/fringe'
-import { normalizeRowShape } from '@/engine/shape'
-import { loopBeadCount, normalizeLoop } from '@/engine/loop'
+import { loopBeadCount } from '@/engine/loop'
+import { leftPieceOf, piecesOf, rightEarring } from '@/engine/pair'
+import type { EarringSide } from '@/engine/types'
 import { letterMap } from '@/engine/letters'
 import { buildWordChart } from '@/engine/wordChart'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
 import { Button } from '@/components/shared/Button'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { Toast } from '@/components/shared/Toast'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -65,37 +66,42 @@ export function WeavePage() {
   // on for as long as this page is mounted, not just in the hands-busy view.
   const wakeLock = useWakeLock(true)
 
-  useEffect(() => {
-    if (id) loadProgress(id)
-  }, [id, loadProgress])
+  /**
+   * Which earring of a pair is being woven. Each keeps its own progress
+   * (see `weaveProgressKey`), so weaving one, switching, and coming back
+   * picks up exactly where each was left. The home screen's "continuar
+   * tejiendo" opens straight on the right one with `?aro=derecho`.
+   */
+  const [searchParams] = useSearchParams()
+  const [chosenSide, setSide] = useState<EarringSide>(searchParams.get('aro') === 'derecho' ? 'right' : 'left')
+  const pair = pattern?.pair
+  const side: EarringSide = pair ? chosenSide : 'left'
+  const progressKey = id ? weaveProgressKey(id, side) : undefined
 
-  const fringe = useMemo(
-    () => normalizeFringe(pattern?.fringe, pattern?.config.cols ?? 0),
-    [pattern?.fringe, pattern?.config.cols],
+  useEffect(() => {
+    if (progressKey) loadProgress(progressKey)
+  }, [progressKey, loadProgress])
+
+  // The piece on the needle: the pattern itself, or the right earring of its pair.
+  const left = useMemo(() => (pattern ? leftPieceOf(pattern) : undefined), [pattern])
+  const piece = useMemo(
+    () => (left && pair && side === 'right' ? rightEarring(left, pair) : left),
+    [left, pair, side],
   )
-  const rowShape = useMemo(
-    () => (pattern?.rowShape ? normalizeRowShape(pattern.rowShape, pattern.config.cols, pattern.config.rows) : undefined),
-    [pattern?.rowShape, pattern?.config.cols, pattern?.config.rows],
-  )
-  const loop = useMemo(() => normalizeLoop(pattern?.loop), [pattern?.loop])
+  const fringe = useMemo(() => piece?.fringe ?? { lengths: [], turnBeads: [] }, [piece])
+  const rowShape = piece?.rowShape
+  const loop = piece?.loop
   const order = useMemo(
     () =>
-      pattern
-        ? buildWeaveOrder(
-            pattern.config.technique,
-            pattern.config.cols,
-            pattern.config.rows,
-            fringe,
-            rowShape,
-            loopBeadCount(loop),
-          )
+      piece
+        ? buildWeaveOrder(piece.technique, piece.cols, piece.rows, piece.fringe, piece.rowShape, loopBeadCount(piece.loop))
         : [],
-    [pattern, fringe, rowShape, loop],
+    [piece],
   )
   const technique = pattern?.config.technique ?? 'loom'
   const orderVersion = WEAVE_ORDER_VERSION[technique]
   const rows = pattern?.config.rows ?? 0
-  const currentIndex = id ? getIndex(id) : -1
+  const currentIndex = progressKey ? getIndex(progressKey) : -1
   const total = order.length
   const totalBeads = totalBeadCount(order)
   const beadsWoven = beadsThrough(order, currentIndex)
@@ -108,39 +114,32 @@ export function WeavePage() {
   const currentUnitIndex = currentStep ? currentStep.unit : 0
   const fringeColumns = useMemo(() => fringe.lengths.flatMap((len, col) => (len > 0 ? [col] : [])), [fringe])
   /**
+   * The written sequence for the unit being worked — "3A, 2B" — read off the
+   * same `engine/wordChart.ts` the app has always built. This is where a word
+   * chart earns its keep: one pass at a time, next to the pattern, instead of
+   * as pages of a printout nobody follows bead by bead. Letters come from both
+   * earrings of a pair, so they match the PDF and the editor.
+   */
+  const wordChartLines = useMemo(() => {
+    if (!left || !piece) return []
+    const letterForHex = letterMap(piecesOf(left, pair))
+    return buildWordChart(
+      piece.technique,
+      piece.cols,
+      piece.rows,
+      piece.cells,
+      (hex) => letterForHex.get(hex) ?? '?',
+      piece.fringe,
+      piece.rowShape,
+      piece.loop,
+    )
+  }, [left, piece, pair])
+
+  /**
    * Peyote only: the previous pass's beads, which this pass threads *through*
    * rather than adding to. Outlined on the canvas because they're the landmark
    * a weaver hunts for — see `weaveOrder.ts#peyoteThreadThroughCells`.
    */
-  /**
-   * The written sequence for the unit being worked — "3A, 2B" — read off the
-   * same `engine/wordChart.ts` the app has always built. This is where a word
-   * chart earns its keep: one pass at a time, next to the pattern, instead of
-   * as pages of a printout nobody follows bead by bead.
-   */
-  const wordChartLines = useMemo(() => {
-    if (!pattern) return []
-    const letterForHex = letterMap({
-      technique,
-      cols: pattern.config.cols,
-      rows: pattern.config.rows,
-      cells: pattern.cells,
-      fringe,
-      rowShape,
-      loop,
-    })
-    return buildWordChart(
-      technique,
-      pattern.config.cols,
-      pattern.config.rows,
-      pattern.cells,
-      (hex) => letterForHex.get(hex) ?? '?',
-      fringe,
-      rowShape,
-      loop,
-    )
-  }, [pattern, technique, fringe, rowShape, loop])
-
   const threadThroughCells = useMemo(
     () => (technique === 'peyote' ? peyoteThreadThroughCells(order, currentIndex + 1) : []),
     [technique, order, currentIndex],
@@ -149,30 +148,30 @@ export function WeavePage() {
   // A saved index from before this technique's traversal order was corrected points at a
   // completely different bead now — never silently misread it, reset and say so explicitly.
   useEffect(() => {
-    if (!id || !pattern) return
+    if (!progressKey || !pattern) return
     if (currentIndex < 0) return
-    if (getOrderVersion(id) === orderVersion) return
-    reset(id)
+    if (getOrderVersion(progressKey) === orderVersion) return
+    reset(progressKey)
     setProgressInvalidated(true)
-  }, [id, pattern, currentIndex, getOrderVersion, orderVersion, reset])
+  }, [progressKey, pattern, currentIndex, getOrderVersion, orderVersion, reset])
 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!id) return
+      if (!progressKey) return
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
         e.preventDefault()
-        setIndex(id, Math.min(total - 1, currentIndex + 1), orderVersion)
+        setIndex(progressKey, Math.min(total - 1, currentIndex + 1), orderVersion)
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        setIndex(id, Math.max(-1, currentIndex - 1), orderVersion)
+        setIndex(progressKey, Math.max(-1, currentIndex - 1), orderVersion)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [id, currentIndex, total, orderVersion, setIndex])
+  }, [progressKey, currentIndex, total, orderVersion, setIndex])
 
-  if (!pattern || !id) {
+  if (!pattern || !id || !piece || !progressKey) {
     return (
       <InfoScreen
         title={t.common.patternNotFound}
@@ -182,33 +181,39 @@ export function WeavePage() {
     )
   }
 
+  function chooseSide(next: EarringSide) {
+    // A pending "Reiniciar" undo belongs to the earring it was made on.
+    setPendingReset(null)
+    setProgressInvalidated(false)
+    setSide(next)
+  }
   function advance() {
-    setIndex(id!, Math.min(total - 1, currentIndex + 1), orderVersion)
+    setIndex(progressKey!, Math.min(total - 1, currentIndex + 1), orderVersion)
   }
   function goBack() {
-    setIndex(id!, Math.max(-1, currentIndex - 1), orderVersion)
+    setIndex(progressKey!, Math.max(-1, currentIndex - 1), orderVersion)
   }
   function markUnitDone() {
     // The loop is the very last step — "done" can only mean the end of the piece.
     if (onLoop) {
-      setIndex(id!, total - 1, orderVersion)
+      setIndex(progressKey!, total - 1, orderVersion)
       return
     }
     const nextStart = onFringe
       ? firstIndexOfNextFringeColumn(order, currentStep!.unit)
       : firstIndexOfNextBodyRow(order, currentIndex)
-    setIndex(id!, nextStart === -1 ? total - 1 : nextStart - 1, orderVersion)
+    setIndex(progressKey!, nextStart === -1 ? total - 1 : nextStart - 1, orderVersion)
   }
   function jumpTo(target: JumpTarget) {
     const start = jumpTargetToIndex(order, target)
-    if (start !== -1) setIndex(id!, start - 1, orderVersion)
+    if (start !== -1) setIndex(progressKey!, start - 1, orderVersion)
   }
   function requestReset() {
     setPendingReset(currentIndex)
-    reset(id!)
+    reset(progressKey!)
   }
   function undoReset() {
-    if (pendingReset !== null) setIndex(id!, pendingReset, orderVersion)
+    if (pendingReset !== null) setIndex(progressKey!, pendingReset, orderVersion)
     setPendingReset(null)
   }
 
@@ -326,19 +331,34 @@ export function WeavePage() {
         </button>
       </header>
 
+      {pair && (
+        <div className="flex justify-center border-b border-border px-4 py-2">
+          <SegmentedControl<EarringSide>
+            ariaLabel={t.weave.earring}
+            size="sm"
+            value={side}
+            onChange={chooseSide}
+            options={[
+              { value: 'left', label: t.weave.leftEarring },
+              { value: 'right', label: t.weave.rightEarring },
+            ]}
+          />
+        </div>
+      )}
+
       <div className="relative min-h-0 flex-1">
         <WeaveCanvas
-          technique={pattern.config.technique}
-          cols={pattern.config.cols}
-          rows={pattern.config.rows}
-          cells={pattern.cells}
+          technique={piece.technique}
+          cols={piece.cols}
+          rows={piece.rows}
+          cells={piece.cells}
           fringe={fringe}
           order={order}
           currentIndex={currentIndex}
           onTapNext={advance}
           tapAnywhere={tapAnywhereToAdvance}
           threadThroughCells={threadThroughCells}
-          staggerPhase={pattern.config.staggerPhase ?? 0}
+          staggerPhase={piece.staggerPhase}
           rowShape={rowShape}
           loop={loop}
         />

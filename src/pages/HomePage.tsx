@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MoreVertical } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
-import { useWeaveStore } from '@/store/weaveStore'
+import { useWeaveStore, parseWeaveProgressKey } from '@/store/weaveStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
 import { pickMostRecentInProgress, summarizeWeaveProgress } from '@/engine/weaveProgressSummary'
+import { leftPieceOf, rightEarring } from '@/engine/pair'
 import { filterPatternsByName, sortPatterns, type LibrarySort } from '@/lib/patternLibrary'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
@@ -135,15 +136,34 @@ export function HomePage() {
     }
   }
 
-  const heroPatternId = pickMostRecentInProgress(weaveProgress)
+  // Progress is keyed per piece (see `weaveProgressKey`): the right earring of
+  // a pair has its own. Only progress that still points at something counts —
+  // a pattern that exists and, for a right earring, is still a pair — so
+  // leftovers never hide the pattern that should be featured.
+  const liveProgress = Object.fromEntries(
+    Object.entries(weaveProgress).filter(([key]) => {
+      const { patternId, side } = parseWeaveProgressKey(key)
+      const doc = patterns[patternId]
+      return !!doc && (side === 'left' || !!doc.pair)
+    }),
+  )
+  const heroKey = pickMostRecentInProgress(liveProgress)
+  const hero = heroKey ? parseWeaveProgressKey(heroKey) : null
+  const heroPatternId = hero?.patternId ?? null
   const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
+  const heroPiece =
+    heroPattern && hero
+      ? hero.side === 'right' && heroPattern.pair
+        ? rightEarring(leftPieceOf(heroPattern), heroPattern.pair)
+        : leftPieceOf(heroPattern)
+      : undefined
   const heroSummary =
-    heroPattern && heroPatternId
+    heroPattern && heroKey && heroPiece
       ? summarizeWeaveProgress(
           heroPattern.config,
-          weaveProgress[heroPatternId].currentIndex,
-          heroPattern.fringe,
-          heroPattern.rowShape,
+          liveProgress[heroKey].currentIndex,
+          heroPiece.fringe,
+          heroPiece.rowShape,
         )
       : null
 
@@ -254,13 +274,21 @@ export function HomePage() {
 
       {heroPattern && heroSummary && (
         <button
-          onClick={() => navigate(`/editor/${heroPattern.id}/weave`)}
+          onClick={() => navigate(`/editor/${heroPattern.id}/weave${hero?.side === 'right' ? '?aro=derecho' : ''}`)}
           className="mb-6 flex w-full items-center gap-4 rounded-2xl border border-accent-300 bg-accent-500/10 p-4 text-left hover:border-accent-500"
         >
           <PatternThumb pattern={heroPattern} size={64} />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-warning">{t.home.continueWeaving}</p>
-            <p className="truncate font-semibold">{heroPattern.name}</p>
+            <p className="truncate font-semibold">
+              {heroPattern.name}
+              {heroPattern.pair && (
+                <span className="font-normal text-text-muted">
+                  {' '}
+                  · {hero?.side === 'right' ? t.weave.rightEarring : t.weave.leftEarring}
+                </span>
+              )}
+            </p>
             <p className="text-sm text-text-muted">
               {heroSummary.isFringe
                 ? t.weave.fringeUnitLabel

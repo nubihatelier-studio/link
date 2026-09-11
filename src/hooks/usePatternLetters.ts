@@ -1,9 +1,6 @@
 import { useMemo } from 'react'
 import { assignLettersAcross, type LetterEntry } from '@/engine/letters'
-import { normalizeFringe } from '@/engine/fringe'
-import { normalizeLoop } from '@/engine/loop'
-import { normalizeRowShape } from '@/engine/shape'
-import { rightEarring, type Piece } from '@/engine/pair'
+import { leftPieceOf, rightEarring, type Piece } from '@/engine/pair'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternsStore } from '@/store/patternsStore'
 
@@ -41,18 +38,7 @@ export function usePatternLetters(): LetterEntry[] {
     const current: Piece = { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop }
     if (!pair) return assignLettersAcross([current])
     if (side === 'left') return assignLettersAcross([current, rightEarring(current, pair)])
-    const left: Piece = savedLeft
-      ? {
-          technique,
-          cols,
-          rows,
-          cells: savedLeft.cells,
-          fringe: normalizeFringe(savedLeft.fringe, cols),
-          rowShape: normalizeRowShape(savedLeft.rowShape, cols, rows),
-          staggerPhase: savedLeft.config.staggerPhase ?? 0,
-          loop: normalizeLoop(savedLeft.loop),
-        }
-      : current
+    const left = savedLeft ? leftPieceOf(savedLeft) : current
     return assignLettersAcross([left, current])
   }, [technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair, side, savedLeft])
 }

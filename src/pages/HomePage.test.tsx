@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PatternDoc } from '@/engine/types'
 import type { StorageAdapter, WeaveProgressRecord } from '@/storage/types'
@@ -156,6 +156,12 @@ const PATTERN_2: PatternDoc = {
   updatedAt: 2,
 }
 
+/** Muestra a qué dirección navegó la app, con su query. */
+function LocationProbe() {
+  const location = useLocation()
+  return <p data-testid="location">{location.pathname + location.search}</p>
+}
+
 describe('HomePage — hero "Continuar tejiendo"', () => {
   async function renderHomeWithWeaveRoute() {
     const { HomePage } = await import('./HomePage')
@@ -226,6 +232,62 @@ describe('HomePage — hero "Continuar tejiendo"', () => {
     await user.click(screen.getByText('Continuar tejiendo'))
 
     expect(screen.getByText('pantalla de tejido')).toBeInTheDocument()
+  })
+
+  it('si lo último tejido fue el aro derecho de un par, lo destaca como tal y abre ese aro', async () => {
+    const user = userEvent.setup()
+    const pairPattern: PatternDoc = { ...PATTERN, pair: { mode: 'mirror' } }
+    fakeAdapter = createFakeAdapter(
+      [pairPattern],
+      [
+        { patternId: pairPattern.id, currentIndex: 2, updatedAt: 100 },
+        { patternId: `${pairPattern.id}#derecho`, currentIndex: 4, updatedAt: 900 },
+      ],
+    )
+    usePatternsStore.setState({
+      patterns: { [pairPattern.id]: pairPattern },
+      order: [pairPattern.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    const { HomePage } = await import('./HomePage')
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/editor/:id/weave" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Continuar tejiendo')).toBeInTheDocument())
+    expect(screen.getByText(/Aro derecho/)).toBeInTheDocument()
+    await user.click(screen.getByText('Continuar tejiendo'))
+    expect(screen.getByTestId('location').textContent).toBe(`/editor/${pairPattern.id}/weave?aro=derecho`)
+  })
+
+  it('el progreso de un aro derecho cuyo patrón ya no es par no se destaca', async () => {
+    fakeAdapter = createFakeAdapter(
+      [PATTERN],
+      [
+        { patternId: PATTERN.id, currentIndex: 2, updatedAt: 100 },
+        { patternId: `${PATTERN.id}#derecho`, currentIndex: 4, updatedAt: 900 }, // quedó de cuando era par
+      ],
+    )
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN },
+      order: [PATTERN.id],
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+
+    await renderHomeWithWeaveRoute()
+
+    await waitFor(() => expect(screen.getByText('Continuar tejiendo')).toBeInTheDocument())
+    expect(screen.queryByText(/Aro derecho/)).not.toBeInTheDocument()
   })
 
   it('muestra el porcentaje de avance en la card de un patrón que no es el destacado', async () => {

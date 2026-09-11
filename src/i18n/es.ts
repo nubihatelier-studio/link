@@ -298,6 +298,10 @@ export const t = {
     directionLtr: 'Tejiendo de izquierda a derecha',
     directionRtl: 'Tejiendo de derecha a izquierda',
     tapToAdvance: 'Tocar el patrón para avanzar',
+    /** Par de aros: cada aro se teje por separado y guarda su propio progreso. */
+    earring: 'Aro',
+    leftEarring: 'Aro izquierdo',
+    rightEarring: 'Aro derecho',
     wakeLockActive: 'Pantalla siempre encendida',
     wakeLockRetrying: 'Reactivando pantalla siempre encendida…',
     wakeLockUnsupported: 'Pantalla siempre encendida no disponible en este navegador o conexión',

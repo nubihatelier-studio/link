@@ -5,7 +5,7 @@ import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { normalizeLoop } from '@/engine/loop'
-import { rightEarring, splitPair, type Piece } from '@/engine/pair'
+import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
@@ -354,20 +354,6 @@ function persistCells(patternId: string, cells: ColorMap, side: EarringSide) {
     return
   }
   usePatternsStore.getState().setPair(patternId, { mode: 'independent', rightCells: cells })
-}
-
-/** The left earring (the pattern as stored), as a piece. */
-function leftPieceOf(doc: PatternDoc): Piece {
-  return {
-    technique: doc.config.technique,
-    cols: doc.config.cols,
-    rows: doc.config.rows,
-    cells: doc.cells,
-    fringe: normalizeFringe(doc.fringe, doc.config.cols),
-    rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
-    staggerPhase: doc.config.staggerPhase ?? 0,
-    loop: normalizeLoop(doc.loop),
-  }
 }
 
 /**

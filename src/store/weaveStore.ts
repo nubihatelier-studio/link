@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { EarringSide } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage } from '@/storage/migration'
 
@@ -25,6 +26,25 @@ interface WeaveState {
   getOrderVersion: (patternId: string) => number
   setIndex: (patternId: string, index: number, orderVersion: number) => void
   reset: (patternId: string) => void
+}
+
+const RIGHT_EARRING_SUFFIX = '#derecho'
+
+/**
+ * The key a piece's weave progress is saved under. The left earring (and any
+ * single piece) keeps the plain pattern id, so every progress saved before
+ * pairs existed stays where it was; the right earring of a pair gets its own
+ * key, so each earring remembers its own place. Every place that reads
+ * progress back by key must go through `parseWeaveProgressKey`.
+ */
+export function weaveProgressKey(patternId: string, side: EarringSide = 'left'): string {
+  return side === 'right' ? `${patternId}${RIGHT_EARRING_SUFFIX}` : patternId
+}
+
+export function parseWeaveProgressKey(key: string): { patternId: string; side: EarringSide } {
+  return key.endsWith(RIGHT_EARRING_SUFFIX)
+    ? { patternId: key.slice(0, -RIGHT_EARRING_SUFFIX.length), side: 'right' }
+    : { patternId: key, side: 'left' }
 }
 
 function persistProgress(patternId: string, p: WeaveProgress) {

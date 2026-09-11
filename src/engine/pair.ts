@@ -1,6 +1,8 @@
-import type { ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from './types'
+import type { ColorMap, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from './types'
 import { cellKey, parseCellKey } from './cellKey'
-import { isPaintableCell } from './fringe'
+import { isPaintableCell, normalizeFringe } from './fringe'
+import { normalizeRowShape } from './shape'
+import { normalizeLoop } from './loop'
 
 /**
  * Everything needed to draw, weave, count or export one physical piece. The
@@ -16,6 +18,20 @@ export interface Piece {
   rowShape?: RowShape[]
   staggerPhase: 0 | 1
   loop?: LoopData
+}
+
+/** A saved pattern as a piece — which, for a pair, is its left earring. */
+export function leftPieceOf(doc: PatternDoc): Piece {
+  return {
+    technique: doc.config.technique,
+    cols: doc.config.cols,
+    rows: doc.config.rows,
+    cells: doc.cells,
+    fringe: normalizeFringe(doc.fringe, doc.config.cols),
+    rowShape: normalizeRowShape(doc.rowShape, doc.config.cols, doc.config.rows),
+    staggerPhase: doc.config.staggerPhase ?? 0,
+    loop: normalizeLoop(doc.loop),
+  }
 }
 
 /**
