@@ -353,11 +353,26 @@ export function WeaveCanvas({
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
     }
-    if (activeRow !== null && activeRow < rows) {
-      const pos = cellPosition(technique, activeRow, 0, undefined, staggerPhase)
+    // El fleco cuenta aparte, desde 1, igual que en el editor: sus filas no son
+    // filas del cuerpo. Va en dorado para que las dos cuentas no se lean
+    // seguidas. `activeRow` cae en la zona del fleco cuando se está tejiendo
+    // uno, y entonces esa profundidad se destaca como se destaca una fila.
+    const maxFringe = maxFringeLength(fringe)
+    for (let depth = 0; depth < maxFringe; depth += step) {
+      if (rows + depth === activeRow) continue
+      const pos = cellPosition(technique, rows + depth, 0, rows, staggerPhase)
+      ctx.fillStyle = '#c9a227'
+      ctx.globalAlpha = 0.75
+      ctx.fillText(String(depth + 1), MARGIN - 6, originY + pos.y * CELL_PX + CELL_PX / 2 + 3)
+      ctx.globalAlpha = 1
+    }
+    if (activeRow !== null) {
+      const pos = cellPosition(technique, activeRow, 0, rows, staggerPhase)
+      // En el fleco el número es su profundidad; en el cuerpo, la fila.
+      const label = activeRow >= rows ? activeRow - rows + 1 : activeRow + 1
       ctx.fillStyle = '#c9a227'
       ctx.font = '700 12px system-ui, sans-serif'
-      ctx.fillText(String(activeRow + 1), MARGIN - 4, originY + pos.y * CELL_PX + CELL_PX / 2 + 4)
+      ctx.fillText(String(label), MARGIN - 4, originY + pos.y * CELL_PX + CELL_PX / 2 + 4)
     }
   }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, threadStops, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
 

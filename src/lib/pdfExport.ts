@@ -254,10 +254,14 @@ function drawChart(
   }
   for (const r of rulerLabelIndices(totalRows, cellH)) {
     const pos = cellPosition(technique, r, 0, rows, staggerPhase)
+    // El fleco cuenta aparte, desde 1, como en el editor y en el modo tejido:
+    // sus filas no son filas del cuerpo, y seguir la cuenta del cuerpo
+    // (…6, 7, 8) hacía leer el fleco como si el cuerpo continuara.
+    const label = r >= rows ? r - rows + 1 : r + 1
     // baseline: 'middle' derives the vertical centering from the font's own metrics — a fixed
     // mm offset (the previous approach) doesn't scale with cell size and visibly drifts off the
     // row at small cell sizes (a 1mm constant is half a bead at a ~2mm cell).
-    doc.text(String(r + 1), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2, {
+    doc.text(String(label), originX - 2, originY + (pos.y - origin.y) * cellH + cellH / 2, {
       align: 'right',
       baseline: 'middle',
     })

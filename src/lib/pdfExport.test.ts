@@ -41,6 +41,11 @@ vi.mock('jspdf', async (importOriginal) => {
   return { ...actual, jsPDF: SpyJsPDF }
 })
 
+/** Cada string dibujado en el PDF, en orden — la regla imprime un número por llamada. */
+function pdfTexts(doc: import('jspdf').jsPDF): string[] {
+  return [...doc.output().matchAll(/\((?:\\.|[^()\\])*\) Tj/g)].map((m) => m[0].slice(1, -4).replace(/\\([()])/g, '$1'))
+}
+
 function fillCells(cols: number, rows: number): ColorMap {
   const cells: ColorMap = {}
   const palette = ['#c9a227', '#2f5b66', '#1c1c1e']
@@ -276,6 +281,24 @@ describe('exportPatternToPdf', () => {
   })
 
   describe('with a fringe', () => {
+    it('la regla numera el fleco aparte, desde 1, en vez de seguir la cuenta del cuerpo', async () => {
+      // Cuerpo de 3 filas y un fleco de 2 de profundidad. La regla no numera
+      // todas las filas (ver rulerLabelIndices): con 5 filas rotula la primera
+      // y la última, o sea la fila 1 del cuerpo y la última del fleco. Esa
+      // última es la profundidad 2 del fleco: con la cuenta vieja (seguida del
+      // cuerpo) se habría impreso "5".
+      const cells = fillCells(2, 3)
+      const fringe: FringeData = { lengths: [2, 2], turnBeads: [true, true] }
+      await exportPatternToPdf({ name: 'Cuenta de fleco', technique: 'loom', cols: 2, rows: 3, cells, fringe, beadType: bead })
+
+      // Guard del supuesto: con celdas chicas la regla sólo rotula la primera
+      // fila y la última, y esa última es una fila de fleco.
+      expect(rulerLabelIndices(5, chartCellMm('loom').h)).toEqual([0, 4])
+      const printed = pdfTexts(lastDoc!)
+      expect(printed).toContain('2') // la profundidad 2 del fleco
+      expect(printed).not.toContain('5') // la cuenta vieja, seguida del cuerpo
+    })
+
     it('does not throw and draws fine with a fringe on a small pattern', async () => {
       const { exportPatternToPdf } = await import('./pdfExport')
       const fringe: FringeData = { lengths: [3, 3, 0, 3, 3, 0], turnBeads: [true, true, false, true, true, false] }
