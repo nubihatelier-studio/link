@@ -76,12 +76,17 @@ export function EditorPage() {
     pair,
     side,
     leftPiece,
+    clearAllCells,
+    clearUnusedSlots,
   } = useEditorStore()
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false)
   const [fringeDrawerOpen, setFringeDrawerOpen] = useState(false)
   const [shapeDrawerOpen, setShapeDrawerOpen] = useState(false)
   const [loopDrawerOpen, setLoopDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  /** Palette colours not painted anywhere — what "Quitar colores sin usar" would drop. */
+  const unusedSlots = useEditorStore((st) => st.slots.filter((hex) => !Object.values(st.cells).includes(hex)).length)
+  const paintedCells = useEditorStore((st) => Object.keys(st.cells).length)
   /** Non-null while an export failure toast is showing — see `handleExport`. */
   const [exportError, setExportError] = useState<string | null>(null)
   /** The "qué incluir" picker — see `ExportPdfDialog`. */
@@ -234,6 +239,15 @@ export function EditorPage() {
     return { ...left, pair: currentPair, letterAssignment }
   }
 
+  /**
+   * Deleting from the editor hands over to the library's own delete, which
+   * shows the undo toast — the app never asks "are you sure", it lets you take
+   * it back, and that shouldn't change depending on which screen you're on.
+   */
+  function handleDeletePattern() {
+    navigate('/', { state: { deleteId: id } })
+  }
+
   function handleBackupPattern() {
     const doc = id ? getPattern(id) : undefined
     if (doc) exportPatternBackup(doc)
@@ -382,7 +396,9 @@ export function EditorPage() {
             {exporting ? '…' : t.editor.exportPdf}
           </Button>
         </div>
-        <div className="relative sm:hidden">
+        {/* En el celular lleva todo; en pantallas grandes sólo lo que no tiene
+            ya su propio botón en la barra, para no ofrecer lo mismo dos veces. */}
+        <div className="relative">
           <IconButton
             label={t.editor.moreActions}
             active={moreMenuOpen}
@@ -394,26 +410,45 @@ export function EditorPage() {
           {moreMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
-              <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-border bg-surface p-2 shadow-lg">
-                {[
-                  { label: exporting ? '…' : t.editor.exportPdf, onClick: () => setExportDialogOpen(true), disabled: exporting },
-                  { label: t.editor.shareImageDownloadPng, onClick: handleExportImage, disabled: exportingImage },
-                  { label: t.editor.shareImageInstagram, onClick: handleExportInstagramCard, disabled: exportingImage },
-                  { label: t.editor.noteTitle, onClick: () => setNoteOpen(true) },
-                  { label: t.backup.exportPattern, onClick: handleBackupPattern },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    disabled={item.disabled}
-                    onClick={() => {
-                      setMoreMenuOpen(false)
-                      item.onClick()
-                    }}
-                    className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2 disabled:opacity-40"
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-border bg-surface p-2 shadow-lg">
+                <div className="sm:hidden">
+                  <MenuHeading>{t.editor.menuExport}</MenuHeading>
+                  <MenuItem disabled={exporting} onClick={() => setExportDialogOpen(true)} close={() => setMoreMenuOpen(false)}>
+                    {exporting ? '…' : t.editor.exportPdf}
+                  </MenuItem>
+                  <MenuItem disabled={exportingImage} onClick={handleExportImage} close={() => setMoreMenuOpen(false)}>
+                    {t.editor.shareImageDownloadPng}
+                  </MenuItem>
+                  <MenuItem disabled={exportingImage} onClick={handleExportInstagramCard} close={() => setMoreMenuOpen(false)}>
+                    {t.editor.shareImageInstagram}
+                  </MenuItem>
+                  <MenuItem onClick={() => setNoteOpen(true)} close={() => setMoreMenuOpen(false)}>
+                    {t.editor.noteTitle}
+                  </MenuItem>
+                  <MenuItem onClick={handleBackupPattern} close={() => setMoreMenuOpen(false)}>
+                    {t.backup.exportPattern}
+                  </MenuItem>
+                  <div className="my-1 h-px bg-border" />
+                </div>
+
+                <MenuHeading>{t.editor.menuPalette}</MenuHeading>
+                <MenuItem disabled={unusedSlots === 0} onClick={clearUnusedSlots} close={() => setMoreMenuOpen(false)}>
+                  {t.editor.clearUnusedColors}
+                </MenuItem>
+
+                <div className="my-1 h-px bg-border" />
+                <MenuHeading>{t.editor.menuPattern}</MenuHeading>
+                <MenuItem
+                  disabled={paintedCells === 0}
+                  hint={t.editor.clearPatternHint}
+                  onClick={clearAllCells}
+                  close={() => setMoreMenuOpen(false)}
+                >
+                  {t.editor.clearPattern}
+                </MenuItem>
+                <MenuItem danger onClick={handleDeletePattern} close={() => setMoreMenuOpen(false)}>
+                  {t.editor.deletePattern}
+                </MenuItem>
               </div>
             </>
           )}
@@ -667,5 +702,42 @@ export function EditorPage() {
       )}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
+  )
+}
+
+/** A section title inside the "⋯" menu — the grouping is what keeps a long menu readable. */
+function MenuHeading({ children }: { children: React.ReactNode }) {
+  return <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{children}</p>
+}
+
+function MenuItem({
+  children,
+  hint,
+  onClick,
+  close,
+  disabled,
+  danger,
+}: {
+  children: React.ReactNode
+  /** A line of explanation under the label, for the actions that change the pattern. */
+  hint?: string
+  onClick: () => void
+  close: () => void
+  disabled?: boolean
+  danger?: boolean
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={() => {
+        close()
+        onClick()
+      }}
+      className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2 disabled:opacity-40
+        ${danger ? 'text-red-500' : ''}`}
+    >
+      {children}
+      {hint && <span className="mt-0.5 block text-[11px] font-normal text-text-muted">{hint}</span>}
+    </button>
   )
 }

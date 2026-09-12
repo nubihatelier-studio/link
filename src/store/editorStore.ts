@@ -287,6 +287,10 @@ interface EditorState {
 
   setSelection: (rect: SelectionRect | null) => void
   eraseSelection: () => void
+  /** Empties every painted cell, keeping the piece and its size. One undo step, like any other edit. */
+  clearAllCells: () => void
+  /** Drops palette colours that aren't painted anywhere — the ones shown under "sin usar todavía". Always leaves at least one. */
+  clearUnusedSlots: () => void
   copySelection: () => void
   pasteClipboardAt: (row: number, col: number, opts?: { flipH?: boolean; flipV?: boolean }) => void
 
@@ -962,6 +966,21 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   // A fresh manual drag always means "the whole rect" — any color mask from
   // a previous `selectColor` no longer applies.
   setSelection: (rect) => set({ selection: rect ? normalizeRect(rect) : null, colorSelectionMask: null }),
+
+  clearAllCells: () => {
+    if (isReadOnlySide(get())) return
+    get().commit({})
+  },
+
+  clearUnusedSlots: () => {
+    const { cells, slots, activeSlot } = get()
+    const painted = new Set(Object.values(cells).filter(Boolean))
+    const kept = slots.filter((hex) => painted.has(hex))
+    // A palette with nothing in it has no way back, so the active colour stays.
+    const next = kept.length > 0 ? kept : [slots[activeSlot] ?? slots[0]]
+    const activeHex = slots[activeSlot]
+    set({ slots: next, activeSlot: Math.max(0, next.indexOf(activeHex)) })
+  },
 
   eraseSelection: () => {
     const { selection, cells, colorSelectionMask } = get()

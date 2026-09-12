@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { MoreVertical } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore, parseWeaveProgressKey } from '@/store/weaveStore'
@@ -22,6 +22,7 @@ import { UndoToast } from '@/components/shared/UndoToast'
 
 export function HomePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { patterns, order, deletePattern, duplicatePattern, refresh, justOnboarded, dismissOnboarding } =
     usePatternsStore()
   const { theme, setTheme } = useThemeStore()
@@ -84,6 +85,17 @@ export function HomePage() {
     await exportFullBackup()
     setReminderDismissed(true)
   }
+
+  // "Eliminar el patrón" desde el editor llega acá: la biblioteca es la dueña
+  // del borrado y de su ventana para deshacer, así que el editor delega en vez
+  // de tener su propio diálogo.
+  useEffect(() => {
+    const state = location.state as { deleteId?: string } | null
+    if (!state?.deleteId) return
+    const doc = patterns[state.deleteId]
+    navigate('/', { replace: true })
+    if (doc) requestDelete(doc)
+  }, [location.state, patterns, navigate])
 
   function requestDelete(doc: PatternDoc) {
     // Only one undo window open at a time: finalize whatever was already pending.

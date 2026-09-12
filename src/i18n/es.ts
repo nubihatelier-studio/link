@@ -110,6 +110,14 @@ export const t = {
     back: 'Volver',
     exportPdf: 'Exportar PDF',
     moreActions: 'Más opciones',
+    /** Secciones del menú "⋯" del editor, agrupadas por qué se está tocando. */
+    menuExport: 'Exportar',
+    menuPattern: 'Patrón',
+    menuPalette: 'Paleta',
+    clearPattern: 'Vaciar el patrón',
+    clearPatternHint: 'Borra todo lo pintado y deja la pieza vacía. Se puede deshacer.',
+    deletePattern: 'Eliminar el patrón',
+    clearUnusedColors: 'Quitar colores sin usar',
     exportLetters: 'Letras en el gráfico',
     /** Control de 3 estados en la barra del editor — ver lib/letterVisibility.ts. */
     letterVisibility: {
