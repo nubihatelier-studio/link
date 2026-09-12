@@ -25,8 +25,14 @@ export function IconSelectableCard({ selected, onClick, icon, label, description
       className="flex h-full flex-col items-center justify-center gap-2 py-5 text-center"
     >
       <span className="flex h-10 w-10 items-center justify-center">{icon}</span>
-      <p className="font-semibold">{label}</p>
-      {description && <p className="text-xs text-text-muted">{description}</p>}
+      {/* `w-full` no es decorativo: dentro de un flex en columna centrado el
+          texto se dimensiona a su contenido, así que una palabra larga como
+          "Personalizado" se pasaba del borde de la tarjeta en vez de partirse.
+          Acotado al ancho, se corta con guión. */}
+      <p lang="es" className="w-full hyphens-auto break-words font-semibold">
+        {label}
+      </p>
+      {description && <p className="w-full break-words text-xs text-text-muted">{description}</p>}
     </SelectableCard>
   )
 }
