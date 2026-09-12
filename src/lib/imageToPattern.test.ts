@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestPhase, dominantPeriod, MIN_GRID_STRENGTH, suggestGridForImage } from './imageToPattern'
+import { bestPhase, countDistinctColors, dominantPeriod, MIN_GRID_STRENGTH, suggestGridForImage } from './imageToPattern'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
 const DELICA_W = 1.6
@@ -84,5 +84,40 @@ describe('bestPhase — caer en el centro de la mostacilla, no en el borde', () 
     const pitch = 10
     const costo = (offset: number) => Math.min(offset, pitch - offset) === 0 ? 0 : 5
     expect(bestPhase(pitch, costo, 10)).toBe(0)
+  })
+})
+
+describe('countDistinctColors — cuántos colores tiene de verdad la imagen', () => {
+  const AZUL = { r: 30, g: 60, b: 180 }
+  const DORADO = { r: 200, g: 165, b: 60 }
+  const BLANCO = { r: 245, g: 245, b: 240 }
+  /** Repite unos colores, con pequeñas variaciones como las del borde de una mostacilla. */
+  function pixeles(base: { r: number; g: number; b: number }[], n: number) {
+    const out = []
+    for (let i = 0; i < n; i++) {
+      const c = base[i % base.length]
+      const jitter = (i % 3) - 1
+      out.push({ r: c.r + jitter, g: c.g + jitter, b: c.b + jitter })
+    }
+    return out
+  }
+
+  it('un gráfico de dos colores responde dos, no doce', () => {
+    expect(countDistinctColors(pixeles([AZUL, DORADO], 400))).toBe(2)
+  })
+
+  it('tres colores, tres', () => {
+    expect(countDistinctColors(pixeles([AZUL, DORADO, BLANCO], 600))).toBe(3)
+  })
+
+  it('ignora un puñado de píxeles de borde: no son un color de la paleta', () => {
+    const conBordes = [...pixeles([AZUL, DORADO], 600), { r: 115, g: 112, b: 120 }, { r: 118, g: 110, b: 118 }]
+    expect(countDistinctColors(conBordes)).toBe(2)
+  })
+
+  it('nunca propone menos de dos ni más del techo', () => {
+    expect(countDistinctColors(pixeles([AZUL], 100))).toBe(2)
+    const muchos = Array.from({ length: 900 }, (_, i) => ({ r: (i * 37) % 256, g: (i * 91) % 256, b: (i * 17) % 256 }))
+    expect(countDistinctColors(muchos)).toBeLessThanOrEqual(12)
   })
 })

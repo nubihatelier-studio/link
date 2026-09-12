@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { PatternDoc, Technique } from '@/engine/types'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
-import { detectBeadGrid, suggestGridForImage, imageToPattern, type BeadGrid, type ImageToPatternResult } from '@/lib/imageToPattern'
+import {
+  detectBeadGrid,
+  suggestColorCount,
+  suggestGridForImage,
+  imageToPattern,
+  type BeadGrid,
+  type ImageToPatternResult,
+} from '@/lib/imageToPattern'
 import { catalogMatchForHex } from '@/lib/color'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
@@ -51,14 +58,14 @@ export function PhotoToPatternPage() {
       // when the image isn't one.
       const found = detectBeadGrid(img)
       setGrid(found)
-      if (found) {
-        setCols(found.cols)
-        setRows(found.rows)
-        return
-      }
-      const suggestion = suggestGridForImage(img.width, img.height, technique, bead.widthMm, bead.heightMm, 50)
-      setCols(suggestion.cols)
-      setRows(suggestion.rows)
+      const { cols: nextCols, rows: nextRows } = found
+        ? { cols: found.cols, rows: found.rows }
+        : suggestGridForImage(img.width, img.height, technique, bead.widthMm, bead.heightMm, 50)
+      setCols(nextCols)
+      setRows(nextRows)
+      // Open at the number of colours the image actually has, not at a fixed
+      // 12 that has to be dragged back down on a three-colour chart.
+      setNumColors(suggestColorCount(img, nextCols, nextRows, found))
     }
     img.src = url
   }
@@ -139,7 +146,10 @@ export function PhotoToPatternPage() {
         <section className="mb-8">
           <div className="flex gap-3">
             <div className="flex-1">
-              {grid && (
+              {/* Sólo mientras la grilla detectada siga siendo la que se usa:
+                  al mover los deslizadores manda quien teje, y el aviso
+                  quedaría anunciando un tamaño que ya no es el del patrón. */}
+              {grid && grid.cols === cols && grid.rows === rows && (
                 <p className="mb-2 rounded-xl bg-accent-500/10 px-3 py-2 text-xs font-semibold text-accent-500">
                   {t.photo.gridDetected(grid.cols, grid.rows)}
                 </p>

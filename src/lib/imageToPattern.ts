@@ -5,6 +5,7 @@ import { rowPitch } from '@/engine/geometry'
 import { labToHex, nearestCatalogColor, rgbToLab, type RGB } from './color'
 import { kMeansQuantize, mergeSimilarColors } from './quantize'
 
+
 export interface ImageToPatternOptions {
   cols: number
   rows: number
@@ -516,4 +517,58 @@ function sampleAtBeadCentres(
     }
   }
   return out
+}
+
+/**
+ * How many colours an image really has, counted rather than assumed: cluster
+ * generously, then collapse the clusters that are the same colour seen through
+ * anti-aliasing or a highlight. A chart of three colours answers three.
+ *
+ * The importer used to open at a fixed 12, which on a three-colour chart
+ * invents nine shades of the same bead and hands the weaver a materials list
+ * she has to undo by dragging the slider back down.
+ */
+export function countDistinctColors(pixels: RGB[], threshold = CHART_COLOR_THRESHOLD, ceiling = MAX_SUGGESTED_COLORS): number {
+  if (pixels.length === 0) return 2
+  const { centroids, counts } = kMeansQuantize(pixels, ceiling)
+  const merged = mergeSimilarColors(centroids, counts, threshold)
+  // Clusters holding a sliver of the image are edge blends, not colours of their own.
+  const floor = pixels.length * MIN_COLOR_SHARE
+  const real = merged.counts.filter((c) => c >= floor).length
+  return Math.max(2, Math.min(ceiling, real))
+}
+
+/**
+ * Beads are flat, well-separated colours, so two clusters this close are the
+ * same bead — a wider net than the `mergeSimilarColors` default (6), which is
+ * tuned for photographs where real colours do sit that close together.
+ */
+const CHART_COLOR_THRESHOLD = 12
+/** Below this share of the image, a cluster is an edge artifact rather than a bead colour. */
+const MIN_COLOR_SHARE = 0.01
+/** Never suggest more than this — past it the materials list stops being a shopping list. */
+const MAX_SUGGESTED_COLORS = 12
+
+/** The colour count to open with for `image`, read at the grid it will be reduced to. */
+export function suggestColorCount(
+  image: CanvasImageSource & { width: number; height: number },
+  cols: number,
+  rows: number,
+  grid?: BeadGrid | null,
+): number {
+  if (grid) return countDistinctColors(sampleAtBeadCentres(image, grid, cols, rows))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, cols)
+  canvas.height = Math.max(1, rows)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return MAX_SUGGESTED_COLORS
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(image, 0, 0, cols, rows)
+  const { data } = ctx.getImageData(0, 0, cols, rows)
+  const pixels: RGB[] = []
+  for (let i = 0; i < cols * rows; i++) {
+    const o = i * 4
+    pixels.push({ r: data[o], g: data[o + 1], b: data[o + 2] })
+  }
+  return countDistinctColors(pixels)
 }
