@@ -37,32 +37,32 @@ describe('buildWeaveOrder — loom (unchanged)', () => {
   })
 })
 
-describe('buildWeaveOrder — brick (Tarea 2: fila más ancha primero, serpentina)', () => {
-  it('starts at the widest row (rows - 1) and decreases toward the tip (row 0), alternating direction', () => {
+describe('buildWeaveOrder — brick (de arriba hacia abajo, serpentina)', () => {
+  it('empieza en la primera fila (la de arriba) y baja, alternando la dirección', () => {
     const order = buildWeaveOrder('brick', 3, 3)
     expect(order).toEqual([
-      // row 2 (widest, base row) — ltr
-      { cells: [{ row: 2, col: 0 }], unit: 2, direction: 'ltr', grouped: false, isBaseRow: true },
-      { cells: [{ row: 2, col: 1 }], unit: 2, direction: 'ltr', grouped: false, isBaseRow: true },
-      { cells: [{ row: 2, col: 2 }], unit: 2, direction: 'ltr', grouped: false, isBaseRow: true },
-      // row 1 — rtl (serpentine)
+      // fila 0 (la primera, fila base) — ltr
+      { cells: [{ row: 0, col: 0 }], unit: 0, direction: 'ltr', grouped: false, isBaseRow: true },
+      { cells: [{ row: 0, col: 1 }], unit: 0, direction: 'ltr', grouped: false, isBaseRow: true },
+      { cells: [{ row: 0, col: 2 }], unit: 0, direction: 'ltr', grouped: false, isBaseRow: true },
+      // fila 1 — rtl (serpentina)
       { cells: [{ row: 1, col: 2 }], unit: 1, direction: 'rtl', grouped: false },
       { cells: [{ row: 1, col: 1 }], unit: 1, direction: 'rtl', grouped: false },
       { cells: [{ row: 1, col: 0 }], unit: 1, direction: 'rtl', grouped: false },
-      // row 0 (the tip) — ltr again
-      { cells: [{ row: 0, col: 0 }], unit: 0, direction: 'ltr', grouped: false },
-      { cells: [{ row: 0, col: 1 }], unit: 0, direction: 'ltr', grouped: false },
-      { cells: [{ row: 0, col: 2 }], unit: 0, direction: 'ltr', grouped: false },
+      // fila 2 (la última) — ltr de nuevo
+      { cells: [{ row: 2, col: 0 }], unit: 2, direction: 'ltr', grouped: false },
+      { cells: [{ row: 2, col: 1 }], unit: 2, direction: 'ltr', grouped: false },
+      { cells: [{ row: 2, col: 2 }], unit: 2, direction: 'ltr', grouped: false },
     ])
   })
 
-  it('a single-row body is both the base row and the tip', () => {
+  it('un cuerpo de una sola fila es a la vez la fila base y la última', () => {
     const order = buildWeaveOrder('brick', 2, 1)
     expect(order.every((s) => s.isBaseRow)).toBe(true)
   })
 
   it('a shaped row is still walked start-to-end within its own offset/length span, direction unaffected', () => {
-    // A 5-col, 3-row triangle: row 0 has 1 col centered, row 1 has 3, row 2 (the last, widest) has 5.
+    // Un triángulo de 5 columnas y 3 filas: la fila 0 tiene 1 columna centrada, la 1 tiene 3 y la 2 (la última, la más ancha) tiene 5.
     const rowShape = [
       { offset: 2, length: 1 },
       { offset: 1, length: 3 },
@@ -70,17 +70,17 @@ describe('buildWeaveOrder — brick (Tarea 2: fila más ancha primero, serpentin
     ]
     const order = buildWeaveOrder('brick', 5, 3, undefined, rowShape)
     expect(order.map((s) => s.cells[0])).toEqual([
+      { row: 0, col: 2 },
+      { row: 1, col: 3 },
+      { row: 1, col: 2 },
+      { row: 1, col: 1 },
       { row: 2, col: 0 },
       { row: 2, col: 1 },
       { row: 2, col: 2 },
       { row: 2, col: 3 },
       { row: 2, col: 4 },
-      { row: 1, col: 3 },
-      { row: 1, col: 2 },
-      { row: 1, col: 1 },
-      { row: 0, col: 2 },
     ])
-    expect(order).toHaveLength(5 + 3 + 1)
+    expect(order).toHaveLength(1 + 3 + 5)
   })
 })
 
@@ -88,11 +88,11 @@ describe('buildWeaveOrder — brick fringe (Tarea 2.3: un fleco completo a la ve
   it('appends fringe only after the whole body, one column completed top to bottom before the next', () => {
     const fringe: FringeData = { lengths: [2, 0, 1], turnBeads: [true, false, false] }
     const order = buildWeaveOrder('brick', 3, 2, fringe)
-    // body: row1 (ltr) then row0 (rtl) = 6 steps, then fringe.
+    // cuerpo: fila 0 (ltr) y después fila 1 (rtl) = 6 pasos, y recién ahí el fleco.
     expect(order).toHaveLength(6 + 2 + 0 + 1)
     const fringeSteps = order.slice(6)
-    // Body's last row (row 0) went 'rtl' (row1 is base/ltr, row0 is rtl) — ends at the left edge,
-    // so fringe picks up ascending from column 0.
+    // La última fila del cuerpo (la 1) fue 'rtl' — termina en el borde izquierdo,
+    // así que los flecos se toman de izquierda a derecha, desde la columna 0.
     expect(fringeSteps).toEqual([
       { cells: [{ row: 2, col: 0 }], unit: 0, direction: 'ltr', grouped: false, isFringe: true },
       { cells: [{ row: 3, col: 0 }], unit: 0, direction: 'ltr', grouped: false, isFringe: true, isTurnBead: true },
@@ -101,8 +101,7 @@ describe('buildWeaveOrder — brick fringe (Tarea 2.3: un fleco completo a la ve
   })
 
   it('when the last body row goes left-to-right, fringe columns are visited descending (nearest to where the thread ended)', () => {
-    // 2 rows: row 1 (base, ltr), row 0 (tip, rtl) -- for an EVEN row count the tip is rtl.
-    // Use a single row so the base row (ltr) is also the tip, ending at the right edge.
+    // Con una sola fila, la fila base (ltr) es también la última: termina en el borde derecho.
     const fringe: FringeData = { lengths: [1, 1, 1], turnBeads: [false, false, false] }
     const order = buildWeaveOrder('brick', 3, 1, fringe)
     const fringeSteps = order.filter(isFringeStep)
@@ -245,10 +244,10 @@ describe('firstIndexOfUnit', () => {
     expect(firstIndexOfUnit(order, 99)).toBe(-1)
   })
 
-  it('works on brick\'s reversed order too', () => {
+  it('en brick las filas se recorren de arriba hacia abajo', () => {
     const order = buildWeaveOrder('brick', 4, 4)
-    expect(firstIndexOfUnit(order, 3)).toBe(0) // row 3 (widest) is walked first
-    expect(firstIndexOfUnit(order, 0)).toBe(12) // row 0 (tip) is walked last
+    expect(firstIndexOfUnit(order, 0)).toBe(0) // la fila 0 (la de arriba) se teje primero
+    expect(firstIndexOfUnit(order, 3)).toBe(12) // la fila 3 (la de abajo) se teje al final
   })
 })
 
@@ -357,22 +356,22 @@ describe('WEAVE_ORDER_VERSION', () => {
 })
 
 describe('Tests exigidos — verificación literal de la tarea', () => {
-  it('(a) brick, cuerpo triangular de 5 columnas: el recorrido empieza en la fila más ancha y termina en la punta, con direcciones alternadas', () => {
-    const rowShape = createShapedRowShape('triangle', 5, 5) // widths 1,2,3,4,5 — row 4 is the widest/base, row 0 the tip.
+  it('(a) brick, cuerpo triangular de 5 columnas: el recorrido empieza en la fila de arriba y termina en la de abajo, con direcciones alternadas', () => {
+    const rowShape = createShapedRowShape('triangle', 5, 5) // anchos 1,2,3,4,5 — la fila 0 es la angosta, la 4 la más ancha.
     const order = buildWeaveOrder('brick', 5, 5, undefined, rowShape)
-    // First step belongs to row 4 (the widest) and is flagged as the base row.
-    expect(order[0].unit).toBe(4)
+    // El primer paso es de la fila 0, marcada como fila base.
+    expect(order[0].unit).toBe(0)
     expect(order[0].isBaseRow).toBe(true)
-    // Last step belongs to row 0 (the tip).
-    expect(order[order.length - 1].unit).toBe(0)
-    // Each row's own direction alternates in walk order.
+    // El último paso es de la fila 4, la de abajo.
+    expect(order[order.length - 1].unit).toBe(4)
+    // La dirección de cada fila alterna en el orden en que se tejen.
     const directionsByRow: Record<number, string> = {}
     for (const step of order) directionsByRow[step.unit] = step.direction
-    expect(directionsByRow[4]).toBe('ltr')
-    expect(directionsByRow[3]).toBe('rtl')
-    expect(directionsByRow[2]).toBe('ltr')
-    expect(directionsByRow[1]).toBe('rtl')
     expect(directionsByRow[0]).toBe('ltr')
+    expect(directionsByRow[1]).toBe('rtl')
+    expect(directionsByRow[2]).toBe('ltr')
+    expect(directionsByRow[3]).toBe('rtl')
+    expect(directionsByRow[4]).toBe('ltr')
   })
 
   it('(b) "Aro con flecos" de 6 columnas con largos 2,3,4,4,3,2: tras el cuerpo, cada fleco se completa entero (con su giro) antes del siguiente', () => {

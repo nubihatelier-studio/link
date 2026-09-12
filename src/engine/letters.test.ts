@@ -66,15 +66,15 @@ describe('assignLetters — orden de primer uso en el recorrido de tejido (Tarea
     expect(entries.find((e) => e.hex === RED)!.count).toBe(3)
   })
 
-  it('brick arranca por la fila más ancha (la de abajo), y las letras lo siguen', () => {
-    // brick teje de la fila más ancha hacia la punta: la primera mostacilla
-    // tejida está en la última fila de los datos, no en la primera.
+  it('brick arranca por la fila de arriba, y las letras lo siguen', () => {
+    // brick teje de arriba hacia abajo: la primera mostacilla tejida está en
+    // la primera fila de los datos.
     const cells: ColorMap = {
-      [cellKey(0, 0)]: RED, // punta: se teje al final
-      [cellKey(1, 0)]: BLUE, // fila base: se teje primero
+      [cellKey(0, 0)]: RED, // fila base: se teje primero
+      [cellKey(1, 0)]: BLUE, // se teje después
     }
     const entries = assignLetters({ technique: 'brick', cols: 1, rows: 2, cells })
-    expect(labels(entries)).toEqual({ [BLUE]: 'A', [RED]: 'B' })
+    expect(labels(entries)).toEqual({ [RED]: 'A', [BLUE]: 'B' })
   })
 })
 

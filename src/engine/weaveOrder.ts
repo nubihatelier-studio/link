@@ -67,7 +67,10 @@ export function beadsThrough(order: WeaveOrder, index: number): number {
  */
 export const WEAVE_ORDER_VERSION: Record<Technique, number> = {
   loom: 1,
-  brick: 2,
+  // 3: el cuerpo se teje de arriba hacia abajo. Antes partía por la fila más
+  //    ancha y subía hasta la punta, así que un índice guardado apunta a otra
+  //    mostacilla.
+  brick: 3,
   // 3: peyote walks passes (alternating positions) instead of the drawn zigzag.
   // 4: the foundation is the first drawn row alone, not the first two.
   // 5: the foundation advances bead by bead, and the passes start on the
@@ -109,17 +112,14 @@ function buildLoomOrder(cols: number, rows: number, fringe?: FringeData): WeaveO
 }
 
 /**
- * Brick: real brick stitch is built bottom-up — you start with a full
- * ladder-stitch row (the widest one, exactly where the fringe will
- * eventually hang) and decrease toward the tip as you go, turning the work
- * at the end of every row (serpentine: left-to-right, then right-to-left,
- * alternating). Our data model numbers rows top-down (row 0 = the tip,
- * `rows - 1` = the widest row — see `shape.ts`), so the WEAVE order walks
- * the data backwards from `rows - 1` to `0`; the row numbers shown to a
- * weaver (`ShapePanel`'s "Fila N") don't change, only the order they're
- * visited in. The very first step (the widest row) is flagged `isBaseRow`
- * — it's the row every other row of the body is decreased from, not just
- * "row N" like the rest.
+ * Brick: the body is woven from the top down — the first row is the ladder
+ * row every other row hangs from, and each row after it is added below the
+ * previous one, turning the work at the end of every row (serpentine:
+ * left-to-right, then right-to-left, alternating). Our data model numbers
+ * rows top-down (row 0 = the first row, `rows - 1` = the last — see
+ * `shape.ts`), so the weave order simply follows the row numbers. The very
+ * first step is flagged `isBaseRow`: it's the row the rest of the body is
+ * built from, not just "row 1" like the rest.
  *
  * A shaped row (see `shape.ts#RowShape`) doesn't change the direction, only
  * how much of it exists — the row is still walked start-to-end within its
@@ -128,18 +128,18 @@ function buildLoomOrder(cols: number, rows: number, fringe?: FringeData): WeaveO
  * Fringe is added only once the whole body is done, one column completed
  * top-to-bottom (body-side bead first, turn bead last) before moving to the
  * next — never interleaved sideways across columns at the same depth. The
- * order columns are visited in follows the thread's own natural direction
- * as the body finishes: the last body row worked (the tip, row 0) ends at
- * whichever edge its own direction reaches, and picking up fringes starting
- * from the nearest column and sweeping away from that edge is the one that
- * doesn't require the thread to jump back across the whole width first.
+ * order columns are visited in follows the thread's own natural direction as
+ * the body finishes: the last body row worked is the one the fringe hangs
+ * from, and it ends at whichever edge its own direction reaches — picking up
+ * fringes from the nearest column and sweeping away from that edge is the one
+ * that doesn't make the thread jump back across the whole width first.
  */
 function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowShape?: RowShape[]): WeaveOrder {
   const order: WeaveOrder = []
   let rowsWalked = 0
   let lastDirection: WeaveDirection = 'ltr'
 
-  for (let row = rows - 1; row >= 0; row--) {
+  for (let row = 0; row < rows; row++) {
     const shape = rowShape?.[row]
     const colStart = shape?.offset ?? 0
     const colEnd = shape ? shape.offset + shape.length : cols
@@ -166,9 +166,10 @@ function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowSha
       if (lastRowShape && (col < lastRowShape.offset || col >= lastRowShape.offset + lastRowShape.length)) continue
       fringeColumns.push(col)
     }
-    // The tip row (the last body row worked) ends at the right edge if it went
-    // left-to-right, or the left edge if it went right-to-left — pick up the
-    // nearest fringe column from there and sweep away from it.
+    // The last body row worked — the one the fringe hangs from — ends at the
+    // right edge if it went left-to-right, or the left edge if it went
+    // right-to-left: pick up the nearest fringe column from there and sweep
+    // away from it.
     const orderedFringeColumns = lastDirection === 'ltr' ? [...fringeColumns].reverse() : fringeColumns
 
     for (const col of orderedFringeColumns) {

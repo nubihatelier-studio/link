@@ -37,8 +37,8 @@ describe('buildWordChart — loom (unchanged)', () => {
   })
 })
 
-describe('buildWordChart — brick (Tarea 2: fila más ancha primero, serpentina, fila base)', () => {
-  it('the first line is the widest row (isBaseRow), read left to right; the next line (the tip) is read right to left', () => {
+describe('buildWordChart — brick (de arriba hacia abajo, serpentina, fila base)', () => {
+  it('la primera línea es la fila de arriba (isBaseRow), leída de izquierda a derecha; la siguiente se lee al revés', () => {
     const cells: ColorMap = {
       '0,0': '#111111',
       '0,1': '#111111',
@@ -49,10 +49,10 @@ describe('buildWordChart — brick (Tarea 2: fila más ancha primero, serpentina
     }
     const lines = buildWordChart('brick', 4, 2, cells, letterForHex)
     expect(lines).toEqual([
-      // row 1 (the widest, base row) — read col 0..3
-      { unitIndex: 1, text: '1B, 1A, 2–', isBaseRow: true },
-      // row 0 (the tip) — read col 3..0: B, A, A, A
-      { unitIndex: 0, text: '1B, 3A' },
+      // fila 0 (la primera, fila base) — se lee de la columna 0 a la 3
+      { unitIndex: 0, text: '3A, 1B', isBaseRow: true },
+      // fila 1 — se lee de la columna 3 a la 0: vacía, vacía, A, B
+      { unitIndex: 1, text: '2–, 1A, 1B' },
     ])
   })
 })
@@ -141,7 +141,7 @@ describe('buildWordChart with a fringe', () => {
 
 describe('buildWordChart with a shaped (rowShape) body', () => {
   it('a narrower row produces a shorter line, not a padded/dropped one', () => {
-    // 3-col, 2-row triangle: row 0 has 1 col (centered), row 1 (the widest/base) is full width.
+    // Triángulo de 3 columnas y 2 filas: la fila 0 tiene 1 columna (centrada) y la fila 1 ocupa todo el ancho.
     const rowShape = [
       { offset: 1, length: 1 },
       { offset: 0, length: 3 },
@@ -149,8 +149,8 @@ describe('buildWordChart with a shaped (rowShape) body', () => {
     const cells: ColorMap = { '0,1': '#111111', '1,0': '#111111', '1,1': '#222222', '1,2': '#111111' }
     const lines = buildWordChart('brick', 3, 2, cells, letterForHex, undefined, rowShape)
     expect(lines).toEqual([
-      { unitIndex: 1, text: '1A, 1B, 1A', isBaseRow: true },
-      { unitIndex: 0, text: '1A' },
+      { unitIndex: 0, text: '1A', isBaseRow: true },
+      { unitIndex: 1, text: '1A, 1B, 1A' },
     ])
   })
 

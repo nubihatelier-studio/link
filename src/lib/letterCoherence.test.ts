@@ -73,7 +73,7 @@ const pattern: Pattern = {
   cells: {
     '0,0': GOLD,
     '0,1': GOLD,
-    '1,0': RED, // fila base: la primera que se teje en brick
+    '1,0': RED, // fila 2: se teje después de la de arriba
     '1,1': RED,
     '1,2': TEAL,
     '2,1': TEAL, // fleco
@@ -157,27 +157,28 @@ describe('coherencia de letras en toda la app (Tarea 3)', () => {
   })
 
   it('reemplazar un color mantiene letras y conteos coherentes entre editor y PDF', async () => {
-    // TEAL (la última letra del patrón base) se reemplaza por RED en todo el
-    // patrón: RED conserva su letra y absorbe el conteo, TEAL desaparece.
+    // RED (la última letra del patrón base: brick teje de arriba hacia abajo,
+    // así que GOLD es A) se reemplaza por GOLD en todo el patrón: GOLD conserva
+    // su letra y absorbe el conteo, RED desaparece.
     const replaced: Pattern = {
       ...pattern,
       cells: Object.fromEntries(
-        Object.entries(pattern.cells).map(([k, hex]) => [k, hex === TEAL ? RED : hex]),
+        Object.entries(pattern.cells).map(([k, hex]) => [k, hex === RED ? GOLD : hex]),
       ),
     }
     const before = assignLetters(pattern)
     const after = assignLetters(replaced)
 
     expect(after.map((e) => e.letter)).toEqual(['A', 'B'])
-    expect(after.find((e) => e.hex === RED)!.letter).toBe(before.find((e) => e.hex === RED)!.letter)
-    expect(after.find((e) => e.hex === RED)!.count).toBe(4)
-    expect(after.some((e) => e.hex === TEAL)).toBe(false)
+    expect(after.find((e) => e.hex === GOLD)!.letter).toBe(before.find((e) => e.hex === GOLD)!.letter)
+    expect(after.find((e) => e.hex === GOLD)!.count).toBe(4)
+    expect(after.some((e) => e.hex === RED)).toBe(false)
 
     await exportPatternToPdf({ name: 'Reemplazo', ...replaced, beadType: bead, sections: ALL_PDF_SECTIONS })
     const text = pdfText(lastDoc!)
     expect(text).toContain(t.pdf.materials) // guard: el texto se extrajo de verdad
-    const red = after.find((e) => e.hex === RED)!
-    expect(text).toMatch(materialsRow(red.letter, catalogMatchForHex(RED).color.code))
+    const gold = after.find((e) => e.hex === GOLD)!
+    expect(text).toMatch(materialsRow(gold.letter, catalogMatchForHex(GOLD).color.code))
     expect(text).toContain('×4')
   })
 })
@@ -202,9 +203,9 @@ describe('PDF de un par de aros', () => {
   it('los materiales cuentan las mostacillas de los dos aros', async () => {
     await exportPatternToPdf({ name: 'Aros', ...aro, pair: { mode: 'mirror' }, beadType: bead, sections: ALL_PDF_SECTIONS })
     const text = pdfText(lastDoc!)
-    // Brick arranca por la fila base, que empieza con la roja: la roja es A.
-    expect(text).toMatch(materialsRow('A', catalogMatchForHex(RED).color.code))
-    expect(text).toMatch(materialsRow('B', catalogMatchForHex(GOLD).color.code))
+    // Brick arranca por la fila de arriba, que es toda dorada: la dorada es A.
+    expect(text).toMatch(materialsRow('A', catalogMatchForHex(GOLD).color.code))
+    expect(text).toMatch(materialsRow('B', catalogMatchForHex(RED).color.code))
     expect(text).toContain('×2') // 1 roja por aro
     expect(text).toContain('×10') // 5 doradas por aro
   })

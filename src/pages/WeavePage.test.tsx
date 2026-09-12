@@ -344,7 +344,12 @@ describe('WeavePage — progreso guardado invalidado por cambio de orden de teji
   })
 
   it('un índice guardado ya con el orderVersion actual no se toca', async () => {
-    await fakeAdapter.setWeaveProgress({ patternId: PATTERN_WITH_FRINGE.id, currentIndex: 10, orderVersion: 2, updatedAt: 1 })
+    await fakeAdapter.setWeaveProgress({
+      patternId: PATTERN_WITH_FRINGE.id,
+      currentIndex: 10,
+      orderVersion: WEAVE_ORDER_VERSION.brick,
+      updatedAt: 1,
+    })
     await renderWeaveFor(PATTERN_WITH_FRINGE)
 
     await waitFor(() => expect(useWeaveStore.getState().getIndex(PATTERN_WITH_FRINGE.id)).toBe(10))
@@ -359,7 +364,8 @@ describe('WeavePage — par de aros', () => {
     id: 'p_par',
     name: 'Aros',
     config: { technique: 'brick', cols: 3, rows: 2, beadTypeId: 'miyuki-delica-11' },
-    cells: { '1,0': '#1c1c1e', '1,1': '#c9a227', '1,2': '#c9a227', '0,0': '#c9a227', '0,1': '#c9a227', '0,2': '#c9a227' },
+    // El negro va en la primera fila que se teje (la de arriba), que es donde se nota el espejo.
+    cells: { '0,0': '#1c1c1e', '0,1': '#c9a227', '0,2': '#c9a227', '1,0': '#c9a227', '1,1': '#c9a227', '1,2': '#c9a227' },
     pair: { mode: 'mirror' },
     createdAt: 1,
     updatedAt: 1,
@@ -412,7 +418,7 @@ describe('WeavePage — par de aros', () => {
         .getAllByRole('listitem')
         .map((li) => li.textContent?.replace(/\s+/g, ''))
 
-    // brick arranca por la fila base (fila 2), de izquierda a derecha: negro primero.
+    // brick arranca por la fila de arriba, de izquierda a derecha: negro primero.
     expect(chips()).toEqual(['1×A', '2×B'])
 
     await user.click(screen.getByRole('button', { name: t.weave.rightEarring }))
