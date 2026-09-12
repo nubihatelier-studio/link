@@ -213,6 +213,7 @@ export function CanvasGrid() {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
     // rulers
+    const maxFringe = maxFringeLength(fringe)
     ctx.fillStyle = textColor
     ctx.font = '10px system-ui, sans-serif'
     ctx.textAlign = 'center'
@@ -228,6 +229,19 @@ export function CanvasGrid() {
     for (let r = 0; r < rows; r += colStep) {
       const pos = cellPosition(technique, r, 0, undefined, staggerPhase)
       ctx.fillText(String(r + 1), MARGIN - 6, originY + pos.y * cellPx + cellPx / 2)
+    }
+    // El fleco lleva su propia cuenta, que arranca de nuevo en 1: no son filas
+    // del cuerpo, y seguir contando (11, 12, 13…) haría leer el fleco como si
+    // el cuerpo continuara. Va en el dorado del fleco, igual que la línea
+    // punteada que lo separa, porque si no las dos cuentas se leen como una
+    // sola: "…5, 6, 1, 2" seguidos, con el mismo color, se confunden.
+    if (maxFringe > 0) {
+      ctx.fillStyle = accent
+      for (let depth = 0; depth < maxFringe; depth += colStep) {
+        const pos = cellPosition(technique, rows + depth, 0, rows, staggerPhase)
+        ctx.fillText(String(depth + 1), MARGIN - 6, originY + pos.y * cellPx + cellPx / 2)
+      }
+      ctx.fillStyle = textColor
     }
 
     // The reference bead style, shared with the PNG, the card and the PDF — see lib/beadStyle.ts.
@@ -294,7 +308,6 @@ export function CanvasGrid() {
     // per-cell drawing logic with no divider at all. The turn bead (where
     // the thread turns back up) has no visual distinction here either — it
     // reads as a bead like any other; its own toggle lives in FringePanel.
-    const maxFringe = maxFringeLength(fringe)
     if (maxFringe > 0) {
       for (let col = 0; col < cols; col++) {
         const length = fringe.lengths[col] ?? 0
