@@ -26,6 +26,22 @@ export function letterForIndex(i: number): string {
   return s
 }
 
+/**
+ * Which letter each colour holds, saved with the pattern. Without it letters
+ * are re-derived on every edit, so erasing the colour that happened to be
+ * woven first renamed every other colour — the weaver's "A" stopped being "A"
+ * halfway through a piece, and the printed materials list stopped matching the
+ * chart on screen.
+ */
+export type LetterAssignment = Record<string, string>
+
+/** The index a letter stands for — the inverse of `letterForIndex`. */
+export function letterIndex(letter: string): number {
+  let n = 0
+  for (const ch of letter) n = n * 26 + (ch.charCodeAt(0) - 64)
+  return n - 1
+}
+
 /** A color that is actually painted somewhere in the pattern, with the label and bead count it earned. */
 export interface LetterEntry {
   hex: string
@@ -65,17 +81,20 @@ export interface LetterPattern {
  *   different things; only the second one is part of the pattern's notation,
  *   so an unused color never consumes a letter, never reaches the materials
  *   list and never reaches the PDF.
- * - Letters are stable while a color stays used: they're derived from the
- *   cells, so adding, removing or reordering *other* palette colors can't
- *   shift them. If a color stops being used entirely, it releases its letter
- *   and the ones after it close the gap — the alternative is a chart whose
- *   labels skip letters with nothing to explain the holes.
+ * - A colour keeps its letter for as long as the pattern remembers it. Pass
+ *   the pattern's saved `LetterAssignment` and nothing is ever renamed behind
+ *   the weaver's back: a new colour takes the lowest free letter, a colour
+ *   that disappears keeps its letter reserved (so repainting it later gets the
+ *   same one back), and closing up any gaps is a deliberate act — see
+ *   `reletterConsecutively`, behind the palette's "Reordenar letras". Without
+ *   a saved assignment this falls back to numbering by first use, which is
+ *   what every pattern made before this did.
  *
  * A woven hanging loop weaves last, so its ring color (if the ring is the
  * only place that color appears) sorts last too — same rule, no special case.
  */
-export function assignLetters(pattern: LetterPattern): LetterEntry[] {
-  return assignLettersAcross([pattern])
+export function assignLetters(pattern: LetterPattern, saved?: LetterAssignment): LetterEntry[] {
+  return assignLettersAcross([pattern], saved)
 }
 
 /**
@@ -87,7 +106,7 @@ export function assignLetters(pattern: LetterPattern): LetterEntry[] {
  * walked in order, each along its own weave order, so the left earring's
  * colours come first.
  */
-export function assignLettersAcross(pieces: LetterPattern[]): LetterEntry[] {
+export function assignLettersAcross(pieces: LetterPattern[], saved?: LetterAssignment): LetterEntry[] {
   const counts = new Map<string, number>()
   for (const piece of pieces) {
     for (const [hex, count] of countByHex(piece.cells, piece.loop)) counts.set(hex, (counts.get(hex) ?? 0) + count)
@@ -124,7 +143,54 @@ export function assignLettersAcross(pieces: LetterPattern[]): LetterEntry[] {
     for (const hex of counts.keys()) see(hex)
   }
 
-  return seen.map((hex, i) => ({ hex, letter: letterForIndex(i), count: counts.get(hex) ?? 0 }))
+  const letters = lettersFor(seen, saved)
+  return seen
+    .map((hex) => ({ hex, letter: letters[hex], count: counts.get(hex) ?? 0 }))
+    .sort((a, b) => letterIndex(a.letter) - letterIndex(b.letter))
+}
+
+/**
+ * The letter each of `used` holds: the one it already had, or the lowest one
+ * free. Letters belonging to colours that are no longer painted stay taken, so
+ * a colour that comes back finds its own letter waiting instead of wearing
+ * someone else's.
+ */
+function lettersFor(used: string[], saved?: LetterAssignment): LetterAssignment {
+  if (!saved) return Object.fromEntries(used.map((hex, i) => [hex, letterForIndex(i)]))
+  const taken = new Set(Object.values(saved))
+  const out: LetterAssignment = {}
+  for (const hex of used) {
+    const existing = saved[hex]
+    if (existing) {
+      out[hex] = existing
+      continue
+    }
+    let i = 0
+    while (taken.has(letterForIndex(i))) i++
+    out[hex] = letterForIndex(i)
+    taken.add(out[hex])
+  }
+  return out
+}
+
+/**
+ * The assignment to save after an edit: what the pattern already remembered,
+ * plus a letter for every colour that has appeared since. Nothing is dropped —
+ * a colour erased today keeps its letter for when it comes back.
+ */
+export function extendAssignment(pieces: LetterPattern[], saved?: LetterAssignment): LetterAssignment {
+  const entries = assignLettersAcross(pieces, saved)
+  return { ...saved, ...Object.fromEntries(entries.map((e) => [e.hex, e.letter])) }
+}
+
+/**
+ * A fresh A, B, C… in weaving order, forgetting old reservations — what the
+ * palette's "Reordenar letras" does. The one place letters are allowed to move,
+ * because the weaver asked for it.
+ */
+export function reletterConsecutively(pieces: LetterPattern[]): LetterAssignment {
+  const entries = assignLettersAcross(pieces)
+  return Object.fromEntries(entries.map((e) => [e.hex, e.letter]))
 }
 
 /**
@@ -132,9 +198,9 @@ export function assignLettersAcross(pieces: LetterPattern[]): LetterEntry[] {
  * the label. Pass every piece of an earring pair so both earrings share one
  * set of letters — see `assignLettersAcross`.
  */
-export function letterMap(pattern: LetterPattern | LetterPattern[]): Map<string, string> {
+export function letterMap(pattern: LetterPattern | LetterPattern[], saved?: LetterAssignment): Map<string, string> {
   const pieces = Array.isArray(pattern) ? pattern : [pattern]
-  return new Map(assignLettersAcross(pieces).map((e) => [e.hex, e.letter]))
+  return new Map(assignLettersAcross(pieces, saved).map((e) => [e.hex, e.letter]))
 }
 
 /**

@@ -9,11 +9,10 @@ import { usePatternsStore } from '@/store/patternsStore'
  * assignment the PDF, the PNG, the Instagram card and weave mode use, so a
  * color reads the same letter on screen as on paper.
  *
- * Derived from the pattern itself on every change rather than kept as state:
- * a stored letter map is exactly what used to drift (colors the picker merely
- * passed through kept their letters forever, pushing real ones past Z into
- * "AA"), and there's nothing to keep in sync when the letters *are* the
- * pattern read a certain way.
+ * Read with the assignment the pattern remembers (`PatternDoc.letters`), so a
+ * colour keeps its letter while the design changes around it. Only colours
+ * actually painted ever get one, which is what keeps unused palette colours
+ * from eating letters the way they once did.
  *
  * For an earring pair it reads both earrings, whichever one is on screen:
  * one set of letters for the pair, and counts that add up across both.
@@ -33,14 +32,16 @@ export function usePatternLetters(): LetterEntry[] {
   // Only needed while the right earring is on screen: the left one then lives
   // in the saved pattern, not in the working fields.
   const savedLeft = usePatternsStore((s) => (side === 'right' && patternId ? s.patterns[patternId] : undefined))
+  /** The letters the pattern already handed out — so an edit never renames a colour. */
+  const saved = usePatternsStore((s) => (patternId ? s.patterns[patternId]?.letters : undefined))
 
   return useMemo(() => {
     const current: Piece = { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop }
-    if (!pair) return assignLettersAcross([current])
-    if (side === 'left') return assignLettersAcross([current, rightEarring(current, pair)])
+    if (!pair) return assignLettersAcross([current], saved)
+    if (side === 'left') return assignLettersAcross([current, rightEarring(current, pair)], saved)
     const left = savedLeft ? leftPieceOf(savedLeft) : current
-    return assignLettersAcross([left, current])
-  }, [technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair, side, savedLeft])
+    return assignLettersAcross([left, current], saved)
+  }, [technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair, side, savedLeft, saved])
 }
 
 /** The same assignment as a hex → letter lookup, for the views that only draw labels. */

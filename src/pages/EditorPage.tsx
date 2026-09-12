@@ -227,8 +227,11 @@ export function EditorPage() {
     const left = leftPiece()
     // `pair` is read after `leftPiece()` flushed any pending save, so it holds the right earring's latest colours.
     const currentPair = useEditorStore.getState().pair
-    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair }
-    return { ...left, pair: currentPair }
+    // The saved letter assignment travels with the export, so paper and screen
+    // name the same colour the same way — see `engine/letters.ts`.
+    const letterAssignment = id ? getPattern(id)?.letters : undefined
+    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair, letterAssignment }
+    return { ...left, pair: currentPair, letterAssignment }
   }
 
   function handleBackupPattern() {

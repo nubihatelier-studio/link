@@ -3,7 +3,7 @@ import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm } from '@/en
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { letterMap } from '@/engine/letters'
+import { letterMap, type LetterAssignment } from '@/engine/letters'
 import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from './beadStyle'
 import { shareOrDownloadFile } from './shareFile'
@@ -21,6 +21,12 @@ export interface ExportImageOptions {
   rowShape?: RowShape[]
   /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1
+  /**
+   * The letters the pattern remembers (`PatternDoc.letters`), so paper and
+   * screen agree even after colours have been added or erased. Absent falls
+   * back to numbering by order of first use.
+   */
+  letterAssignment?: LetterAssignment
   beadType: BeadTypeDef
   /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
   loop?: LoopData
@@ -109,7 +115,7 @@ export function renderPatternCanvas(
   ctx.fillStyle = backgroundHex
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const letterForHex = letters ?? letterMap({ technique, cols, rows, cells, fringe, rowShape, loop })
+  const letterForHex = letters ?? letterMap({ technique, cols, rows, cells, fringe, rowShape, loop }, opts.letterAssignment)
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
 
   // Same bead style as the editor — see lib/beadStyle.ts.
@@ -332,7 +338,7 @@ export function renderExportCanvas(opts: ExportImageOptions, backgroundHex: stri
     loop: opts.loop,
   }
   const pieces = piecesOf(left, opts.pair)
-  const letters = letterMap(pieces)
+  const letters = letterMap(pieces, opts.letterAssignment)
   const canvases = pieces.map((piece) => renderPatternCanvas({ ...opts, ...piece }, backgroundHex, targetLongSidePx, letters))
 
   const bounds = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe))

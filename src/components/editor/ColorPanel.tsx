@@ -14,6 +14,7 @@ import {
   SquareDashedMousePointer,
 } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
+import { usePatternsStore } from '@/store/patternsStore'
 import type { GradientDirection } from '@/engine/gradient'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { catalogMatchForHex, contrastTextColor } from '@/lib/color'
@@ -35,6 +36,7 @@ export function ColorPanel({
     setSlotColor,
     addSlot,
     chooseColor,
+    patternId,
     selection,
     cloneDirection,
     setCloneDirection,
@@ -95,6 +97,7 @@ export function ColorPanel({
   }
 
   const { palette, used, unused, isActive, pick } = usePaletteSwatches()
+  const reletterPattern = usePatternsStore((s) => s.reletterPattern)
   const colorLetters = useMemo(
     () => Object.fromEntries(palette.map((p) => [p.hex, p.letter])),
     [palette],
@@ -266,9 +269,22 @@ export function ColorPanel({
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-          {t.editor.palette} ({palette.length})
-        </h3>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            {t.editor.palette} ({palette.length})
+          </h3>
+          {/* Las letras no se mueven solas nunca; cerrarles los huecos es una
+              decisión de quien teje, no un efecto secundario de borrar un color. */}
+          {patternId && palette.length > 0 && (
+            <button
+              onClick={() => reletterPattern(patternId)}
+              title={t.editor.reletterHint}
+              className="shrink-0 rounded-full bg-surface-2 px-3 py-1 text-[11px] font-semibold text-text-muted transition-colors hover:text-text"
+            >
+              {t.editor.reletter}
+            </button>
+          )}
+        </div>
         <ul className="flex flex-col gap-1.5">
           {palette.map((p) => {
             const match = catalogMatchForHex(p.hex)

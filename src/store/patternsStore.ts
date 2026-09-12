@@ -1,3 +1,5 @@
+import { extendAssignment, reletterConsecutively } from '@/engine/letters'
+import { leftPieceOf, piecesOf } from '@/engine/pair'
 import { create } from 'zustand'
 import type { ColorMap, FringeData, LoopData, PairData, PatternConfig, PatternDoc, RowShape } from '@/engine/types'
 import { getStorageAdapter } from '@/storage'
@@ -51,6 +53,8 @@ interface PatternsState {
   /** Makes the pattern an earring pair, changes how its right earring is kept, or (undefined) makes it a single piece again. */
   setPair: (id: string, pair: PairData | undefined) => void
   getPattern: (id: string) => PatternDoc | undefined
+  /** Re-letters the pattern A, B, C… in weaving order — the palette's "Reordenar letras". */
+  reletterPattern: (id: string) => void
 }
 
 /**
@@ -60,7 +64,30 @@ interface PatternsState {
  * it without awaiting anything), then persists just that one record in the
  * background — not the whole collection, unlike the old localStorage blob.
  */
-function persistPattern(doc: PatternDoc) {
+/**
+ * The pattern's letter assignment, brought up to date: a colour that has just
+ * appeared earns the lowest free letter, one already remembered keeps its own,
+ * and a colour that is gone keeps its letter reserved for when it comes back.
+ *
+ * Done here because every mutation funnels through `persistPattern`, so no
+ * caller has to remember it — and forgetting it is exactly what made letters
+ * shuffle: they were re-derived from the cells on every read, so erasing the
+ * colour that happened to be woven first renamed all the others.
+ */
+function withLetterAssignment(doc: PatternDoc): PatternDoc {
+  const letters = extendAssignment(piecesOf(leftPieceOf(doc), doc.pair), doc.letters)
+  const before = doc.letters ?? {}
+  const unchanged =
+    Object.keys(letters).length === Object.keys(before).length &&
+    Object.entries(letters).every(([hex, letter]) => before[hex] === letter)
+  return unchanged ? doc : { ...doc, letters }
+}
+
+function persistPattern(docIn: PatternDoc) {
+  const doc = withLetterAssignment(docIn)
+  if (doc !== docIn) {
+    usePatternsStore.setState((s) => (s.patterns[doc.id] ? { patterns: { ...s.patterns, [doc.id]: doc } } : s))
+  }
   getStorageAdapter()
     .then((adapter) => adapter.savePattern(doc))
     .catch((err) => console.error('No se pudo guardar el patrón', err))
@@ -210,6 +237,17 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     set((s) => ({ patterns: { ...s.patterns, [newId]: doc }, order: [newId, ...s.order] }))
     persistPattern(doc)
     return newId
+  },
+
+  reletterPattern: (id) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, letters: reletterConsecutively(piecesOf(leftPieceOf(doc), doc.pair)), updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
   },
 
   setCells: (id, cells) => {

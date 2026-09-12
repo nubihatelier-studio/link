@@ -158,6 +158,8 @@ export const t = {
     canvasLabel: 'Lienzo del patrón',
     colorPickerToggle: 'Mostrar/ocultar selector de color',
     addColor: 'Agregar color',
+    reletter: 'Reordenar letras',
+    reletterHint: 'Vuelve a numerar los colores A, B, C… en el orden en que se tejen. Las letras no cambian solas al editar.',
     colorsTitle: 'Colores',
     colorsDone: 'Listo',
     moreColors: 'Más colores',

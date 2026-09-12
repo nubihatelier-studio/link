@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from './types'
-import { assignLetters, assignLettersAcross, letterForIndex, letterMap, type LetterPattern } from './letters'
+import { assignLetters, assignLettersAcross, extendAssignment, letterForIndex, letterMap, reletterConsecutively, type LetterPattern } from './letters'
 import { mirrorPiece, rightEarring, splitPair } from './pair'
 import { cellKey } from './cellKey'
 
@@ -310,5 +310,61 @@ describe('assignLettersAcross — un par de aros comparte una sola notación', (
     const map = letterMap([left, mirrorPiece(left)])
     expect(map.get(RED)).toBe('A')
     expect(map.get(GREEN)).toBe('B')
+  })
+})
+
+describe('letras estables: una vez A, siempre A', () => {
+  const ORO = '#c9a227'
+  const NEGRO = '#1c1c1e'
+  const GRIS = '#8da2b0'
+  const ROJO = '#d94f4f'
+  /** Telar 3×1: se teje de izquierda a derecha, así que el orden es columna 0, 1, 2. */
+  const tira = (cells: ColorMap): LetterPattern => ({ technique: 'loom', cols: 3, rows: 1, cells })
+  const mapa = (entries: { hex: string; letter: string }[]) => Object.fromEntries(entries.map((e) => [e.hex, e.letter]))
+
+  it('sin asignación guardada, numera por orden de tejido (como siempre)', () => {
+    const entries = assignLetters(tira({ '0,0': ORO, '0,1': NEGRO }))
+    expect(mapa(entries)).toEqual({ [ORO]: 'A', [NEGRO]: 'B' })
+  })
+
+  it('borrar el color que iba primero NO renombra a los demás', () => {
+    const antes = extendAssignment([tira({ '0,0': ORO, '0,1': NEGRO, '0,2': GRIS })])
+    expect(antes).toEqual({ [ORO]: 'A', [NEGRO]: 'B', [GRIS]: 'C' })
+
+    // Se borra el oro: negro y gris conservan B y C en vez de correrse a A y B.
+    const despues = assignLetters(tira({ '0,1': NEGRO, '0,2': GRIS }), antes)
+    expect(mapa(despues)).toEqual({ [NEGRO]: 'B', [GRIS]: 'C' })
+  })
+
+  it('un color nuevo toma la letra libre más baja, sin pisar a nadie', () => {
+    const guardado = { [ORO]: 'A', [NEGRO]: 'B' }
+    // Se borró el oro y se pinta un rojo: la A está reservada, así que el rojo es C.
+    const despues = assignLetters(tira({ '0,1': NEGRO, '0,2': ROJO }), guardado)
+    expect(mapa(despues)).toEqual({ [NEGRO]: 'B', [ROJO]: 'C' })
+  })
+
+  it('un color que vuelve recupera su propia letra', () => {
+    const guardado = { [ORO]: 'A', [NEGRO]: 'B' }
+    const despues = assignLetters(tira({ '0,0': ORO, '0,1': NEGRO }), guardado)
+    expect(mapa(despues)).toEqual({ [ORO]: 'A', [NEGRO]: 'B' })
+  })
+
+  it('las entradas salen en orden de letra, que es como se lee la lista de materiales', () => {
+    const guardado = { [ORO]: 'C', [NEGRO]: 'A' }
+    const entries = assignLetters(tira({ '0,0': ORO, '0,1': NEGRO }), guardado)
+    expect(entries.map((e) => e.letter)).toEqual(['A', 'C'])
+  })
+
+  it('"Reordenar letras" cierra los huecos, en orden de tejido', () => {
+    const conHueco = { [NEGRO]: 'B', [GRIS]: 'C' }
+    const pieza = tira({ '0,1': NEGRO, '0,2': GRIS })
+    expect(assignLetters(pieza, conHueco).map((e) => e.letter)).toEqual(['B', 'C'])
+    expect(reletterConsecutively([pieza])).toEqual({ [NEGRO]: 'A', [GRIS]: 'B' })
+  })
+
+  it('extendAssignment no olvida a los colores borrados', () => {
+    const guardado = { [ORO]: 'A', [NEGRO]: 'B' }
+    const siguiente = extendAssignment([tira({ '0,1': NEGRO, '0,2': ROJO })], guardado)
+    expect(siguiente).toEqual({ [ORO]: 'A', [NEGRO]: 'B', [ROJO]: 'C' })
   })
 })

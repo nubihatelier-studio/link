@@ -5,7 +5,7 @@ import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, 
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
-import { assignLettersAcross, type LetterEntry } from '@/engine/letters'
+import { assignLettersAcross, type LetterAssignment, type LetterEntry } from '@/engine/letters'
 import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetrics, contrastTextColor } from './beadStyle'
 import { catalogMatchForHex } from './color'
@@ -27,6 +27,12 @@ export interface ExportPatternOptions {
   rowShape?: RowShape[]
   /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1
+  /**
+   * The letters the pattern remembers (`PatternDoc.letters`), so paper and
+   * screen agree even after colours have been added or erased. Absent falls
+   * back to numbering by order of first use.
+   */
+  letterAssignment?: LetterAssignment
   /** Free-text note — printed in the ficha page's notes area instead of blank handwriting lines when present. */
   note?: string
   /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
@@ -630,7 +636,7 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   // legend label a color the same way, and the same way the editor does (see
   // `engine/letters.ts`). For a pair it spans both earrings, and the counts
   // are the pair's.
-  const palette = assignLettersAcross(pieces)
+  const palette = assignLettersAcross(pieces, opts.letterAssignment)
   const letterForHex = new Map(palette.map((p) => [p.hex, p.letter]))
 
   drawHeaderBlock(doc, opts, margin)

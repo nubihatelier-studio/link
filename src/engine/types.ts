@@ -1,3 +1,4 @@
+import type { LetterAssignment } from './letters'
 export type Technique = 'loom' | 'peyote' | 'brick'
 
 export interface BeadTypeDef {
@@ -134,6 +135,13 @@ export interface PatternDoc {
   loop?: LoopData
   /** One earring of a pair — see `PairData`. Absent = a single piece. */
   pair?: PairData
+  /**
+   * Which letter each colour holds — see `engine/letters.ts#LetterAssignment`.
+   * Kept with the pattern so a colour never gets renamed by an edit elsewhere
+   * in the piece. Absent on patterns made before this, which fall back to
+   * numbering by order of first use, exactly as they always did.
+   */
+  letters?: LetterAssignment
   createdAt: number
   updatedAt: number
 }

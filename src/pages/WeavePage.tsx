@@ -126,7 +126,10 @@ export function WeavePage() {
    * as pages of a printout nobody follows bead by bead. Letters come from both
    * earrings of a pair, so they match the PDF and the editor.
    */
-  const letterEntries = useMemo(() => (left ? assignLettersAcross(piecesOf(left, pair)) : []), [left, pair])
+  const letterEntries = useMemo(
+    () => (left ? assignLettersAcross(piecesOf(left, pair), pattern?.letters) : []),
+    [left, pair, pattern?.letters],
+  )
   const hexForLetter = useMemo(() => new Map(letterEntries.map((e) => [e.letter, e.hex])), [letterEntries])
   const wordChartLines = useMemo(() => {
     if (!left || !piece) return []
