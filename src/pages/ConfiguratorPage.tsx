@@ -23,6 +23,8 @@ import { Card } from '@/components/shared/Card'
 import { SelectableCard } from '@/components/shared/SelectableCard'
 import { IconSelectableCard } from '@/components/shared/IconSelectableCard'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { ColumnsIcon } from '@/components/icons/ColumnsIcon'
+import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { TemplateIcon, type TemplateId } from '@/components/configurator/TemplateIcon'
@@ -342,6 +344,7 @@ export function ConfiguratorPage() {
         <section className="mb-8 flex flex-col gap-5">
           <SliderField
             label={t.configurator.columns}
+            icon={<ColumnsIcon />}
             value={cols}
             min={MIN_DIM}
             max={MAX_DIM}
@@ -349,6 +352,7 @@ export function ConfiguratorPage() {
           />
           <SliderField
             label={t.configurator.rows}
+            icon={<RowsIcon />}
             value={rows}
             min={MIN_DIM}
             max={MAX_DIM}

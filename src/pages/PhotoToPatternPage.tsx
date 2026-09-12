@@ -15,6 +15,8 @@ import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
 import { SelectableCard } from '@/components/shared/SelectableCard'
+import { ColumnsIcon } from '@/components/icons/ColumnsIcon'
+import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -212,8 +214,10 @@ export function PhotoToPatternPage() {
 
           <section className="mb-8 flex flex-col gap-5">
             <h2 className="text-sm font-semibold text-text-muted">{t.photo.grid}</h2>
-            <SliderField label={t.configurator.columns} value={cols} min={8} max={150} onChange={setCols} />
-            <SliderField label={t.configurator.rows} value={rows} min={8} max={150} onChange={setRows} />
+            <SliderField label={t.configurator.columns}
+            icon={<ColumnsIcon />} value={cols} min={8} max={150} onChange={setCols} />
+            <SliderField label={t.configurator.rows}
+            icon={<RowsIcon />} value={rows} min={8} max={150} onChange={setRows} />
           </section>
 
           <section className="mb-8">
