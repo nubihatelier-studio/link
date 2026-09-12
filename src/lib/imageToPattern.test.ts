@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { suggestGridForImage } from './imageToPattern'
+import { bestPhase, dominantPeriod, MIN_GRID_STRENGTH, suggestGridForImage } from './imageToPattern'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
 const DELICA_W = 1.6
@@ -36,5 +36,53 @@ describe('suggestGridForImage', () => {
   it('a tall (portrait) photo yields more rows than columns', () => {
     const { cols, rows } = suggestGridForImage(300, 600, 'loom', DELICA_W, DELICA_H, 60)
     expect(rows).toBeGreaterThan(cols)
+  })
+})
+
+describe('dominantPeriod — el paso de la grilla, por autocorrelación', () => {
+  /** Un perfil de bordes como el de un gráfico: un pico cada `paso` píxeles. */
+  function perfilConPaso(paso: number, largo: number, ruido = 0): number[] {
+    const p: number[] = []
+    let semilla = 12345
+    for (let i = 0; i < largo; i++) {
+      semilla = (semilla * 1103515245 + 12345) % 2147483648 // ruido reproducible, sin período propio
+      const enBorde = i % paso === 0
+      p.push((enBorde ? 40 : 4) + (ruido ? (semilla / 2147483648) * 10 * ruido : 0))
+    }
+    return p
+  }
+
+  // El paso vuelve con decimales a propósito (ver `dominantPeriod`): un paso
+  // real rara vez cae en un número entero de píxeles, y redondearlo corría el
+  // muestreo media mostacilla. En una grilla sintética de paso exacto, eso se
+  // ve como 17.0015 en vez de 17.
+  it('encuentra el paso de una grilla limpia', () => {
+    expect(dominantPeriod(perfilConPaso(17, 220), 4, 70).period).toBeCloseTo(17, 1)
+  })
+
+  it('lo encuentra igual con ruido encima, que es donde fallaba buscar picos', () => {
+    const { period, strength } = dominantPeriod(perfilConPaso(11, 300, 0.6), 4, 100)
+    expect(period).toBeCloseTo(11, 1)
+    expect(strength).toBeGreaterThan(MIN_GRID_STRENGTH)
+  })
+
+  it('una imagen sin grilla (un degradado) no da una repetición fuerte', () => {
+    const degradado = Array.from({ length: 300 }, (_, i) => i * 0.5)
+    expect(dominantPeriod(degradado, 4, 100).strength).toBeLessThan(MIN_GRID_STRENGTH)
+  })
+})
+
+describe('bestPhase — caer en el centro de la mostacilla, no en el borde', () => {
+  it('elige el corrimiento que aterriza en el centro', () => {
+    // Costo mínimo a medio paso: es donde está el centro si la grilla arranca en un borde.
+    const pitch = 12
+    const costo = (offset: number) => Math.abs(((offset % pitch) + pitch) % pitch - pitch / 2)
+    expect(bestPhase(pitch, costo, 12)).toBeCloseTo(pitch / 2, 1)
+  })
+
+  it('si ya está centrada, no la mueve', () => {
+    const pitch = 10
+    const costo = (offset: number) => Math.min(offset, pitch - offset) === 0 ? 0 : 5
+    expect(bestPhase(pitch, costo, 10)).toBe(0)
   })
 })

@@ -101,6 +101,8 @@ export const t = {
     updating: 'Actualizando…',
     beadType: 'Tipo de mostacilla',
     detectedColors: (n: number) => (n === 1 ? '1 color detectado' : `${n} colores detectados`),
+    /** Aviso cuando la imagen es un gráfico y se reconoció su grilla de mostacillas — ver lib/imageToPattern.ts#detectBeadGrid. */
+    gridDetected: (cols: number, rows: number) => `Reconocimos la grilla del gráfico: ${cols} × ${rows} mostacillas`,
     materials: 'Materiales detectados',
     createButton: '+ Crear patrón',
   },

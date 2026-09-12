@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { PatternDoc, Technique } from '@/engine/types'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
-import { suggestGridForImage, imageToPattern, type ImageToPatternResult } from '@/lib/imageToPattern'
+import { detectBeadGrid, suggestGridForImage, imageToPattern, type BeadGrid, type ImageToPatternResult } from '@/lib/imageToPattern'
 import { catalogMatchForHex } from '@/lib/color'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
@@ -30,6 +30,14 @@ export function PhotoToPatternPage() {
   const [beadTypeId, setBeadTypeId] = useState(BEAD_TYPES[0].id)
   const [processing, setProcessing] = useState(false)
   const [preview, setPreview] = useState<ImageToPatternResult | null>(null)
+  /**
+   * The bead grid found in the image, when it is a chart (or a piece shot flat
+   * and square-on) — see `lib/imageToPattern.ts#detectBeadGrid`. It decides
+   * both the starting grid and how cells are read: from bead centres instead
+   * of from averaged rectangles. Null for an ordinary photo, which falls back
+   * to plain pixelation.
+   */
+  const [grid, setGrid] = useState<BeadGrid | null>(null)
 
   const bead = getBeadType(beadTypeId)
 
@@ -39,6 +47,15 @@ export function PhotoToPatternPage() {
     img.onload = () => {
       setImgEl(img)
       setImgUrl(url)
+      // A chart says how many beads it has; only guess from the aspect ratio
+      // when the image isn't one.
+      const found = detectBeadGrid(img)
+      setGrid(found)
+      if (found) {
+        setCols(found.cols)
+        setRows(found.rows)
+        return
+      }
       const suggestion = suggestGridForImage(img.width, img.height, technique, bead.widthMm, bead.heightMm, 50)
       setCols(suggestion.cols)
       setRows(suggestion.rows)
@@ -51,7 +68,7 @@ export function PhotoToPatternPage() {
   // leave the grid distorted relative to the new physical cell shape.
   function handleTechniqueChange(next: Technique) {
     setTechnique(next)
-    if (imgEl) {
+    if (imgEl && !grid) {
       const suggestion = suggestGridForImage(imgEl.width, imgEl.height, next, bead.widthMm, bead.heightMm, 50)
       setCols(suggestion.cols)
       setRows(suggestion.rows)
@@ -60,7 +77,7 @@ export function PhotoToPatternPage() {
 
   function handleBeadTypeChange(nextId: string) {
     setBeadTypeId(nextId)
-    if (imgEl) {
+    if (imgEl && !grid) {
       const nextBead = getBeadType(nextId)
       const suggestion = suggestGridForImage(imgEl.width, imgEl.height, technique, nextBead.widthMm, nextBead.heightMm, 50)
       setCols(suggestion.cols)
@@ -76,14 +93,14 @@ export function PhotoToPatternPage() {
     setProcessing(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const result = imageToPattern(imgEl, { cols, rows, numColors })
+      const result = imageToPattern(imgEl, { cols, rows, numColors, grid })
       setPreview(result)
       setProcessing(false)
     }, REGENERATE_DEBOUNCE_MS)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [imgEl, technique, cols, rows, numColors, beadTypeId])
+  }, [imgEl, technique, cols, rows, numColors, beadTypeId, grid])
 
   function handleCreate() {
     if (!preview) return
@@ -122,6 +139,11 @@ export function PhotoToPatternPage() {
         <section className="mb-8">
           <div className="flex gap-3">
             <div className="flex-1">
+              {grid && (
+                <p className="mb-2 rounded-xl bg-accent-500/10 px-3 py-2 text-xs font-semibold text-accent-500">
+                  {t.photo.gridDetected(grid.cols, grid.rows)}
+                </p>
+              )}
               <p className="mb-2 text-xs font-semibold text-text-muted">{t.photo.original}</p>
               <div className="aspect-square overflow-hidden rounded-2xl border border-border bg-surface-2">
                 <img src={imgUrl} alt="" className="h-full w-full object-cover" />
