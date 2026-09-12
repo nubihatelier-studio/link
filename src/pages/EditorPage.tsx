@@ -19,6 +19,7 @@ import { CanvasGrid } from '@/components/editor/CanvasGrid'
 import { HistoryButtons, ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { ColorStrip } from '@/components/editor/ColorStrip'
+import { FringeIcon } from '@/components/icons/FringeIcon'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
@@ -523,7 +524,8 @@ export function EditorPage() {
                 onClick={() => setFringeDrawerOpen(true)}
                 className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
-                🪶 {t.editor.fringe.shortTitle}
+                <FringeIcon />
+                {t.editor.fringe.shortTitle}
               </button>
             )}
             {!onRightEarring && (

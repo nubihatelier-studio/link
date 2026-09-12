@@ -70,7 +70,7 @@ export const t = {
       personalizadoDesc: 'Empieza desde cero',
     },
     fringe: {
-      title: 'Flecos 🪶',
+      title: 'Flecos',
       add: '+ Agregar flecos',
       remove: 'Quitar flecos',
       hint: 'Cuelgan de la última fila — el largo y la forma son solo un punto de partida, todo se puede editar después en el editor.',
@@ -186,7 +186,7 @@ export const t = {
     },
     shortcutsTitle: 'Atajos de teclado',
     fringe: {
-      title: 'Flecos 🪶',
+      title: 'Flecos',
       shortTitle: 'Flecos',
       column: (n: number) => `Columna ${n}`,
       beadsUnit: 'mostacillas',

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { createFringeLengthShape, maxFringeLength, MAX_FRINGE_LENGTH, type FringeSculptShape } from '@/engine/fringe'
+import { FringeIcon } from '@/components/icons/FringeIcon'
 import { t } from '@/i18n/es'
 
 const QUICK_SHAPES: { shape: FringeSculptShape; label: string }[] = [
@@ -49,7 +50,10 @@ export function FringePanel() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.fringe.title}</h3>
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+          <FringeIcon />
+          {t.editor.fringe.title}
+        </h3>
         <button
           aria-label={t.editor.fringe.showDivider}
           title={t.editor.fringe.showDividerHint}

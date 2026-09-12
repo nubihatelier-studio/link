@@ -24,6 +24,7 @@ import { SelectableCard } from '@/components/shared/SelectableCard'
 import { IconSelectableCard } from '@/components/shared/IconSelectableCard'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { ColumnsIcon } from '@/components/icons/ColumnsIcon'
+import { FringeIcon } from '@/components/icons/FringeIcon'
 import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
@@ -451,7 +452,10 @@ export function ConfiguratorPage() {
       {isFringeCapable(technique) && (
         <section className="mb-8">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.fringe.title}</h2>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
+              <FringeIcon />
+              {t.configurator.fringe.title}
+            </h2>
             <button
               onClick={() => {
                 setFringeEnabled((v) => !v)
