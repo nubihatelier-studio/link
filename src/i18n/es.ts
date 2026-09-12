@@ -65,9 +65,7 @@ export const t = {
     templates: {
       title: '1 · Empezar desde una plantilla',
       pulsera: 'Pulsera',
-      pulseraDesc: 'Tira angosta y larga para la muñeca',
       aroFlecos: 'Aro con flecos',
-      aroFlecosDesc: 'Cuerpo chico + flecos colgando',
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },

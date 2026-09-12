@@ -6,7 +6,8 @@ interface IconSelectableCardProps {
   onClick: () => void
   icon: ReactNode
   label: string
-  description: string
+  /** Optional: the two icons that say it on their own (pulsera, aro con flecos) carry no line of text. */
+  description?: string
 }
 
 /**
@@ -25,7 +26,7 @@ export function IconSelectableCard({ selected, onClick, icon, label, description
     >
       <span className="flex h-10 w-10 items-center justify-center">{icon}</span>
       <p className="font-semibold">{label}</p>
-      <p className="text-xs text-text-muted">{description}</p>
+      {description && <p className="text-xs text-text-muted">{description}</p>}
     </SelectableCard>
   )
 }

@@ -36,7 +36,8 @@ const MAX_DIM = 200
 interface TemplatePreset {
   id: TemplateId
   label: string
-  description: string
+  /** Opcional: pulsera y aro con flecos se explican con su dibujo. */
+  description?: string
   technique: Technique
   cols: number
   rows: number
@@ -92,7 +93,6 @@ const TEMPLATES: TemplatePreset[] = [
   {
     id: 'pulsera',
     label: t.configurator.templates.pulsera,
-    description: t.configurator.templates.pulseraDesc,
     technique: 'peyote',
     // The real bracelet the size model is calibrated against: 6 × 60 in
     // Delica 11/0 finishes at 8 × 102 mm (see engine/calibration.ts). Starting
@@ -109,7 +109,6 @@ const TEMPLATES: TemplatePreset[] = [
   {
     id: 'aroFlecos',
     label: t.configurator.templates.aroFlecos,
-    description: t.configurator.templates.aroFlecosDesc,
     technique: 'brick',
     // A trapezoid body (triangle preset: narrow top, full-width bottom) that
     // grows exactly 1 bead/row up to 7 beads by the last row — the row the

@@ -59,51 +59,43 @@ const STROKE = { stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round
  * tira angosta y larga que la plantilla crea.
  */
 function PulseraIcon({ size = 40, className }: IconProps) {
-  const rows = [17.5, 24, 30.5]
-  const cols = [14.5, 19.5, 24.5, 29.5, 34.5]
+  const rows = [18.6, 24, 29.4]
+  // Siete columnas de mostacillas más chicas: la tira cruza el ícono de lado a
+  // lado, que es lo que distingue una pulsera de un aro.
+  const cols = [12.6, 17.2, 21.8, 26.4, 31, 35.6]
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden="true">
-      {rows.map((y, r) => cols.map((x, c) => bead(x, y, 4.2, `${r}-${c}`)))}
-      {roundBead(6.5, 24, 3.2, 'cierre-izq')}
-      {roundBead(41.5, 24, 3.2, 'cierre-der')}
-      <line x1={9.7} y1={24} x2={12.4} y2={24} {...STROKE} />
-      <line x1={36.6} y1={24} x2={38.3} y2={24} {...STROKE} />
+      {rows.map((y, r) => cols.map((x, c) => bead(x, y, 4, `${r}-${c}`)))}
+      {roundBead(5.4, 24, 2.8, 'cierre-izq')}
+      {roundBead(42.6, 24, 2.8, 'cierre-der')}
+      <line x1={8.2} y1={24} x2={10.6} y2={24} {...STROKE} />
+      <line x1={37.6} y1={24} x2={39.8} y2={24} {...STROKE} />
     </svg>
   )
 }
 
 /**
- * Aro con flecos — el gancho de la oreja, el cuerpo chico que se teje arriba
- * y las hebras colgando, cada una rematada en su mostacilla: la pieza
- * completa, no sólo el aro.
+ * Aro con flecos — el gancho y la pieza entera como silueta: el rombo que
+ * forman el cuerpo y los flecos juntos, que es como se ve el aro terminado
+ * (y como se ve el patrón en el editor). Antes eran un cuerpito y tres hebras
+ * sueltas, que leían como un colgante de alambre.
  */
 function AroFlecosIcon({ size = 40, className }: IconProps) {
-  // Pegadas entre sí (4.8 de paso para mostacillas de 4.6): un cuerpo tejido
-  // se ve macizo — separadas leían como un colgante de alambre.
-  const body: [number, number][] = [
-    [24, 15.4],
-    [21.6, 20.2],
-    [26.4, 20.2],
-    [19.2, 25],
-    [24, 25],
-    [28.8, 25],
-  ]
-  // La hebra del medio cuelga más, como en un aro de verdad.
-  const fringe = [
-    { x: 19.2, end: 36.5 },
-    { x: 24, end: 41 },
-    { x: 28.8, end: 36.5 },
-  ]
+  // Un rombo alargado: se ensancha hasta la mitad y vuelve a la punta, como
+  // el cuerpo y los flecos juntos. Las mostacillas son más chicas que el paso
+  // (3.2 contra 3.6) para que se distingan una a una: pegadas se veían como
+  // una mazorca maciza.
+  const pitchX = 3.6
+  const pitchY = 3.7
+  const rowCounts = [1, 2, 3, 4, 5, 4, 3, 2, 1]
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden="true">
-      <path d="M24 13.2V10a4 4 0 1 1 6.4 3.2" fill="none" {...STROKE} />
-      {body.map(([x, y], i) => bead(x, y, 4.6, `cuerpo-${i}`))}
-      {fringe.map(({ x, end }, i) => (
-        <g key={`fleco-${i}`}>
-          <line x1={x} y1={27.6} x2={x} y2={end - 2.2} {...STROKE} />
-          {roundBead(x, end, 1.9, `remate-${i}`)}
-        </g>
-      ))}
+      <path d="M24 12.2V9a3.6 3.6 0 1 1 5.6 3" fill="none" {...STROKE} />
+      {rowCounts.map((count, row) =>
+        Array.from({ length: count }).map((_, i) =>
+          bead(24 + (i - (count - 1) / 2) * pitchX, 13.8 + row * pitchY, 3.2, `${row}-${i}`),
+        ),
+      )}
     </svg>
   )
 }
