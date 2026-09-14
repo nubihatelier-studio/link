@@ -387,18 +387,16 @@ export function findBeadGrid({ data, width: W, height: H }: PixelImage, stagger:
   if (px.strength < MIN_GRID_STRENGTH || px.period < MIN_BEAD_PITCH_PX) return null
   const cols = countAlongEdges(colProfile, innerW, px.period)
   if (cols < MIN_BEADS_PER_SIDE || cols > MAX_BEADS_PER_SIDE) return null
-  // Re-derive the pitch from the whole run instead of the raw lag: rounding a
-  // 17.31px pitch to 17 drifts a full bead across 13 columns.
-  const pitchX = innerW / cols
-
-  // Phases lock onto bead *boundaries* — where the edges are — not onto the
-  // flattest spot. Flatness was the criterion before and a shaded chart
-  // defeats it: the dark lower half of a drawn bead is flatter than its
-  // highlighted middle, so it chose the seams and read every bead half
-  // across its neighbour. The left edge of the content box is a boundary too,
-  // so the phase is a small nudge either way — never most of a bead, which
-  // would push the last column off the image.
-  const x0 = left + wrapHalf(boundaryPhase(pitchX, innerW, (i) => colProfile[i - 1] ?? 0).offset, pitchX)
+  // The pitch comes from the whole run, not the raw lag — rounding a 17.31px
+  // pitch to 17 drifts a full bead across 13 columns — and it is fitted to the
+  // column boundaries rather than to the content box alone: the box takes in
+  // the antialiased pixel or two around the chart, and on the test chart that
+  // put the last column 5px into the paper. Boundaries, not the flattest spot:
+  // flatness was the criterion before and a shaded chart defeats it, since the
+  // dark lower half of a drawn bead is flatter than its highlighted middle.
+  const fitX = fitLattice(cols, innerW, (i) => colProfile[i - 1] ?? 0)
+  const pitchX = fitX.pitch
+  const x0 = left + fitX.start
   const colCentre = (col: number) => x0 + col * pitchX + pitchX / 2
   const familyCols = (family: 0 | 1) => Array.from({ length: cols }, (_, c) => c).filter((c) => c % 2 === family)
   /** The pixel columns down the middle of these bead columns — clear of the outlines between them. */
@@ -450,11 +448,6 @@ export function findBeadGrid({ data, width: W, height: H }: PixelImage, stagger:
    */
   const familyEdges = (family: 0 | 1, kind: 'chroma' | 'lum') => {
     const xs = middleXs(familyCols(family))
-    const chroma = (x: number, y: number) => {
-      const o = at(x, y)
-      const total = data[o] + data[o + 1] + data[o + 2] + 1
-      return [data[o] / total, data[o + 1] / total, data[o + 2] / total]
-    }
     const edges: number[] = []
     for (let y = top; y <= bottom; y++) {
       const up = Math.max(0, y - 1)
@@ -464,8 +457,16 @@ export function findBeadGrid({ data, width: W, height: H }: PixelImage, stagger:
         if (kind === 'lum') {
           sum += Math.abs(lum(x, down) - lum(x, up))
         } else {
-          const [a, b] = [chroma(x, up), chroma(x, down)]
-          sum += Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
+          // Inline rather than through small arrays: this runs for every
+          // pixel down half the chart, and a phone photo has millions.
+          const a = at(x, up)
+          const b = at(x, down)
+          const ta = data[a] + data[a + 1] + data[a + 2] + 1
+          const tb = data[b] + data[b + 1] + data[b + 2] + 1
+          sum +=
+            Math.abs(data[a] / ta - data[b] / tb) +
+            Math.abs(data[a + 1] / ta - data[b + 1] / tb) +
+            Math.abs(data[a + 2] / ta - data[b + 2] / tb)
         }
       }
       edges.push(sum / Math.max(1, xs.length))
@@ -498,19 +499,24 @@ export function findBeadGrid({ data, width: W, height: H }: PixelImage, stagger:
   // stands half a bead taller than its rows, since its low columns hang below
   // the others — so the same height holds a different count read each way.
   // The first boundary sits on the top of the content box, give or take a
-  // quarter bead for an antialiased edge.
+  // quarter bead, and the run may be a few pixels shorter than the box for the
+  // same antialiased edge as the columns (see `fitLattice`).
   type Reading = { rows: number; pitch: number; start: number; highFamily: 0 | 1 | null; score: number }
   let best: Reading | null = null
   const consider = (rows: number, highFamily: 0 | 1 | null) => {
     if (rows < MIN_BEADS_PER_SIDE || rows > MAX_BEADS_PER_SIDE) return
-    const pitch = innerH / (highFamily === null ? rows : rows + 0.5)
-    for (let step = -6; step <= 6; step++) {
-      const start = (step / 24) * pitch
-      const score =
-        highFamily === null
-          ? (latticeScore(0, start, pitch, rows) + latticeScore(1, start, pitch, rows)) / 2
-          : (latticeScore(highFamily, start, pitch, rows) + latticeScore(highFamily === 0 ? 1 : 0, start + pitch / 2, pitch, rows)) / 2
-      if (!best || score > best.score) best = { rows, pitch, start, highFamily, score }
+    const beads = highFamily === null ? rows : rows + 0.5
+    const { shorter, longer } = latticeTrim(innerH / beads)
+    for (let trim = -longer; trim <= shorter; trim += 0.5) {
+      const pitch = (innerH - trim) / beads
+      for (let step = -6; step <= 6; step++) {
+        const start = (step / 24) * pitch
+        const score =
+          highFamily === null
+            ? (latticeScore(0, start, pitch, rows) + latticeScore(1, start, pitch, rows)) / 2
+            : (latticeScore(highFamily, start, pitch, rows) + latticeScore(highFamily === 0 ? 1 : 0, start + pitch / 2, pitch, rows)) / 2
+        if (!best || score > best.score) best = { rows, pitch, start, highFamily, score }
+      }
     }
   }
   const estimate = innerH / roughPitchY
@@ -596,9 +602,36 @@ function boundaryPhase(pitch: number, span: number, energyAt: (i: number) => num
   return { offset: best.offset, contrast: mean > 1e-9 ? best.score / mean : 0 }
 }
 
-/** `value` brought into [-period/2, period/2) — the shortest way round a repeating phase. */
-function wrapHalf(value: number, period: number): number {
-  return ((((value + period / 2) % period) + period) % period) - period / 2
+/**
+ * The pitch and start of `count` beads across a span, fitted to where the
+ * edges are: the span may run a few pixels shorter than the content box (an
+ * antialiased border gets counted as content) or a little longer, and the
+ * first boundary may sit a pixel or two either side of the box's edge.
+ */
+function fitLattice(count: number, span: number, energyAt: (i: number) => number): { pitch: number; start: number } {
+  let best = { pitch: span / count, start: 0, score: -Infinity }
+  const { shorter, longer } = latticeTrim(span / count)
+  for (let trim = -longer; trim <= shorter; trim += 0.5) {
+    const pitch = (span - trim) / count
+    for (let start = -longer; start <= trim + longer; start += 0.5) {
+      let score = 0
+      for (let k = 0; k <= count; k++) {
+        const i = Math.round(start + k * pitch)
+        score += Math.max(energyAt(i - 1), energyAt(i), energyAt(i + 1))
+      }
+      if (score > best.score) best = { pitch, start, score }
+    }
+  }
+  return { pitch: best.pitch, start: best.start }
+}
+
+/**
+ * How much shorter than the content box a run of beads may be (its antialiased
+ * border), and how much longer — never more than a fraction of a bead, or on
+ * small beads the fit starts trading a whole row for a better score.
+ */
+function latticeTrim(pitch: number) {
+  return { shorter: Math.min(6, pitch * 0.3), longer: Math.min(2, pitch * 0.15) }
 }
 
 /**
@@ -645,21 +678,40 @@ function clamp(v: number, min: number, max: number) {
   return v < min ? min : v > max ? max : v
 }
 
-/** Median of a small patch at a bead's centre: immune to a highlight, a shadow, or an outline creeping in. */
-function medianPatch(data: Uint8ClampedArray, W: number, H: number, cx: number, cy: number, rx: number, ry: number): RGB {
-  const r: number[] = []
-  const g: number[] = []
-  const b: number[] = []
+/**
+ * The colour of a bead, read from its lit part: the pixels between the 60th
+ * and 90th percentile of brightness over most of the bead, averaged.
+ *
+ * It used to be the median of a small patch at the centre. A drawn bead is
+ * shaded — an outline, a dark gradient, a highlight, a shadow — and a small
+ * patch lands on one or the other depending on a pixel or two of phase: the
+ * test chart's gold came out as two colours, a light amber and a dark one,
+ * and so did its blue. Averaging the whole bead fixed that and broke
+ * something else: the outline and a sliver of the neighbour turned some gold
+ * beads grey. Every bead of a colour has the same lit part wherever the
+ * window falls, and the outline, the shadow and a neighbour's edge all sit
+ * below it; the top tenth is left out for a specular glint on a photo.
+ */
+function beadColour(data: Uint8ClampedArray, W: number, H: number, cx: number, cy: number, rx: number, ry: number): RGB {
+  const pixels: { r: number; g: number; b: number; l: number }[] = []
   for (let dy = -ry; dy <= ry; dy++) {
     for (let dx = -rx; dx <= rx; dx++) {
       const o = (clamp(cy + dy, 0, H - 1) * W + clamp(cx + dx, 0, W - 1)) * 4
-      r.push(data[o])
-      g.push(data[o + 1])
-      b.push(data[o + 2])
+      const [r, g, b] = [data[o], data[o + 1], data[o + 2]]
+      pixels.push({ r, g, b, l: 0.299 * r + 0.587 * g + 0.114 * b })
     }
   }
-  const mid = (a: number[]) => a.sort((u, v) => u - v)[a.length >> 1]
-  return { r: mid(r), g: mid(g), b: mid(b) }
+  // Paper showing past the ragged edge of a staggered chart is brighter than
+  // any bead and would be taken for its lit part — unless it is most of the
+  // window, which makes it a white bead.
+  const paper = pixels.filter((p) => p.r > 235 && p.g > 235 && p.b > 235).length
+  if (paper > 0 && paper < pixels.length / 2) {
+    for (let i = pixels.length - 1; i >= 0; i--) if (pixels[i].r > 235 && pixels[i].g > 235 && pixels[i].b > 235) pixels.splice(i, 1)
+  }
+  pixels.sort((u, v) => u.l - v.l)
+  const lit = pixels.slice(Math.floor(pixels.length * 0.6), Math.max(Math.floor(pixels.length * 0.6) + 1, Math.ceil(pixels.length * 0.9)))
+  const mean = (k: 'r' | 'g' | 'b') => Math.round(lit.reduce((sum, p) => sum + p[k], 0) / lit.length)
+  return { r: mean('r'), g: mean('g'), b: mean('b') }
 }
 
 /**
@@ -757,8 +809,9 @@ function sampleAtBeadCentres(
 
 export function sampleGrid({ data, width, height }: PixelImage, grid: BeadGrid, cols: number, rows: number, technique: Technique): RGB[] {
   const { rows: gridRows, shiftedParity } = staggerAlignment(grid, technique)
-  const rx = Math.max(1, Math.round(grid.pitchX / 5))
-  const ry = Math.max(1, Math.round(grid.pitchY / 5))
+  // Most of the bead, rounded down so a small bead's window never reaches past it.
+  const rx = Math.max(1, Math.floor(grid.pitchX * 0.3))
+  const ry = Math.max(1, Math.floor(grid.pitchY * 0.4))
 
   const out: RGB[] = []
   for (let row = 0; row < rows; row++) {
@@ -769,7 +822,7 @@ export function sampleGrid({ data, width, height }: PixelImage, grid: BeadGrid, 
       const bead = gridRow + (shiftedParity === gridCol % 2 ? 1 : 0)
       const cx = Math.round(grid.x0 + gridCol * grid.pitchX + grid.pitchX / 2)
       const cy = Math.round(grid.y0 + (odd ? grid.staggerY : 0) + bead * grid.pitchY + grid.pitchY / 2)
-      out.push(medianPatch(data, width, height, cx, cy, rx, ry))
+      out.push(beadColour(data, width, height, cx, cy, rx, ry))
     }
   }
   return out

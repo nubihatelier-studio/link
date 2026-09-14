@@ -192,6 +192,14 @@ describe('findBeadGrid — gráficos rectos y escalonados', () => {
     expect(leido(img, grid, 40, 'loom')).toBe(esperado(13, 40, () => 0))
   })
 
+  it('un gráfico sombreado de dos colores cuenta dos: la sombra no es un color aparte', () => {
+    for (const [pitchX, pitchY] of [[17, 21.6], [8, 6.5]]) {
+      const img = grafico({ cols: 14, rows: 25, pitchX, pitchY, altas: 1 })
+      const grid = findBeadGrid(img)!
+      expect(countDistinctColors(sampleGrid(img, grid, 14, 25, 'loom'))).toBe(2)
+    }
+  })
+
   it('en peyote, un gráfico con las columnas altas al revés se corre una mostacilla y pierde una fila', () => {
     // 13 columnas: el tejido deja altas las pares (la primera y la última), el gráfico trae altas las impares.
     const img = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 1 })
