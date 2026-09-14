@@ -4,6 +4,7 @@ import { DEFAULT_LOOP_BEAD_COUNT, DEFAULT_LOOP_COLOR, MAX_LOOP_BEAD_COUNT, MIN_L
 import { paletteFromCells } from '@/lib/palette'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { t } from '@/i18n/es'
+import { LoopIcon } from '@/components/icons/LoopIcon'
 
 const VARIANT_OPTIONS: { value: LoopVariant; label: string }[] = [
   { value: 'woven', label: t.editor.loop.variantWoven },
@@ -41,7 +42,10 @@ export function LoopPanel() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.loop.title}</h3>
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+          <LoopIcon />
+          {t.editor.loop.title}
+        </h3>
         <button
           onClick={() => (loop ? setLoop(undefined) : enable())}
           aria-pressed={!!loop}

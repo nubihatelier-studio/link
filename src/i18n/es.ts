@@ -266,7 +266,7 @@ export const t = {
       shortenBy: (n: number) => `−${n}`,
     },
     shape: {
-      title: 'Forma del cuerpo ◆',
+      title: 'Forma del cuerpo',
       shortTitle: 'Forma',
       row: (n: number) => `Fila ${n}`,
       beadsUnit: 'mostacillas',
@@ -303,7 +303,7 @@ export const t = {
       notAvailable: 'El par de aros está disponible en loom y brick.',
     },
     loop: {
-      title: 'Argolla de enganche 🔗',
+      title: 'Argolla de enganche',
       shortTitle: 'Argolla',
       add: '+ Agregar argolla',
       remove: 'Quitar argolla',

@@ -20,6 +20,8 @@ import { HistoryButtons, ToolPanel } from '@/components/editor/ToolPanel'
 import { ColorPanel } from '@/components/editor/ColorPanel'
 import { ColorStrip } from '@/components/editor/ColorStrip'
 import { FringeIcon } from '@/components/icons/FringeIcon'
+import { ShapeIcon } from '@/components/icons/ShapeIcon'
+import { LoopIcon } from '@/components/icons/LoopIcon'
 import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
@@ -506,7 +508,8 @@ export function EditorPage() {
                 onClick={() => setShapeDrawerOpen(true)}
                 className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
-                ◆ {t.editor.shape.shortTitle}
+                <ShapeIcon />
+                {t.editor.shape.shortTitle}
               </button>
             )}
             {fringeCapable && (
@@ -523,7 +526,8 @@ export function EditorPage() {
                 onClick={() => setLoopDrawerOpen(true)}
                 className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
               >
-                🔗 {t.editor.loop.shortTitle}
+                <LoopIcon />
+                {t.editor.loop.shortTitle}
               </button>
             )}
           </div>
