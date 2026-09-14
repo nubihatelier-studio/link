@@ -71,6 +71,23 @@ export const t = {
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },
+    /** Plantillas guardadas por quien teje desde el editor — ver engine/template.ts. */
+    userTemplates: {
+      title: 'Tus plantillas',
+      options: (name: string) => `Opciones de la plantilla ${name}`,
+      rename: 'Renombrar',
+      renameTitle: 'Renombrar plantilla',
+      delete: 'Eliminar',
+      deleted: (name: string) => `Plantilla eliminada: ${name}`,
+      modeLabel: 'Qué trae el patrón nuevo',
+      full: 'Con colores y dibujo',
+      shape: 'Solo la forma',
+      fullHint: 'Sale igual a la plantilla: forma, flecos, argolla, colores y dibujo. Después lo editas como cualquier patrón.',
+      shapeHint: 'Sale con la misma forma, flecos y argolla, con la bandeja vacía y sin pintar.',
+      summary: (technique: string, cols: number, rows: number, beads: number) =>
+        `${technique} · ${cols} × ${rows} · ${beads} ${beads === 1 ? 'mostacilla' : 'mostacillas'}`,
+      unchanged: 'La plantilla no cambia al editar el patrón nuevo.',
+    },
     fringe: {
       title: 'Flecos',
       add: '+ Agregar flecos',
@@ -134,6 +151,19 @@ export const t = {
     clearPattern: 'Vaciar el patrón',
     clearPatternHint: 'Borra todo lo pintado y deja la pieza vacía. Se puede deshacer.',
     deletePattern: 'Eliminar el patrón',
+    /** "Guardar como plantilla", en el menú "⋯" del editor. */
+    saveTemplate: {
+      menu: 'Guardar como plantilla',
+      menuHint: 'Aparece en "Crear patrón" para empezar otros desde este.',
+      title: 'Guardar como plantilla',
+      nameLabel: 'Nombre de la plantilla',
+      save: 'Guardar',
+      replace: 'Reemplazar',
+      cancel: 'Cancelar',
+      exists: (name: string) => `Ya tienes una plantilla llamada "${name}". Si guardas, la reemplaza; o cámbiale el nombre.`,
+      saved: (name: string) => `Plantilla guardada: ${name}`,
+      replaced: (name: string) => `Plantilla reemplazada: ${name}`,
+    },
     clearUnusedColors: 'Quitar colores sin usar',
     exportLetters: 'Letras en el gráfico',
     /** Control de 3 estados en la barra del editor — ver lib/letterVisibility.ts. */

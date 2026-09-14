@@ -149,6 +149,13 @@ export interface PatternDoc {
    * this: they open with their painted colors.
    */
   palette?: (string | null)[]
+  /**
+   * Set on a saved template ("Guardar como plantilla") — see
+   * `engine/template.ts`. Templates are stored like patterns, so storage,
+   * backups and the native app carry them with no extra plumbing, but the
+   * store keeps them apart: they never show up in the library.
+   */
+  isTemplate?: true
   createdAt: number
   updatedAt: number
 }

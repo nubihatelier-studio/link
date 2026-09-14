@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { t } from '@/i18n/es'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -199,5 +200,69 @@ describe('EditorPage — conteo de mostacillas con cuerpo con forma', () => {
 
     expect(await screen.findByText(/6 mostacillas/)).toBeInTheDocument()
     expect(screen.queryByText(/8 mostacillas/)).not.toBeInTheDocument()
+  })
+})
+
+describe('EditorPage — guardar como plantilla', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([PATTERN])
+    usePatternsStore.setState({
+      patterns: { [PATTERN.id]: PATTERN },
+      order: [PATTERN.id],
+      templates: {},
+      hydrated: true,
+      migrationResult: null,
+    })
+  })
+
+  async function renderEditor() {
+    const { EditorPage } = await import('./EditorPage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN.id}`]}>
+        <Routes>
+          <Route path="/editor/:id" element={<EditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  async function openSaveDialog(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: t.editor.moreActions }))
+    await user.click(screen.getByRole('button', { name: new RegExp(t.editor.saveTemplate.menu) }))
+    return screen.getByLabelText(t.editor.saveTemplate.nameLabel) as HTMLInputElement
+  }
+
+  it('el menú "⋯" guarda el patrón como plantilla con el nombre que se elija, y se puede deshacer', async () => {
+    const user = userEvent.setup()
+    await renderEditor()
+
+    const input = await openSaveDialog(user)
+    expect(input.value).toBe(PATTERN.name)
+    await user.clear(input)
+    await user.type(input, 'Flower Ring')
+    await user.click(screen.getByRole('button', { name: t.editor.saveTemplate.save }))
+
+    const templates = Object.values(usePatternsStore.getState().templates)
+    expect(templates).toHaveLength(1)
+    expect(templates[0]).toMatchObject({ name: 'Flower Ring', isTemplate: true, config: PATTERN.config })
+    const toast = screen.getByText(t.editor.saveTemplate.saved('Flower Ring')).parentElement!
+    await user.click(within(toast).getByRole('button', { name: t.common.undo }))
+    expect(Object.values(usePatternsStore.getState().templates)).toHaveLength(0)
+  })
+
+  it('con un nombre que ya existe avisa y ofrece reemplazar, sin duplicarla', async () => {
+    const user = userEvent.setup()
+    await renderEditor()
+
+    const input = await openSaveDialog(user)
+    await user.clear(input)
+    await user.type(input, 'Flower Ring{Enter}')
+
+    const again = await openSaveDialog(user)
+    await user.clear(again)
+    await user.type(again, 'flower ring')
+    expect(screen.getByText(t.editor.saveTemplate.exists('Flower Ring'))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t.editor.saveTemplate.replace }))
+    expect(Object.values(usePatternsStore.getState().templates)).toHaveLength(1)
   })
 })

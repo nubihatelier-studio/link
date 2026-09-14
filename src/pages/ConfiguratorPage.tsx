@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { MoreHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
 import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
@@ -29,6 +30,11 @@ import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { TemplateIcon, type TemplateId } from '@/components/configurator/TemplateIcon'
+import { PatternThumb } from '@/components/shared/PatternThumb'
+import { NameDialog } from '@/components/shared/NameDialog'
+import { UndoToast } from '@/components/shared/UndoToast'
+import type { PatternDoc } from '@/engine/types'
+import type { TemplateMode } from '@/engine/template'
 
 const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
 type SizeMode = 'count' | 'finalSize'
@@ -156,6 +162,16 @@ const TEMPLATES: TemplatePreset[] = [
 export function ConfiguratorPage() {
   const navigate = useNavigate()
   const createPattern = usePatternsStore((s) => s.createPattern)
+  const templatesById = usePatternsStore((s) => s.templates)
+  const templates = useMemo(() => Object.values(templatesById).sort((a, b) => b.updatedAt - a.updatedAt), [templatesById])
+  /** A template the weaver saved, when one is picked instead of a built-in one — see "Tus plantillas". */
+  const [userTemplateId, setUserTemplateId] = useState<string | null>(null)
+  const [templateMode, setTemplateMode] = useState<TemplateMode>('full')
+  /** Which saved template's "⋯" options are open. */
+  const [templateMenuId, setTemplateMenuId] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+  const [deletedTemplate, setDeletedTemplate] = useState<PatternDoc | null>(null)
+  const userTemplate = userTemplateId ? templatesById[userTemplateId] : undefined
 
   const [technique, setTechnique] = useState<Technique>('loom')
   const [cols, setCols] = useState(16)
@@ -229,7 +245,20 @@ export function ConfiguratorPage() {
     (fringePreviewLengths ? totalFringeBeadCount({ lengths: fringePreviewLengths, turnBeads: [] }) : 0) +
     loopBeadCount(loop)
 
+  function createFromUserTemplate() {
+    if (!userTemplate) return
+    const id = usePatternsStore.getState().createFromTemplate(userTemplate.id, templateMode)
+    if (id) navigate(`/editor/${id}`)
+  }
+
+  function deleteUserTemplate(id: string) {
+    const removed = usePatternsStore.getState().deleteTemplate(id)
+    if (userTemplateId === id) setUserTemplateId(null)
+    setDeletedTemplate(removed)
+  }
+
   function applyTemplate(template: TemplatePreset) {
+    setUserTemplateId(null)
     const followRows = template.id === 'aroFlecos'
     setSelectedTemplate(template.id)
     setTechnique(template.technique)
@@ -310,244 +339,369 @@ export function ConfiguratorPage() {
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.techniqueStepTitle}</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {TECHNIQUES.map((tech) => (
-            <IconSelectableCard
-              key={tech}
-              selected={technique === tech}
-              onClick={() => {
-                setTechnique(tech)
-                setSelectedTemplate(null)
-                setRowsFollowCols(false)
-                setTemplateFringeLengths(null)
-              }}
-              icon={
-                <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
-              }
-              label={t.technique[tech]}
-              description={
-                tech === 'loom' ? t.technique.loomDesc : tech === 'peyote' ? t.technique.peyoteDesc : t.technique.brickDesc
-              }
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-8">
-        <SegmentedControl<SizeMode>
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'count', label: t.configurator.byCount },
-            { value: 'finalSize', label: t.configurator.byFinalSize },
-          ]}
-        />
-      </section>
-
-      {mode === 'count' ? (
-        <section className="mb-8 flex flex-col gap-5">
-          <SliderField
-            label={t.configurator.columns}
-            icon={<ColumnsIcon />}
-            value={cols}
-            min={MIN_DIM}
-            max={MAX_DIM}
-            onChange={updateCols}
-          />
-          <SliderField
-            label={t.configurator.rows}
-            icon={<RowsIcon />}
-            value={rows}
-            min={MIN_DIM}
-            max={MAX_DIM}
-            onChange={updateRows}
-          />
-        </section>
-      ) : (
-        <section className="mb-8 flex flex-col gap-5">
-          <div className="flex items-center gap-3">
-            <label className="flex-1">
-              <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalWidth}</span>
-              <input
-                type="number"
-                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-                value={Number(fromMm(size.widthMm, unit).toFixed(2))}
-                onChange={(e) => updateFinalWidth(Number(e.target.value) || 0)}
-              />
-            </label>
-            <label className="flex-1">
-              <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalHeight}</span>
-              <input
-                type="number"
-                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-                value={Number(fromMm(size.heightMm, unit).toFixed(2))}
-                onChange={(e) => updateFinalHeight(Number(e.target.value) || 0)}
-              />
-            </label>
-            <label className="w-24">
-              <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.unit}</span>
-              <select
-                className="w-full rounded-xl border border-border bg-surface-2 px-2 py-2 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value as MeasurementUnit)}
-              >
-                <option value="mm">mm</option>
-                <option value="cm">cm</option>
-                <option value="in">in</option>
-              </select>
-            </label>
-          </div>
-          <p className="text-xs text-text-muted">
-            {t.configurator.columns}: {cols} · {t.configurator.rows}: {rows}
-          </p>
-        </section>
-      )}
-
-      {isShapeCapable(technique) && (
+      {templates.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.bodyShape.title}</h2>
-          <p className="mb-3 text-xs text-text-muted">{t.configurator.bodyShape.hint}</p>
-          <div className="grid grid-cols-4 gap-3">
-            {BODY_SHAPE_PRESETS.map((preset) => (
-              <SelectableCard
-                key={preset}
-                selected={bodyShape === preset}
-                onClick={() => {
-                  setBodyShape(preset)
-                  setSelectedTemplate(null)
-                  setTemplateFringeLengths(null)
-                  // Silent nudge, no dialog: triangle/rhombus each have one
-                  // row whose position is physically pinned in a way that
-                  // needs an odd row count to stay perfectly centered (see
-                  // `preferredRowsFor`'s doc comment) — rectangle and
-                  // triangleInverted never need it, so this is a no-op there.
-                  setRows(preferredRowsFor(preset, rows))
-                }}
-                className="flex flex-col items-center gap-1 py-4 text-center"
-              >
-                <span className="text-2xl text-accent-500">{BODY_SHAPE_ICON[preset]}</span>
-                <p className="text-xs font-semibold">{t.configurator.bodyShape[preset]}</p>
-              </SelectableCard>
+          <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.userTemplates.title}</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {templates.map((tpl) => (
+              <div key={tpl.id} className="relative">
+                <SelectableCard
+                  selected={userTemplateId === tpl.id}
+                  onClick={() => {
+                    setUserTemplateId(tpl.id)
+                    setSelectedTemplate(null)
+                  }}
+                  className="flex h-full w-full flex-col items-center gap-2 px-2 py-4 text-center"
+                >
+                  <span className="pointer-events-none">
+                    <PatternThumb pattern={tpl} size={56} />
+                  </span>
+                  <p lang="es" className="w-full hyphens-auto break-words text-sm font-semibold">
+                    {tpl.name}
+                  </p>
+                </SelectableCard>
+                <button
+                  onClick={() => setTemplateMenuId((open) => (open === tpl.id ? null : tpl.id))}
+                  aria-label={t.configurator.userTemplates.options(tpl.name)}
+                  aria-expanded={templateMenuId === tpl.id}
+                  className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-surface/90 text-text-muted hover:text-text"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {templateMenuId === tpl.id && (
+                  <div className="absolute right-1.5 top-9 z-20 flex min-w-32 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg">
+                    <button
+                      onClick={() => {
+                        setTemplateMenuId(null)
+                        setRenaming({ id: tpl.id, name: tpl.name })
+                      }}
+                      className="rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
+                    >
+                      {t.configurator.userTemplates.rename}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTemplateMenuId(null)
+                        deleteUserTemplate(tpl.id)
+                      }}
+                      className="rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-500 hover:bg-surface-2"
+                    >
+                      {t.configurator.userTemplates.delete}
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </section>
       )}
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.beadType}</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {BEAD_TYPES.map((b) => (
-            <SelectableCard
-              key={b.id}
-              selected={beadTypeId === b.id}
-              onClick={() => setBeadTypeId(b.id)}
-              className="flex flex-col gap-1"
-            >
-              <p className="font-semibold">{b.label}</p>
-              <p className="text-xs text-text-muted">
-                {b.widthMm} × {b.heightMm} mm
+      {userTemplate ? (
+        <section className="mb-8 flex flex-col gap-4">
+          <Card className="flex items-center gap-4 bg-surface-3 p-4">
+            <PatternThumb pattern={userTemplate} size={96} />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold">{userTemplate.name}</p>
+              <p className="text-sm text-text-muted">
+                {t.configurator.userTemplates.summary(
+                  t.technique[userTemplate.config.technique],
+                  userTemplate.config.cols,
+                  userTemplate.config.rows,
+                  beadCount(userTemplate.config.technique, userTemplate.config.cols, userTemplate.config.rows, userTemplate.rowShape) +
+                    totalFringeBeadCount(userTemplate.fringe) +
+                    loopBeadCount(userTemplate.loop),
+                )}
               </p>
-            </SelectableCard>
-          ))}
-        </div>
-      </section>
-
-      {isFringeCapable(technique) && (
-        <section className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
-              <FringeIcon />
-              {t.configurator.fringe.title}
-            </h2>
-            <button
-              onClick={() => {
-                setFringeEnabled((v) => !v)
-                setSelectedTemplate(null)
-                setTemplateFringeLengths(null)
-              }}
-              aria-pressed={fringeEnabled}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
-                ${fringeEnabled ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
-            >
-              {fringeEnabled ? t.configurator.fringe.remove : t.configurator.fringe.add}
-            </button>
-          </div>
-          {fringeEnabled && (
-            <div className="flex flex-col gap-5">
-              <p className="text-xs text-text-muted">{t.configurator.fringe.hint}</p>
-              <SliderField
-                label={t.configurator.fringe.maxLength}
-                value={fringeMaxLength}
-                min={1}
-                max={MAX_FRINGE_LENGTH}
-                suffix={t.configurator.fringe.beadsUnit}
-                onChange={(next) => {
-                  setFringeMaxLength(next)
-                  setTemplateFringeLengths(null)
-                }}
+            </div>
+          </Card>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.userTemplates.modeLabel}</h2>
+            <div>
+              <SegmentedControl
+                ariaLabel={t.configurator.userTemplates.modeLabel}
+                value={templateMode}
+                onChange={setTemplateMode}
+                options={[
+                  { value: 'full', label: t.configurator.userTemplates.full },
+                  { value: 'shape', label: t.configurator.userTemplates.shape },
+                ]}
               />
-              <div>
-                <p className="mb-2 text-sm font-semibold text-text">{t.configurator.fringe.shape}</p>
-                <SegmentedControl<FringeShape>
-                  value={fringeShape}
-                  onChange={(shape) => {
-                    setFringeShape(shape)
+            </div>
+            <p className="text-sm text-text-muted">
+              {templateMode === 'full' ? t.configurator.userTemplates.fullHint : t.configurator.userTemplates.shapeHint}{' '}
+              {t.configurator.userTemplates.unchanged}
+            </p>
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.techniqueStepTitle}</h2>
+            <div className="grid grid-cols-3 gap-3">
+              {TECHNIQUES.map((tech) => (
+                <IconSelectableCard
+                  key={tech}
+                  selected={technique === tech}
+                  onClick={() => {
+                    setTechnique(tech)
+                    setSelectedTemplate(null)
+                    setRowsFollowCols(false)
                     setTemplateFringeLengths(null)
                   }}
-                  options={[
-                    { value: 'straight', label: t.configurator.fringe.shapeStraight },
-                    { value: 'v', label: t.configurator.fringe.shapeV },
-                    { value: 'cascade', label: t.configurator.fringe.shapeCascade },
-                    { value: 'rounded', label: t.configurator.fringe.shapeRounded },
-                  ]}
+                  icon={
+                    <TechniqueIcon technique={tech} className={technique === tech ? 'text-accent-500' : 'text-text-muted'} />
+                  }
+                  label={t.technique[tech]}
+                  description={
+                    tech === 'loom' ? t.technique.loomDesc : tech === 'peyote' ? t.technique.peyoteDesc : t.technique.brickDesc
+                  }
                 />
-              </div>
+              ))}
             </div>
+          </section>
+
+          <section className="mb-8">
+            <SegmentedControl<SizeMode>
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'count', label: t.configurator.byCount },
+                { value: 'finalSize', label: t.configurator.byFinalSize },
+              ]}
+            />
+          </section>
+
+          {mode === 'count' ? (
+            <section className="mb-8 flex flex-col gap-5">
+              <SliderField
+                label={t.configurator.columns}
+                icon={<ColumnsIcon />}
+                value={cols}
+                min={MIN_DIM}
+                max={MAX_DIM}
+                onChange={updateCols}
+              />
+              <SliderField
+                label={t.configurator.rows}
+                icon={<RowsIcon />}
+                value={rows}
+                min={MIN_DIM}
+                max={MAX_DIM}
+                onChange={updateRows}
+              />
+            </section>
+          ) : (
+            <section className="mb-8 flex flex-col gap-5">
+              <div className="flex items-center gap-3">
+                <label className="flex-1">
+                  <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalWidth}</span>
+                  <input
+                    type="number"
+                    className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                    value={Number(fromMm(size.widthMm, unit).toFixed(2))}
+                    onChange={(e) => updateFinalWidth(Number(e.target.value) || 0)}
+                  />
+                </label>
+                <label className="flex-1">
+                  <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.finalHeight}</span>
+                  <input
+                    type="number"
+                    className="w-full rounded-xl border border-border bg-surface-2 px-3 py-2 outline-none focus:border-accent-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                    value={Number(fromMm(size.heightMm, unit).toFixed(2))}
+                    onChange={(e) => updateFinalHeight(Number(e.target.value) || 0)}
+                  />
+                </label>
+                <label className="w-24">
+                  <span className="mb-1 block text-sm font-semibold text-text-muted">{t.configurator.unit}</span>
+                  <select
+                    className="w-full rounded-xl border border-border bg-surface-2 px-2 py-2 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value as MeasurementUnit)}
+                  >
+                    <option value="mm">mm</option>
+                    <option value="cm">cm</option>
+                    <option value="in">in</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-xs text-text-muted">
+                {t.configurator.columns}: {cols} · {t.configurator.rows}: {rows}
+              </p>
+            </section>
           )}
-        </section>
+
+          {isShapeCapable(technique) && (
+            <section className="mb-8">
+              <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.bodyShape.title}</h2>
+              <p className="mb-3 text-xs text-text-muted">{t.configurator.bodyShape.hint}</p>
+              <div className="grid grid-cols-4 gap-3">
+                {BODY_SHAPE_PRESETS.map((preset) => (
+                  <SelectableCard
+                    key={preset}
+                    selected={bodyShape === preset}
+                    onClick={() => {
+                      setBodyShape(preset)
+                      setSelectedTemplate(null)
+                      setTemplateFringeLengths(null)
+                      // Silent nudge, no dialog: triangle/rhombus each have one
+                      // row whose position is physically pinned in a way that
+                      // needs an odd row count to stay perfectly centered (see
+                      // `preferredRowsFor`'s doc comment) — rectangle and
+                      // triangleInverted never need it, so this is a no-op there.
+                      setRows(preferredRowsFor(preset, rows))
+                    }}
+                    className="flex flex-col items-center gap-1 py-4 text-center"
+                  >
+                    <span className="text-2xl text-accent-500">{BODY_SHAPE_ICON[preset]}</span>
+                    <p className="text-xs font-semibold">{t.configurator.bodyShape[preset]}</p>
+                  </SelectableCard>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.beadType}</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {BEAD_TYPES.map((b) => (
+                <SelectableCard
+                  key={b.id}
+                  selected={beadTypeId === b.id}
+                  onClick={() => setBeadTypeId(b.id)}
+                  className="flex flex-col gap-1"
+                >
+                  <p className="font-semibold">{b.label}</p>
+                  <p className="text-xs text-text-muted">
+                    {b.widthMm} × {b.heightMm} mm
+                  </p>
+                </SelectableCard>
+              ))}
+            </div>
+          </section>
+
+          {isFringeCapable(technique) && (
+            <section className="mb-8">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
+                  <FringeIcon />
+                  {t.configurator.fringe.title}
+                </h2>
+                <button
+                  onClick={() => {
+                    setFringeEnabled((v) => !v)
+                    setSelectedTemplate(null)
+                    setTemplateFringeLengths(null)
+                  }}
+                  aria-pressed={fringeEnabled}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors
+                    ${fringeEnabled ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+                >
+                  {fringeEnabled ? t.configurator.fringe.remove : t.configurator.fringe.add}
+                </button>
+              </div>
+              {fringeEnabled && (
+                <div className="flex flex-col gap-5">
+                  <p className="text-xs text-text-muted">{t.configurator.fringe.hint}</p>
+                  <SliderField
+                    label={t.configurator.fringe.maxLength}
+                    value={fringeMaxLength}
+                    min={1}
+                    max={MAX_FRINGE_LENGTH}
+                    suffix={t.configurator.fringe.beadsUnit}
+                    onChange={(next) => {
+                      setFringeMaxLength(next)
+                      setTemplateFringeLengths(null)
+                    }}
+                  />
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-text">{t.configurator.fringe.shape}</p>
+                    <SegmentedControl<FringeShape>
+                      value={fringeShape}
+                      onChange={(shape) => {
+                        setFringeShape(shape)
+                        setTemplateFringeLengths(null)
+                      }}
+                      options={[
+                        { value: 'straight', label: t.configurator.fringe.shapeStraight },
+                        { value: 'v', label: t.configurator.fringe.shapeV },
+                        { value: 'cascade', label: t.configurator.fringe.shapeCascade },
+                        { value: 'rounded', label: t.configurator.fringe.shapeRounded },
+                      ]}
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {isPairCapable(technique) && (
+            <section className="mb-8">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-text-muted">{t.configurator.pair}</h2>
+                <button
+                  onClick={() => setMakePair((v) => !v)}
+                  aria-pressed={makePair}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors
+                    ${makePair ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
+                >
+                  {makePair ? t.configurator.pairRemove : t.configurator.pairAdd}
+                </button>
+              </div>
+              <p className="text-xs text-text-muted">{t.configurator.pairHint}</p>
+            </section>
+          )}
+
+          <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
+            <p className="text-2xl font-bold">{(pairChosen ? total * 2 : total).toLocaleString('es')}</p>
+            <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : total === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
+            <p className="mt-2 text-sm text-text-muted">
+              {pairChosen ? t.configurator.estimatedSizeEach : t.configurator.estimatedSize}:{' '}
+              {formatSizeMm(size.widthMm, size.heightMm, unit)}
+            </p>
+          </Card>
+
+          <button
+            onClick={() => navigate('/new/photo')}
+            className="mb-8 flex w-full items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-4 text-left hover:border-accent-300"
+          >
+            <span>
+              <span className="block font-semibold">{t.configurator.photoToPattern}</span>
+              <span className="block text-xs text-text-muted">{t.configurator.photoToPatternDesc}</span>
+            </span>
+            <span className="text-xl">📷</span>
+          </button>
+        </>
       )}
 
-      {isPairCapable(technique) && (
-        <section className="mb-8">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.pair}</h2>
-            <button
-              onClick={() => setMakePair((v) => !v)}
-              aria-pressed={makePair}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors
-                ${makePair ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text-muted hover:bg-surface-3'}`}
-            >
-              {makePair ? t.configurator.pairRemove : t.configurator.pairAdd}
-            </button>
-          </div>
-          <p className="text-xs text-text-muted">{t.configurator.pairHint}</p>
-        </section>
+      {renaming && (
+        <NameDialog
+          title={t.configurator.userTemplates.renameTitle}
+          label={t.editor.saveTemplate.nameLabel}
+          value={renaming.name}
+          onChange={(name) => setRenaming({ ...renaming, name })}
+          confirmLabel={t.editor.saveTemplate.save}
+          cancelLabel={t.editor.saveTemplate.cancel}
+          onConfirm={() => {
+            usePatternsStore.getState().renameTemplate(renaming.id, renaming.name)
+            setRenaming(null)
+          }}
+          onCancel={() => setRenaming(null)}
+        />
       )}
-
-      <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
-        <p className="text-2xl font-bold">{(pairChosen ? total * 2 : total).toLocaleString('es')}</p>
-        <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : total === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
-        <p className="mt-2 text-sm text-text-muted">
-          {pairChosen ? t.configurator.estimatedSizeEach : t.configurator.estimatedSize}:{' '}
-          {formatSizeMm(size.widthMm, size.heightMm, unit)}
-        </p>
-      </Card>
-
-      <button
-        onClick={() => navigate('/new/photo')}
-        className="mb-8 flex w-full items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-4 text-left hover:border-accent-300"
-      >
-        <span>
-          <span className="block font-semibold">{t.configurator.photoToPattern}</span>
-          <span className="block text-xs text-text-muted">{t.configurator.photoToPatternDesc}</span>
-        </span>
-        <span className="text-xl">📷</span>
-      </button>
+      {deletedTemplate && (
+        <UndoToast
+          key={deletedTemplate.id}
+          message={t.configurator.userTemplates.deleted(deletedTemplate.name)}
+          onUndo={() => {
+            usePatternsStore.getState().restoreTemplate(deletedTemplate)
+            setDeletedTemplate(null)
+          }}
+          onExpire={() => setDeletedTemplate(null)}
+        />
+      )}
 
       <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-2xl justify-center bg-gradient-to-t from-canvas via-canvas to-transparent pt-6 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-8">
-        <Button fullWidth onClick={handleCreate}>
+        <Button fullWidth onClick={userTemplate ? createFromUserTemplate : handleCreate}>
           {t.configurator.createButton}
         </Button>
       </div>

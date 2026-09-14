@@ -289,6 +289,11 @@ interface EditorState {
   reflectSelection: (axis: 'horizontal' | 'vertical') => void
 
   loadPattern: (doc: PatternDoc) => void
+  /**
+   * Saves the open pattern as a template — after writing any edit still
+   * waiting in the autosave, so the template is the pattern as it looks now.
+   */
+  saveAsTemplate: (name: string, replaceId?: string) => ReturnType<ReturnType<typeof usePatternsStore.getState>['saveTemplate']>
   setTool: (tool: Tool) => void
   setActiveSlot: (slot: SlotId) => void
   setZoom: (zoom: number) => void
@@ -879,6 +884,13 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     const { selection, cells } = get()
     if (!selection) return
     get().commit(reflectRegion(cells, selection, axis))
+  },
+
+  saveAsTemplate: (name, replaceId) => {
+    const { patternId } = get()
+    if (!patternId) return null
+    flushAutosave()
+    return usePatternsStore.getState().saveTemplate(patternId, name, replaceId)
   },
 
   loadPattern: (doc) => {

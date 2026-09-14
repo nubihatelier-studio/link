@@ -33,6 +33,9 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { NameDialog } from '@/components/shared/NameDialog'
+import { templateNamed } from '@/engine/template'
+import type { PatternDoc } from '@/engine/types'
 import { Toast } from '@/components/shared/Toast'
 import { ExportPdfDialog } from '@/components/editor/ExportPdfDialog'
 
@@ -108,6 +111,29 @@ export function EditorPage() {
   const showLetters = letterVisibility !== 'never'
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  /** The "Guardar como plantilla" dialog's name draft, or null while it's closed. */
+  const [templateName, setTemplateName] = useState<string | null>(null)
+  /** After saving a template: what to say, and how to undo it (drop the new one, or put back the one it replaced). */
+  const [templateSaved, setTemplateSaved] = useState<{ message: string; undo: () => void } | null>(null)
+  const templates = usePatternsStore((s) => s.templates)
+  const templateClash = templateName !== null ? templateNamed(Object.values(templates), templateName) : undefined
+
+  function confirmSaveTemplate() {
+    if (templateName === null || !templateName.trim()) return
+    const result = useEditorStore.getState().saveAsTemplate(templateName, templateClash?.id)
+    setTemplateName(null)
+    if (!result) return
+    const name = templateName.trim()
+    const replaced: PatternDoc | null = result.replaced
+    setTemplateSaved({
+      message: replaced ? t.editor.saveTemplate.replaced(name) : t.editor.saveTemplate.saved(name),
+      undo: () => {
+        const store = usePatternsStore.getState()
+        if (replaced) store.restoreTemplate(replaced)
+        else store.deleteTemplate(result.id)
+      },
+    })
+  }
   // On the right earring of a pair the shape, fringe and loop follow the left
   // one (mirrored) and are edited there — see `PairBar`.
   const onRightEarring = pair !== undefined && side === 'right'
@@ -452,6 +478,13 @@ export function EditorPage() {
                 >
                   {t.editor.clearPattern}
                 </MenuItem>
+                <MenuItem
+                  hint={t.editor.saveTemplate.menuHint}
+                  onClick={() => setTemplateName(name)}
+                  close={() => setMoreMenuOpen(false)}
+                >
+                  {t.editor.saveTemplate.menu}
+                </MenuItem>
                 <MenuItem danger onClick={handleDeletePattern} close={() => setMoreMenuOpen(false)}>
                   {t.editor.deletePattern}
                 </MenuItem>
@@ -660,6 +693,31 @@ export function EditorPage() {
             </ul>
           </div>
         </div>
+      )}
+
+      {templateName !== null && (
+        <NameDialog
+          title={t.editor.saveTemplate.title}
+          label={t.editor.saveTemplate.nameLabel}
+          value={templateName}
+          onChange={setTemplateName}
+          notice={templateClash ? t.editor.saveTemplate.exists(templateClash.name) : undefined}
+          confirmLabel={templateClash ? t.editor.saveTemplate.replace : t.editor.saveTemplate.save}
+          cancelLabel={t.editor.saveTemplate.cancel}
+          onConfirm={confirmSaveTemplate}
+          onCancel={() => setTemplateName(null)}
+        />
+      )}
+      {templateSaved && (
+        <UndoToast
+          key={templateSaved.message}
+          message={templateSaved.message}
+          onUndo={() => {
+            templateSaved.undo()
+            setTemplateSaved(null)
+          }}
+          onExpire={() => setTemplateSaved(null)}
+        />
       )}
 
       {/* Encima de todo, también de la hoja de colores del celular: se abre desde la bandeja y desde el lienzo. */}

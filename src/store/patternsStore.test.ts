@@ -138,3 +138,76 @@ describe('patternsStore.hydrate — first-launch onboarding', () => {
     expect(usePatternsStore.getState().justOnboarded).toBe(false)
   })
 })
+
+describe('patternsStore — plantillas', () => {
+  const FLOWER: PatternDoc = {
+    ...PATTERN,
+    id: 'p_flower',
+    name: 'Flower Ring',
+    cells: { '0,0': '#e58fb0' },
+    palette: ['#e58fb0', null, null, null, null, null],
+    updatedAt: 5,
+  }
+
+  beforeEach(() => {
+    adapterError = null
+    fakeAdapter = createFakeAdapter([PATTERN, FLOWER])
+    vi.resetModules()
+  })
+
+  async function store() {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    return usePatternsStore
+  }
+
+  it('guardar como plantilla la deja en plantillas y no en la biblioteca, y se guarda en el dispositivo', async () => {
+    const s = await store()
+    const result = s.getState().saveTemplate(FLOWER.id, 'Flower Ring')!
+    expect(s.getState().templates[result.id]).toMatchObject({ name: 'Flower Ring', isTemplate: true, cells: FLOWER.cells })
+    expect(s.getState().order).not.toContain(result.id)
+    expect(s.getState().patterns[result.id]).toBeUndefined()
+    await new Promise((r) => setTimeout(r, 0))
+    expect((await fakeAdapter!.getPattern(result.id))?.isTemplate).toBe(true)
+  })
+
+  it('al abrir la app, las plantillas guardadas vuelven como plantillas, fuera de la biblioteca', async () => {
+    fakeAdapter = createFakeAdapter([PATTERN, { ...FLOWER, id: 't_1', isTemplate: true }])
+    const s = await store()
+    expect(Object.keys(s.getState().templates)).toEqual(['t_1'])
+    expect(s.getState().order).toEqual([PATTERN.id])
+  })
+
+  it('reemplazar una plantilla conserva su id y devuelve la anterior para deshacer', async () => {
+    const s = await store()
+    const first = s.getState().saveTemplate(FLOWER.id, 'Flower Ring')!
+    const second = s.getState().saveTemplate(PATTERN.id, 'Flower Ring', first.id)!
+    expect(second.id).toBe(first.id)
+    expect(second.replaced?.cells).toEqual(FLOWER.cells)
+    expect(s.getState().templates[first.id].cells).toEqual(PATTERN.cells)
+    expect(Object.keys(s.getState().templates)).toHaveLength(1)
+  })
+
+  it('crear desde la plantilla agrega un patrón nuevo a la biblioteca, igual o sólo con la forma', async () => {
+    const s = await store()
+    const { id } = s.getState().saveTemplate(FLOWER.id, 'Flower Ring')!
+
+    const full = s.getState().createFromTemplate(id, 'full')!
+    expect(s.getState().order[0]).toBe(full)
+    expect(s.getState().patterns[full]).toMatchObject({ name: 'Flower Ring 2', cells: FLOWER.cells, palette: FLOWER.palette })
+    expect(s.getState().patterns[full].isTemplate).toBeUndefined()
+
+    const shape = s.getState().createFromTemplate(id, 'shape')!
+    expect(s.getState().patterns[shape]).toMatchObject({ name: 'Flower Ring 3', cells: {}, config: FLOWER.config })
+    expect(s.getState().patterns[shape].palette).toBeUndefined()
+  })
+
+  it('eliminar y deshacer devuelve la plantilla', async () => {
+    const s = await store()
+    const { id } = s.getState().saveTemplate(FLOWER.id, 'Flower Ring')!
+    const removed = s.getState().deleteTemplate(id)!
+    expect(s.getState().templates[id]).toBeUndefined()
+    s.getState().restoreTemplate(removed)
+    expect(s.getState().templates[id].name).toBe('Flower Ring')
+  })
+})

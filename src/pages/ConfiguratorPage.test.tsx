@@ -455,3 +455,71 @@ describe('ConfiguratorPage — columnas y filas pueden quedar en 1', () => {
     expect(config.rows).toBe(1)
   })
 })
+
+describe('ConfiguratorPage — tus plantillas', () => {
+  const TEMPLATE: PatternDoc = {
+    id: 't_flower',
+    name: 'Flower Ring',
+    config: { technique: 'brick', cols: 7, rows: 7, beadTypeId: 'miyuki-delica-11' },
+    cells: { '0,0': '#e58fb0' },
+    isTemplate: true,
+    createdAt: 1,
+    updatedAt: 1,
+  }
+
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], templates: { [TEMPLATE.id]: TEMPLATE }, hydrated: true, migrationResult: null })
+  })
+
+  async function renderPage() {
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    return userEvent.setup()
+  }
+
+  it('una plantilla guardada aparece en "Tus plantillas"; elegirla muestra qué trae y crea desde ella', async () => {
+    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
+    usePatternsStore.setState({ createFromTemplate })
+    const user = await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Flower Ring' }))
+    expect(screen.getByText(/Brick · 7 × 7/)).toBeInTheDocument()
+    expect(screen.queryByText(t.configurator.techniqueStepTitle)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.configurator.userTemplates.shape }))
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createFromTemplate).toHaveBeenCalledWith('t_flower', 'shape')
+  })
+
+  it('por defecto trae los colores y el dibujo', async () => {
+    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
+    usePatternsStore.setState({ createFromTemplate })
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Flower Ring' }))
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createFromTemplate).toHaveBeenCalledWith('t_flower', 'full')
+  })
+
+  it('se puede eliminar desde sus opciones, con deshacer', async () => {
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: t.configurator.userTemplates.options('Flower Ring') }))
+    await user.click(screen.getByRole('button', { name: t.configurator.userTemplates.delete }))
+    expect(usePatternsStore.getState().templates[TEMPLATE.id]).toBeUndefined()
+    await user.click(screen.getByRole('button', { name: t.common.undo }))
+    expect(usePatternsStore.getState().templates[TEMPLATE.id]?.name).toBe('Flower Ring')
+  })
+
+  it('se puede renombrar', async () => {
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: t.configurator.userTemplates.options('Flower Ring') }))
+    await user.click(screen.getByRole('button', { name: t.configurator.userTemplates.rename }))
+    const input = screen.getByLabelText(t.editor.saveTemplate.nameLabel)
+    await user.clear(input)
+    await user.type(input, 'Anillo flor{Enter}')
+    expect(usePatternsStore.getState().templates[TEMPLATE.id]?.name).toBe('Anillo flor')
+  })
+})

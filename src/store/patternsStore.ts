@@ -7,6 +7,7 @@ import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migrati
 import { requestPersistentStorageOnce } from '@/storage/persistence'
 import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
 import { buildSamplePattern } from '@/data/samplePattern'
+import { patternFromTemplate, templateFromPattern, uniqueName, type TemplateMode } from '@/engine/template'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -15,6 +16,24 @@ function makeId(): string {
 interface PatternsState {
   patterns: Record<string, PatternDoc>
   order: string[]
+  /**
+   * Saved templates ("Guardar como plantilla" — see `engine/template.ts`).
+   * Stored like patterns, kept out of `patterns` and `order` so the library,
+   * its counts and its search never see them.
+   */
+  templates: Record<string, PatternDoc>
+  /**
+   * Saves pattern `sourceId` as a template called `name` — replacing
+   * `replaceId` if given. Returns the template and the one it replaced, for
+   * an undo.
+   */
+  saveTemplate: (sourceId: string, name: string, replaceId?: string) => { id: string; replaced: PatternDoc | null } | null
+  renameTemplate: (id: string, name: string) => void
+  /** Removes a template; returns it so a "Deshacer" can put it back with `restoreTemplate`. */
+  deleteTemplate: (id: string) => PatternDoc | null
+  restoreTemplate: (doc: PatternDoc) => void
+  /** A new pattern in the library from a template — the whole design or just its shape. */
+  createFromTemplate: (templateId: string, mode: TemplateMode) => string | null
   /** False until `hydrate()` has loaded patterns from the storage adapter. */
   hydrated: boolean
   /** Set instead of `hydrated: true` if opening storage itself failed (no IndexedDB, quota/permissions denied, etc.) — App.tsx shows a dedicated screen instead of hanging on the loading spinner forever. */
@@ -112,9 +131,24 @@ function persistDelete(id: string) {
     .catch((err) => console.error('No se pudo eliminar el patrón', err))
 }
 
+/** Splits what storage lists into the library's patterns (newest first) and the templates. */
+function splitDocs(docs: PatternDoc[]) {
+  const patterns: Record<string, PatternDoc> = {}
+  const templates: Record<string, PatternDoc> = {}
+  for (const doc of docs) {
+    if (doc.isTemplate) templates[doc.id] = doc
+    else patterns[doc.id] = doc
+  }
+  const order = Object.values(patterns)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map((d) => d.id)
+  return { patterns, templates, order }
+}
+
 export const usePatternsStore = create<PatternsState>()((set, get) => ({
   patterns: {},
   order: [],
+  templates: {},
   hydrated: false,
   hydrationError: null,
   migrationResult: null,
@@ -133,7 +167,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       // install, or every pattern deleted before onboarding ran): seed one
       // ready-made sample instead of a blank empty state, showing off this
       // sprint's fringe feature right away. Never runs again after this.
-      if (docs.length === 0 && !hasSeenOnboarding()) {
+      if (docs.every((d) => d.isTemplate) && !hasSeenOnboarding()) {
         const sample = buildSamplePattern()
         const doc: PatternDoc = {
           id: makeId(),
@@ -145,15 +179,12 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
           updatedAt: Date.now(),
         }
         await adapter.savePattern(doc)
-        docs = [doc]
+        docs = [...docs, doc]
         justOnboarded = true
         markOnboardingSeen()
       }
 
-      const patterns: Record<string, PatternDoc> = {}
-      for (const doc of docs) patterns[doc.id] = doc
-      const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
-      set({ patterns, order, hydrated: true, migrationResult, justOnboarded })
+      set({ ...splitDocs(docs), hydrated: true, migrationResult, justOnboarded })
     } catch (err) {
       console.error('No se pudo abrir el almacenamiento local', err)
       set({ hydrationError: (err as Error).message || 'unknown' })
@@ -163,10 +194,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
   refresh: async () => {
     const adapter = await getStorageAdapter()
     const docs = await adapter.listPatterns()
-    const patterns: Record<string, PatternDoc> = {}
-    for (const doc of docs) patterns[doc.id] = doc
-    const order = docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => d.id)
-    set({ patterns, order })
+    set(splitDocs(docs))
   },
 
   createPattern: (config, name, fringe, rowShape, loop, pair) => {
@@ -246,6 +274,56 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     set((s) => ({ patterns: { ...s.patterns, [newId]: doc }, order: [newId, ...s.order] }))
     persistPattern(doc)
     return newId
+  },
+
+  saveTemplate: (sourceId, name, replaceId) => {
+    const source = get().patterns[sourceId]
+    if (!source) return null
+    const replaced = replaceId ? (get().templates[replaceId] ?? null) : null
+    const now = Date.now()
+    const id = replaced ? replaced.id : makeId()
+    const doc = templateFromPattern(source, name.trim(), id, now)
+    // A replaced template keeps the date it was first saved.
+    const saved = replaced ? { ...doc, createdAt: replaced.createdAt } : doc
+    set((s) => ({ templates: { ...s.templates, [id]: saved } }))
+    persistPattern(saved)
+    return { id, replaced }
+  },
+
+  renameTemplate: (id, name) => {
+    const doc = get().templates[id]
+    if (!doc || !name.trim()) return
+    const updated = { ...doc, name: name.trim(), updatedAt: Date.now() }
+    set((s) => ({ templates: { ...s.templates, [id]: updated } }))
+    persistPattern(updated)
+  },
+
+  deleteTemplate: (id) => {
+    const doc = get().templates[id]
+    if (!doc) return null
+    set((s) => {
+      const next = { ...s.templates }
+      delete next[id]
+      return { templates: next }
+    })
+    persistDelete(id)
+    return doc
+  },
+
+  restoreTemplate: (doc) => {
+    set((s) => ({ templates: { ...s.templates, [doc.id]: doc } }))
+    persistPattern(doc)
+  },
+
+  createFromTemplate: (templateId, mode) => {
+    const template = get().templates[templateId]
+    if (!template) return null
+    const id = makeId()
+    const name = uniqueName(template.name, Object.values(get().patterns).map((p) => p.name))
+    const doc = patternFromTemplate(template, mode, id, name, Date.now())
+    set((s) => ({ patterns: { ...s.patterns, [id]: doc }, order: [id, ...s.order] }))
+    persistPattern(doc)
+    return id
   },
 
   reletterPattern: (id) => {
