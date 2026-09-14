@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import type { PatternDoc, Technique } from '@/engine/types'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import {
+  CHART_STAGGER_ORDER,
   detectBeadGrid,
+  staggerAlignment,
   suggestColorCount,
   suggestGridForImage,
   imageToPattern,
   type BeadGrid,
+  type ChartStagger,
   type ImageToPatternResult,
 } from '@/lib/imageToPattern'
 import { catalogMatchForHex } from '@/lib/color'
@@ -18,6 +21,7 @@ import { SelectableCard } from '@/components/shared/SelectableCard'
 import { ColumnsIcon } from '@/components/icons/ColumnsIcon'
 import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { PatternThumb } from '@/components/shared/PatternThumb'
 
@@ -47,8 +51,33 @@ export function PhotoToPatternPage() {
    * to plain pixelation.
    */
   const [grid, setGrid] = useState<BeadGrid | null>(null)
+  /**
+   * Whether the chart is read straight or staggered — `'auto'` trusts the
+   * detection, the other two are the weaver's correction when it reads wrong.
+   * Back to `'auto'` with every new image: it describes that chart, not a
+   * preference to carry over to the next one.
+   */
+  const [chartStagger, setChartStagger] = useState<ChartStagger>('auto')
 
   const bead = getBeadType(beadTypeId)
+  /** How the found grid's beads land on the pattern's rows for this technique. */
+  const alignment = grid ? staggerAlignment(grid, technique) : null
+  const usingDetectedSize = grid !== null && alignment !== null && grid.cols === cols && alignment.rows === rows
+
+  /** Starts the grid, the size and the colour count from what was found in the image. */
+  function applyGrid(img: HTMLImageElement, found: BeadGrid | null, tech: Technique) {
+    setGrid(found)
+    // A chart says how many beads it has; only guess from the aspect ratio
+    // when the image isn't one.
+    const { cols: nextCols, rows: nextRows } = found
+      ? { cols: found.cols, rows: staggerAlignment(found, tech).rows }
+      : suggestGridForImage(img.width, img.height, tech, bead.widthMm, bead.heightMm, 50)
+    setCols(nextCols)
+    setRows(nextRows)
+    // Open at the number of colours the image actually has, not at a fixed
+    // 12 that has to be dragged back down on a three-colour chart.
+    setNumColors(suggestColorCount(img, nextCols, nextRows, found, tech))
+  }
 
   function handleFile(file: File) {
     const url = URL.createObjectURL(file)
@@ -56,20 +85,20 @@ export function PhotoToPatternPage() {
     img.onload = () => {
       setImgEl(img)
       setImgUrl(url)
-      // A chart says how many beads it has; only guess from the aspect ratio
-      // when the image isn't one.
-      const found = detectBeadGrid(img)
-      setGrid(found)
-      const { cols: nextCols, rows: nextRows } = found
-        ? { cols: found.cols, rows: found.rows }
-        : suggestGridForImage(img.width, img.height, technique, bead.widthMm, bead.heightMm, 50)
-      setCols(nextCols)
-      setRows(nextRows)
-      // Open at the number of colours the image actually has, not at a fixed
-      // 12 that has to be dragged back down on a three-colour chart.
-      setNumColors(suggestColorCount(img, nextCols, nextRows, found))
+      setChartStagger('auto')
+      const found = detectBeadGrid(img, 'auto')
+      // A staggered chart is a peyote chart, so it opens there; the technique
+      // cards below still have the last word.
+      const tech = found && found.staggerY !== 0 ? 'peyote' : technique
+      setTechnique(tech)
+      applyGrid(img, found, tech)
     }
     img.src = url
+  }
+
+  function handleChartStaggerChange(next: ChartStagger) {
+    setChartStagger(next)
+    if (imgEl) applyGrid(imgEl, detectBeadGrid(imgEl, next), technique)
   }
 
   // Re-suggest the grid (bead-proportion corrected — see suggestGridForImage)
@@ -82,6 +111,10 @@ export function PhotoToPatternPage() {
       setCols(suggestion.cols)
       setRows(suggestion.rows)
     }
+    // A staggered chart loses a row in peyote when its high columns don't
+    // match the weave's (see `staggerAlignment`), and gets it back elsewhere —
+    // unless the rows were already set by hand.
+    if (grid && usingDetectedSize) setRows(staggerAlignment(grid, next).rows)
   }
 
   function handleBeadTypeChange(nextId: string) {
@@ -102,7 +135,7 @@ export function PhotoToPatternPage() {
     setProcessing(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const result = imageToPattern(imgEl, { cols, rows, numColors, grid })
+      const result = imageToPattern(imgEl, { cols, rows, numColors, grid, technique })
       setPreview(result)
       setProcessing(false)
     }, REGENERATE_DEBOUNCE_MS)
@@ -146,16 +179,20 @@ export function PhotoToPatternPage() {
         </button>
       ) : (
         <section className="mb-8">
+          {/* Sólo mientras la grilla detectada siga siendo la que se usa:
+              al mover los deslizadores manda quien teje, y el aviso
+              quedaría anunciando un tamaño que ya no es el del patrón. A lo
+              ancho, sobre las dos imágenes: dentro de una columna empujaba
+              la foto original hacia abajo y las dejaba desalineadas. */}
+          {grid && alignment && usingDetectedSize && (
+            <div className="mb-3 flex flex-col gap-1 rounded-xl bg-accent-500/10 px-3 py-2 text-xs font-semibold text-accent-500">
+              <p>{t.photo.gridDetected(grid.cols, alignment.rows)}</p>
+              {grid.staggerY !== 0 && <p className="font-normal">{t.photo.gridStaggered}</p>}
+              {alignment.shiftedParity !== null && <p className="font-normal">{t.photo.staggerTrimmed}</p>}
+            </div>
+          )}
           <div className="flex gap-3">
             <div className="flex-1">
-              {/* Sólo mientras la grilla detectada siga siendo la que se usa:
-                  al mover los deslizadores manda quien teje, y el aviso
-                  quedaría anunciando un tamaño que ya no es el del patrón. */}
-              {grid && grid.cols === cols && grid.rows === rows && (
-                <p className="mb-2 rounded-xl bg-accent-500/10 px-3 py-2 text-xs font-semibold text-accent-500">
-                  {t.photo.gridDetected(grid.cols, grid.rows)}
-                </p>
-              )}
               <p className="mb-2 text-xs font-semibold text-text-muted">{t.photo.original}</p>
               <div className="aspect-square overflow-hidden rounded-2xl border border-border bg-surface-2">
                 <img src={imgUrl} alt="" className="h-full w-full object-cover" />
@@ -214,6 +251,25 @@ export function PhotoToPatternPage() {
 
           <section className="mb-8 flex flex-col gap-5">
             <h2 className="text-sm font-semibold text-text-muted">{t.photo.grid}</h2>
+            {/* Sólo cuando hay un gráfico reconocido: en una foto sin grilla no
+                hay columnas que leer rectas o escalonadas. Sigue a la vista si
+                la corrección misma dejó de reconocerlo, para poder volver. */}
+            {(grid || chartStagger !== 'auto') && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-text-muted">{t.photo.chartType}</p>
+                <div>
+                  <SegmentedControl
+                    ariaLabel={t.photo.chartType}
+                    options={CHART_STAGGER_ORDER.map((value) => ({ value, label: t.photo.chartStagger[value] }))}
+                    value={chartStagger}
+                    onChange={handleChartStaggerChange}
+                  />
+                </div>
+                {chartStagger === 'auto' && grid && (
+                  <p className="text-xs text-text-muted">{t.photo.chartStaggerDetected(grid.staggerY !== 0)}</p>
+                )}
+              </div>
+            )}
             <SliderField label={t.configurator.columns}
             icon={<ColumnsIcon />} value={cols} min={8} max={150} onChange={setCols} />
             <SliderField label={t.configurator.rows}

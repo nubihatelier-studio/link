@@ -103,6 +103,21 @@ export const t = {
     detectedColors: (n: number) => (n === 1 ? '1 color detectado' : `${n} colores detectados`),
     /** Aviso cuando la imagen es un gráfico y se reconoció su grilla de mostacillas — ver lib/imageToPattern.ts#detectBeadGrid. */
     gridDetected: (cols: number, rows: number) => `Reconocimos la grilla del gráfico: ${cols} × ${rows} mostacillas`,
+    /** Si el gráfico reconocido tiene la mitad de las columnas corrida media mostacilla. */
+    gridStaggered: 'Es un gráfico escalonado: cada columna se lee a su altura.',
+    /**
+     * Cuando las columnas altas del gráfico no calzan con las del tejido de
+     * peyote y se corren una mostacilla — ver lib/imageToPattern.ts#staggerAlignment.
+     */
+    staggerTrimmed: 'Para calzar el escalonado con el tejido se quitó la media fila que asoma arriba y abajo.',
+    /** Control de 3 estados para corregir la lectura del gráfico — ver lib/imageToPattern.ts#ChartStagger. */
+    chartType: 'Tipo de gráfico',
+    chartStagger: {
+      auto: 'Automático',
+      straight: 'Recto',
+      staggered: 'Escalonado',
+    },
+    chartStaggerDetected: (staggered: boolean) => `Automático leyó un gráfico ${staggered ? 'escalonado' : 'recto'}.`,
     materials: 'Materiales detectados',
     createButton: '+ Crear patrón',
   },
