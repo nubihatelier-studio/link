@@ -38,7 +38,7 @@ function pdfText(doc: import('jspdf').jsPDF): string {
 const bead = getBeadType('miyuki-delica-11')
 
 /**
- * Una fila de la leyenda de materiales: la letra, el separador y el código DB.
+ * Una fila de la leyenda de materiales: la letra, el separador y el nombre del color.
  * El separador va laxo (`.{0,6}`) porque la raya larga no sobrevive tal cual
  * la extracción de texto del PDF, y lo que este test cuida es la letra.
  */

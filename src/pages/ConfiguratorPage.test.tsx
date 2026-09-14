@@ -424,3 +424,34 @@ describe('ConfiguratorPage — crear el par de aros', () => {
     expect(screen.queryByRole('button', { name: t.configurator.pairAdd })).not.toBeInTheDocument()
   })
 })
+
+describe('ConfiguratorPage — columnas y filas pueden quedar en 1', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], hydrated: true, migrationResult: null })
+  })
+
+  it('una sola columna y una sola fila se aceptan y el patrón se crea así', async () => {
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    const createPattern = vi.fn((_config: PatternConfig) => 'new-id')
+    usePatternsStore.setState({ createPattern })
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    const [colsSlider, rowsSlider] = screen.getAllByRole('slider')
+    expect(colsSlider).toHaveAttribute('min', '1')
+    expect(rowsSlider).toHaveAttribute('min', '1')
+
+    fireEvent.change(colsSlider, { target: { value: '1' } })
+    fireEvent.change(rowsSlider, { target: { value: '1' } })
+    expect(colsSlider).toHaveValue('1')
+    expect(rowsSlider).toHaveValue('1')
+
+    await userEvent.setup().click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createPattern).toHaveBeenCalledTimes(1)
+    const config = createPattern.mock.calls[0][0]
+    expect(config.cols).toBe(1)
+    expect(config.rows).toBe(1)
+  })
+})

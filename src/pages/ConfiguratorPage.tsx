@@ -33,7 +33,12 @@ import { TemplateIcon, type TemplateId } from '@/components/configurator/Templat
 const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
 type SizeMode = 'count' | 'finalSize'
 
-const MIN_DIM = 4
+/**
+ * A single column or a single row is a real piece — one strand, one band of
+ * fringe — and every part of the app (weave order, letters, shapes, fringe,
+ * PDF) handles it. The old floor of 4 had no reason behind it.
+ */
+const MIN_DIM = 1
 const MAX_DIM = 200
 
 interface TemplatePreset {
@@ -523,7 +528,7 @@ export function ConfiguratorPage() {
 
       <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
         <p className="text-2xl font-bold">{(pairChosen ? total * 2 : total).toLocaleString('es')}</p>
-        <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : t.configurator.totalBeads}</p>
+        <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : total === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
         <p className="mt-2 text-sm text-text-muted">
           {pairChosen ? t.configurator.estimatedSizeEach : t.configurator.estimatedSize}:{' '}
           {formatSizeMm(size.widthMm, size.heightMm, unit)}

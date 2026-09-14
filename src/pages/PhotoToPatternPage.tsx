@@ -271,9 +271,9 @@ export function PhotoToPatternPage() {
               </div>
             )}
             <SliderField label={t.configurator.columns}
-            icon={<ColumnsIcon />} value={cols} min={8} max={150} onChange={setCols} />
+            icon={<ColumnsIcon />} value={cols} min={1} max={150} onChange={setCols} />
             <SliderField label={t.configurator.rows}
-            icon={<RowsIcon />} value={rows} min={8} max={150} onChange={setRows} />
+            icon={<RowsIcon />} value={rows} min={1} max={150} onChange={setRows} />
           </section>
 
           <section className="mb-8">

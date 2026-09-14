@@ -228,7 +228,7 @@ export function EditorPage() {
   const bead = getBeadType(beadTypeId)
   // Both earrings of a pair share one shape, so the pair is exactly twice one earring.
   const beadsPerPiece = beadCount(technique, cols, rows, rowShape) + totalFringeBeadCount(fringe) + loopBeadCount(loop)
-  const beadsLabel = pair ? t.editor.pair.beadsOfPair(beadsPerPiece * 2) : `${beadsPerPiece} mostacillas`
+  const beadsLabel = pair ? t.editor.pair.beadsOfPair(beadsPerPiece * 2) : t.editor.beadsTotal(beadsPerPiece)
 
   /**
    * What the exports draw: the saved pattern, which is the LEFT earring —

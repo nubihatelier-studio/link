@@ -58,6 +58,8 @@ export const t = {
     finalHeight: 'Alto final',
     unit: 'Unidad',
     totalBeads: 'mostacillas',
+    /** Bajo el total, cuando el patrón es de una sola mostacilla (1 × 1). */
+    totalBeadsOne: 'mostacilla',
     estimatedSize: 'Tamaño estimado',
     photoToPattern: 'Foto a patrón',
     photoToPatternDesc: 'Genera un patrón a partir de una foto',
@@ -169,6 +171,8 @@ export const t = {
     usedColorHint: (letter: string, count: number) =>
       `Color ${letter} · ${count} ${count === 1 ? 'mostacilla' : 'mostacillas'}`,
     weaveMode: 'Modo tejido',
+    /** Encabezado del editor: el total de mostacillas de la pieza. */
+    beadsTotal: (n: number) => `${n} ${n === 1 ? 'mostacilla' : 'mostacillas'}`,
     zoom: 'Zoom',
     zoomOut: 'Alejar',
     zoomIn: 'Acercar',
