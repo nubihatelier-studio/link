@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MiyukiColor } from '@/data/colorTypes'
-import { catalogMatchForHex, contrastTextColor, deltaE2000, hexToRgb, nearestCatalogColor, rgbToHex } from './color'
+import { contrastTextColor, deltaE2000, hexToRgb, nearestCatalogColor, rgbToHex } from './color'
 
 describe('hexToRgb / rgbToHex', () => {
   it('round-trips a 6-digit hex', () => {
@@ -70,26 +70,6 @@ const FAKE_CATALOG: MiyukiColor[] = [
   { code: 'DB-02', hex: '#ffffff', name: 'Blanco', sampled: true },
   { code: 'DB-03', hex: '#c9a227', name: 'Dorado', sampled: true },
 ]
-
-describe('catalogMatchForHex', () => {
-  it('marks an exact catalog hex as exact', () => {
-    const result = catalogMatchForHex('#c9a227', FAKE_CATALOG)
-    expect(result.exact).toBe(true)
-    expect(result.color.code).toBe('DB-03')
-  })
-
-  it('is case-insensitive for exact matches', () => {
-    const result = catalogMatchForHex('#C9A227', FAKE_CATALOG)
-    expect(result.exact).toBe(true)
-    expect(result.color.code).toBe('DB-03')
-  })
-
-  it('falls back to the nearest catalog color and marks it inexact for a freehand hex', () => {
-    const result = catalogMatchForHex('#111111', FAKE_CATALOG)
-    expect(result.exact).toBe(false)
-    expect(result.color.code).toBe('DB-01')
-  })
-})
 
 describe('nearestCatalogColor', () => {
   it('picks the perceptually closest swatch, not just the closest by raw hex value', () => {

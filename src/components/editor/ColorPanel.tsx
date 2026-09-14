@@ -17,7 +17,8 @@ import { useEditorStore } from '@/store/editorStore'
 import { usePatternsStore } from '@/store/patternsStore'
 import type { GradientDirection } from '@/engine/gradient'
 import { QUICK_SWATCHES } from '@/data/standardPalette'
-import { catalogMatchForHex, contrastTextColor } from '@/lib/color'
+import { contrastTextColor } from '@/lib/color'
+import { describeColor } from '@/lib/colorName'
 import { ColorPicker } from './ColorPicker'
 import { UnusedSwatch, UsedSwatch, usePaletteSwatches, type PaletteSwatch } from './PaletteSwatches'
 import { t } from '@/i18n/es'
@@ -287,7 +288,6 @@ export function ColorPanel({
         </div>
         <ul className="flex flex-col gap-1.5">
           {palette.map((p) => {
-            const match = catalogMatchForHex(p.hex)
             const isMergeOpen = mergeTarget === p.hex
             const isReplaceOpen = replaceTarget === p.hex
             const isSwapOpen = swapTarget === p.hex
@@ -304,9 +304,7 @@ export function ColorPanel({
                     {colorLetters[p.hex] ?? ''}
                   </span>
                   <span className="flex-1 truncate text-xs text-text-muted" title={p.hex}>
-                    {match.exact ? '' : '~'}
-                    {match.color.code}
-                    <span className="ml-1 text-text-muted">· {match.color.name}</span>
+                    {describeColor(p.hex)}
                   </span>
                   <span className="text-xs font-semibold">{p.count}</span>
                   <button

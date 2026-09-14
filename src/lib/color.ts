@@ -281,24 +281,3 @@ export function nearestCatalogColor(hex: string, catalog: MiyukiColor[] = ALL_CA
   }
   return best
 }
-
-const exactHexIndex = new Map<string, MiyukiColor>()
-function buildExactIndex(catalog: MiyukiColor[]) {
-  if (exactHexIndex.size > 0) return
-  for (const c of catalog) exactHexIndex.set(c.hex.toLowerCase(), c)
-}
-
-/**
- * Resolves a hex to a catalog color: an exact swatch match if the hex came
- * straight from the catalog, otherwise the nearest one (marked `exact: false`)
- * so callers (palette list, PDF legend) can show "~ DB-xx" for freehand colors.
- */
-export function catalogMatchForHex(
-  hex: string,
-  catalog: MiyukiColor[] = ALL_CATALOGS,
-): { color: MiyukiColor; exact: boolean } {
-  buildExactIndex(catalog)
-  const exact = exactHexIndex.get(hex.toLowerCase())
-  if (exact) return { color: exact, exact: true }
-  return { color: nearestCatalogColor(hex, catalog), exact: false }
-}

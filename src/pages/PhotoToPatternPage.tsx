@@ -13,7 +13,7 @@ import {
   type ChartStagger,
   type ImageToPatternResult,
 } from '@/lib/imageToPattern'
-import { catalogMatchForHex } from '@/lib/color'
+import { describeColor } from '@/lib/colorName'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
@@ -285,19 +285,13 @@ export function PhotoToPatternPage() {
             <section className="mb-10">
               <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.photo.materials}</h2>
               <ul className="flex flex-col gap-1.5">
-                {preview.palette.map((p) => {
-                  const match = catalogMatchForHex(p.color.hex)
-                  return (
-                    <li key={p.color.code} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2">
-                      <span className="h-6 w-6 shrink-0 rounded-md border border-border" style={{ backgroundColor: p.color.hex }} />
-                      <span className="flex-1 truncate text-xs text-text-muted">
-                        {match.exact ? '' : '~'}
-                        {p.color.code} <span className="text-text-muted">· {p.color.name}</span>
-                      </span>
-                      <span className="text-xs font-semibold">×{p.count}</span>
-                    </li>
-                  )
-                })}
+                {preview.palette.map((p) => (
+                  <li key={p.color.hex} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2">
+                    <span className="h-6 w-6 shrink-0 rounded-md border border-border" style={{ backgroundColor: p.color.hex }} />
+                    <span className="flex-1 truncate text-xs text-text-muted">{describeColor(p.color.hex)}</span>
+                    <span className="text-xs font-semibold">×{p.count}</span>
+                  </li>
+                ))}
               </ul>
             </section>
           )}

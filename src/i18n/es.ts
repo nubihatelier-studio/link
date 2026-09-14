@@ -374,7 +374,7 @@ export const t = {
     chart: 'Gráfico',
     chartHint: 'La grilla del patrón, con letras por color.',
     materials: 'Materiales',
-    materialsHint: 'Colores con su código DB, hilo estimado y aguja.',
+    materialsHint: 'Colores con su nombre y cantidad, hilo estimado y aguja.',
     notes: 'Notas',
     notesHint: 'Tu nota del patrón, o líneas en blanco para escribir a mano.',
     cancel: 'Cancelar',

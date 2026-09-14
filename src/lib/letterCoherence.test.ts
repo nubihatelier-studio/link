@@ -3,7 +3,7 @@ import type { ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engi
 import { assignLetters } from '@/engine/letters'
 import { buildWordChart } from '@/engine/wordChart'
 import { getBeadType } from '@/data/beadTypes'
-import { catalogMatchForHex } from './color'
+import { describeColor } from './colorName'
 import { exportPatternToPdf, ALL_PDF_SECTIONS } from './pdfExport'
 import { t } from '@/i18n/es'
 
@@ -42,8 +42,8 @@ const bead = getBeadType('miyuki-delica-11')
  * El separador va laxo (`.{0,6}`) porque la raya larga no sobrevive tal cual
  * la extracción de texto del PDF, y lo que este test cuida es la letra.
  */
-function materialsRow(letter: string, code: string): RegExp {
-  return new RegExp(`(^|\\n)${letter}.{0,6}${code}\\b`)
+function materialsRow(letter: string, name: string): RegExp {
+  return new RegExp(`(^|\\n)${letter}.{0,6}${name} ×`)
 }
 
 const RED = '#d94f4f'
@@ -110,15 +110,15 @@ describe('coherencia de letras en toda la app (Tarea 3)', () => {
     const text = pdfText(lastDoc!)
     const entries = assignLetters(pattern)
 
-    // Cada fila de materiales se imprime como "<letra> — <código> (<nombre>) ×<conteo>".
+    // Cada fila de materiales se imprime como "<letra> — <nombre del color> ×<conteo>", sin códigos de marca.
     for (const entry of entries) {
-      const match = catalogMatchForHex(entry.hex)
-      expect(text).toMatch(materialsRow(entry.letter, match.color.code))
+      expect(text).toMatch(materialsRow(entry.letter, describeColor(entry.hex)))
+      expect(text).not.toMatch(/DB-\d/)
       expect(text).toContain(`×${entry.count}`)
     }
 
     // Y en orden de letra, que es el orden de tejido.
-    const positions = entries.map((e) => text.search(materialsRow(e.letter, catalogMatchForHex(e.hex).color.code)))
+    const positions = entries.map((e) => text.search(materialsRow(e.letter, describeColor(e.hex))))
     expect(positions.every((p) => p >= 0)).toBe(true)
     expect(positions).toEqual([...positions].sort((a, b) => a - b))
   })
@@ -130,12 +130,12 @@ describe('coherencia de letras en toda la app (Tarea 3)', () => {
     await exportPatternToPdf({ name: 'Sin fantasmas', ...pattern, beadType: bead, sections: ALL_PDF_SECTIONS })
     const text = pdfText(lastDoc!)
 
-    // El color sin usar es un morado que no comparte código de catálogo con
-    // ninguno de los pintados — si apareciera, su fila estaría en el PDF.
-    const ghost = catalogMatchForHex(NEVER_PAINTED)
-    const painted = entries.map((e) => catalogMatchForHex(e.hex).color.code)
-    expect(painted).not.toContain(ghost.color.code)
-    expect(text).not.toContain(ghost.color.code)
+    // El color sin usar es un morado que no comparte nombre con ninguno de
+    // los pintados — si apareciera, su fila estaría en el PDF.
+    const ghost = describeColor(NEVER_PAINTED)
+    const painted = entries.map((e) => describeColor(e.hex))
+    expect(painted).not.toContain(ghost)
+    expect(text).not.toContain(ghost)
   })
 
   it('el total de mostacillas de los materiales cuadra con las celdas pintadas', () => {
@@ -178,7 +178,7 @@ describe('coherencia de letras en toda la app (Tarea 3)', () => {
     const text = pdfText(lastDoc!)
     expect(text).toContain(t.pdf.materials) // guard: el texto se extrajo de verdad
     const gold = after.find((e) => e.hex === GOLD)!
-    expect(text).toMatch(materialsRow(gold.letter, catalogMatchForHex(GOLD).color.code))
+    expect(text).toMatch(materialsRow(gold.letter, describeColor(GOLD)))
     expect(text).toContain('×4')
   })
 })
@@ -204,8 +204,8 @@ describe('PDF de un par de aros', () => {
     await exportPatternToPdf({ name: 'Aros', ...aro, pair: { mode: 'mirror' }, beadType: bead, sections: ALL_PDF_SECTIONS })
     const text = pdfText(lastDoc!)
     // Brick arranca por la fila de arriba, que es toda dorada: la dorada es A.
-    expect(text).toMatch(materialsRow('A', catalogMatchForHex(GOLD).color.code))
-    expect(text).toMatch(materialsRow('B', catalogMatchForHex(RED).color.code))
+    expect(text).toMatch(materialsRow('A', describeColor(GOLD)))
+    expect(text).toMatch(materialsRow('B', describeColor(RED)))
     expect(text).toContain('×2') // 1 roja por aro
     expect(text).toContain('×10') // 5 doradas por aro
   })
@@ -218,7 +218,7 @@ describe('PDF de un par de aros', () => {
       beadType: bead,
       sections: ALL_PDF_SECTIONS,
     })
-    expect(pdfText(lastDoc!)).toMatch(materialsRow('C', catalogMatchForHex(TEAL).color.code))
+    expect(pdfText(lastDoc!)).toMatch(materialsRow('C', describeColor(TEAL)))
   })
 
   it('un solo aro no lleva rótulos de izquierdo y derecho', async () => {

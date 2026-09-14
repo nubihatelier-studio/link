@@ -8,7 +8,7 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { assignLettersAcross, type LetterAssignment, type LetterEntry } from '@/engine/letters'
 import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetrics, contrastTextColor } from './beadStyle'
-import { catalogMatchForHex } from './color'
+import { describeColor } from './colorName'
 import { formatSizeMm } from '@/engine/units'
 import { shareOrDownloadFile } from './shareFile'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
@@ -430,7 +430,7 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number)
 }
 
 /**
- * Materials legend (letra / código DB / cantidad) plus the "ficha" extras —
+ * Materials legend (letra / nombre del color / cantidad) plus the "ficha" extras —
  * estimated thread, suggested needle, and a notes area — laid out inside an
  * arbitrary (x, y, width, height) box. Shared by the one-page layout's
  * materials column and the paginated fallback's full-width ficha page; only
@@ -458,7 +458,7 @@ function drawMaterialsColumn(
   const extrasHeight = 34
   const extrasY = y + height - extrasHeight
 
-  // A metal loop adds one more legend-style row (no color swatch, no DB code — just
+  // A metal loop adds one more legend-style row (no color swatch, no color name — just
   // "1 argolla metálica") — folded into the same row-count sizing as the color palette
   // so it doesn't crowd or get crowded out.
   const legendRowCount = palette.length + (isMetalLoop ? 1 : 0)
@@ -472,16 +472,15 @@ function drawMaterialsColumn(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(fontSize)
   for (const p of palette) {
-    const match = catalogMatchForHex(p.hex)
     doc.setFillColor(p.hex)
     doc.setDrawColor(120)
     doc.rect(x, ly - boxSize, boxSize, boxSize, 'FD')
     doc.setTextColor(0)
     doc.text(
-      // '~' not '≈': jsPDF's standard helvetica font only supports the WinAnsi range and
-      // silently corrupts the rest of the string when fed a glyph outside it (found via
-      // visual QA — the U+2248 "almost equal" sign broke every legend row that used it).
-      `${p.letter} — ${match.exact ? '' : '~ '}${match.color.code} (${match.color.name}) ×${p.count}`,
+      // A plain color name, no bead-brand code: the color was chosen freely and the
+      // weaver buys the closest bead in whatever brand she likes. jsPDF's standard
+      // helvetica only covers WinAnsi — `describeColor` stays inside it.
+      `${p.letter} — ${describeColor(p.hex)} ×${p.count}`,
       x + boxSize + 3,
       ly,
     )
