@@ -24,6 +24,7 @@ import { FringePanel } from '@/components/editor/FringePanel'
 import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
 import { PairBar } from '@/components/editor/PairBar'
+import { ZoomBar } from '@/components/editor/ZoomBar'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -462,22 +463,9 @@ export function EditorPage() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col p-4">
-          <div className="mb-3 hidden items-center gap-2 md:flex">
-            <button
-              onClick={() => setZoom(zoom - 25)}
-              aria-label={t.editor.zoomOut}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-2"
-            >
-              −
-            </button>
-            <span className="w-14 text-center text-sm font-semibold">{zoom}%</span>
-            <button
-              onClick={() => setZoom(zoom + 25)}
-              aria-label={t.editor.zoomIn}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-2"
-            >
-              +
-            </button>
+          {/* En el celular también: pellizcar es rápido pero impreciso. */}
+          <div className="mb-2 md:mb-3">
+            <ZoomBar />
           </div>
           <PairBar />
           <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-surface">

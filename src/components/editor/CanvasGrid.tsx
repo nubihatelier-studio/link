@@ -8,6 +8,7 @@ import { lineCells } from '@/engine/line'
 import { usePatternLetterMap } from '@/hooks/usePatternLetters'
 import { letterFontSizePx, shouldShowLetters } from '@/lib/letterVisibility'
 import { initialFitZoom } from '@/lib/fitZoom'
+import { clampZoom } from '@/lib/zoomScale'
 import { useEditorPrefsStore } from '@/store/editorPrefsStore'
 import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from '@/lib/beadStyle'
 import { t } from '@/i18n/es'
@@ -50,6 +51,15 @@ export function CanvasGrid() {
   // for a bead chart where you mostly pinch OR pan, not both at once.
   /** Pattern id whose opening zoom has already been applied — see the framing effect below. */
   const framedPatternId = useRef<string | null>(null)
+  /**
+   * Set by the zoom changes that place the view themselves — the opening
+   * framing, and a pinch, which pans with the fingers — so the next redraw
+   * doesn't also re-centre it. Every other zoom change (the bar, the keyboard)
+   * keeps the middle of the view where it was: see the rendering effect.
+   */
+  const skipZoomAnchor = useRef(false)
+  /** The cell size the canvas was last drawn at, to tell a zoom change from any other redraw. */
+  const drawnCellPx = useRef<number | null>(null)
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const pinch = useRef<{ startDist: number; startZoom: number; midX: number; midY: number } | null>(null)
   /** When the current pencil/eraser stroke began — see `PINCH_GRACE_MS`. */
@@ -137,6 +147,7 @@ export function CanvasGrid() {
     const container = containerRef.current
     if (!container || container.clientWidth === 0) return
     framedPatternId.current = patternId
+    skipZoomAnchor.current = true
     setZoom(
       initialFitZoom({
         boundsWidth: bounds.width,
@@ -196,11 +207,32 @@ export function CanvasGrid() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // A zoom from the bar or the keyboard keeps the middle of the view in the
+    // middle. Without it the canvas grew from its top-left corner and the part
+    // being looked at slid off screen with every step — no use for landing on
+    // a precise zoom. Measured as a share of the scrollable size, before and
+    // after the resize.
+    const container = containerRef.current
+    const zoomChanged = drawnCellPx.current !== null && drawnCellPx.current !== cellPx
+    const anchor =
+      container && zoomChanged && !skipZoomAnchor.current && container.scrollWidth > 0 && container.scrollHeight > 0
+        ? {
+            x: (container.scrollLeft + container.clientWidth / 2) / container.scrollWidth,
+            y: (container.scrollTop + container.clientHeight / 2) / container.scrollHeight,
+          }
+        : null
+    if (drawnCellPx.current !== cellPx) skipZoomAnchor.current = false
+    drawnCellPx.current = cellPx
+
     const dpr = window.devicePixelRatio || 1
     canvas.width = canvasWidth * dpr
     canvas.height = canvasHeight * dpr
     canvas.style.width = `${canvasWidth}px`
     canvas.style.height = `${canvasHeight}px`
+    if (container && anchor) {
+      container.scrollLeft = anchor.x * container.scrollWidth - container.clientWidth / 2
+      container.scrollTop = anchor.y * container.scrollHeight - container.clientHeight / 2
+    }
     ctx.scale(dpr, dpr)
 
     const styles = getComputedStyle(canvas)
@@ -660,7 +692,11 @@ export function CanvasGrid() {
       const newDist = dist(p1, p2)
       const mid = midpoint(p1, p2)
       const scale = newDist / pinch.current.startDist
-      setZoom(Math.round(pinch.current.startZoom * scale))
+      const next = clampZoom(Math.round(pinch.current.startZoom * scale))
+      if (next !== zoom) {
+        skipZoomAnchor.current = true
+        setZoom(next)
+      }
       const container = containerRef.current
       if (container) {
         container.scrollLeft -= mid.x - pinch.current.midX

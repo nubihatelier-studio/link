@@ -11,6 +11,7 @@ import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
+import { clampZoom } from '@/lib/zoomScale'
 import { usePatternsStore } from './patternsStore'
 import { useWeaveStore } from './weaveStore'
 
@@ -800,7 +801,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       return { slots: next }
     })
   },
-  setZoom: (zoom) => set({ zoom: Math.max(25, Math.min(400, zoom)) }),
+  setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
   setShowFringeDivider: (show) => set({ showFringeDivider: show }),
 
   renamePattern: (name) => {
