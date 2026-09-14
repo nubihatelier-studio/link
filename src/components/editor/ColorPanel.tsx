@@ -4,11 +4,9 @@ import {
   ArrowDownLeft,
   ArrowDownRight,
   ArrowRight,
-  ChevronDown,
   FlipHorizontal2,
   FlipVertical2,
   Merge,
-  Plus,
   Replace,
   Shuffle,
   SquareDashedMousePointer,
@@ -20,7 +18,8 @@ import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { contrastTextColor } from '@/lib/color'
 import { describeColor } from '@/lib/colorName'
 import { ColorPicker } from './ColorPicker'
-import { UnusedSwatch, UsedSwatch, usePaletteSwatches, type PaletteSwatch } from './PaletteSwatches'
+import { ColorTray } from './ColorTray'
+import { usePatternLetters } from '@/hooks/usePatternLetters'
 import { t } from '@/i18n/es'
 
 const CLONE_REPEATS = [2, 3, 5]
@@ -32,11 +31,6 @@ export function ColorPanel({
   onColorChosen?: () => void
 } = {}) {
   const {
-    slots,
-    activeSlot,
-    setSlotColor,
-    addSlot,
-    chooseColor,
     patternId,
     selection,
     cloneDirection,
@@ -48,12 +42,6 @@ export function ColorPanel({
     reflectSelection,
     applyGradient,
   } = useEditorStore()
-  // Folded by default: the saturation square is for the odd custom shade, and
-  // open it pushed the pattern's own colors below the fold on a phone.
-  const [pickerOpen, setPickerOpen] = useState(false)
-  // Open by default — the group is collapsible so a long "sin usar" row can
-  // be folded away on a narrow screen, not to hide it until asked for.
-  const [unusedOpen, setUnusedOpen] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<string | null>(null)
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceDraft, setReplaceDraft] = useState('#000000')
@@ -97,19 +85,12 @@ export function ColorPanel({
     setReplaceTarget(null)
   }
 
-  const { palette, used, unused, isActive, pick } = usePaletteSwatches()
+  const palette = usePatternLetters()
   const reletterPattern = usePatternsStore((s) => s.reletterPattern)
   const colorLetters = useMemo(
     () => Object.fromEntries(palette.map((p) => [p.hex, p.letter])),
     [palette],
   )
-  const activeHex = slots[activeSlot]
-
-  function choose(swatch: PaletteSwatch) {
-    pick(swatch)
-    onColorChosen?.()
-  }
-
   const cloneWidth = selection ? selection.c1 - selection.c0 + 1 : 0
   const cloneHeight = selection ? selection.r1 - selection.r0 + 1 : 0
 
@@ -173,100 +154,8 @@ export function ColorPanel({
       )}
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-          {t.editor.activeColor}
-        </h3>
-        <div className="flex items-center gap-3">
-          <button
-            title={t.editor.colorPickerToggle}
-            className="h-10 w-10 shrink-0 rounded-xl border border-border"
-            style={{ backgroundColor: activeHex }}
-            onClick={() => setPickerOpen((v) => !v)}
-          />
-          <p className="font-mono text-sm">{activeHex}</p>
-          <button
-            onClick={() => setPickerOpen((v) => !v)}
-            aria-expanded={pickerOpen}
-            className="ml-auto flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-text-muted hover:text-text"
-          >
-            {t.editor.customColor}
-            <ChevronDown size={13} className={pickerOpen ? 'rotate-180' : ''} />
-          </button>
-        </div>
-
-        <div className="mt-3 flex flex-col gap-3">
-          {used.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {used.map((swatch) => (
-                <UsedSwatch key={swatch.hex} swatch={swatch} active={isActive(swatch)} onSelect={() => choose(swatch)} />
-              ))}
-            </div>
-          )}
-
-          {unused.length > 0 &&
-            // Before anything is painted every color is "unused", so the split
-            // has nothing to separate — show the plain row instead of filing
-            // the whole palette under a heading that only states the obvious.
-            (used.length === 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {unused.map((swatch) => (
-                  <UnusedSwatch key={swatch.key} swatch={swatch} active={isActive(swatch)} onSelect={() => choose(swatch)} />
-                ))}
-              </div>
-            ) : (
-              <div className="border-t border-border pt-3">
-                <button
-                  onClick={() => setUnusedOpen((v) => !v)}
-                  aria-expanded={unusedOpen}
-                  title={unusedOpen ? t.editor.hideUnusedColors : t.editor.showUnusedColors}
-                  className="flex w-full items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
-                >
-                  <ChevronDown size={13} className={unusedOpen ? '' : '-rotate-90'} />
-                  {t.editor.unusedColors} ({unused.length})
-                </button>
-                {unusedOpen && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {unused.map((swatch) => (
-                      <UnusedSwatch key={swatch.key} swatch={swatch} active={isActive(swatch)} onSelect={() => choose(swatch)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-
-          <button
-            onClick={() => {
-              addSlot()
-              setPickerOpen(true)
-            }}
-            aria-label={t.editor.addColor}
-            title={t.editor.addColor}
-            className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-border text-text-muted transition-colors hover:border-accent-500 hover:text-accent-500"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        {/* A tap paints with that color: it's added to the palette (or its
-            slot selected) — it never recolors the active color. */}
-        <div className="grid grid-cols-12 gap-1">
-          {QUICK_SWATCHES.map((hex) => (
-            <button
-              key={hex}
-              title={hex}
-              aria-label={hex}
-              onClick={() => {
-                chooseColor(hex)
-                onColorChosen?.()
-              }}
-              className="aspect-square rounded-full border border-border/60"
-              style={{ backgroundColor: hex }}
-            />
-          ))}
-        </div>
-        {pickerOpen && <ColorPicker value={activeHex} onChange={(hex) => setSlotColor(activeSlot, hex)} />}
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.tray.label}</h3>
+        <ColorTray layout="wrap" onChosen={onColorChosen} />
       </section>
 
       <section>

@@ -25,6 +25,7 @@ import { ShapePanel } from '@/components/editor/ShapePanel'
 import { LoopPanel } from '@/components/editor/LoopPanel'
 import { PairBar } from '@/components/editor/PairBar'
 import { ZoomBar } from '@/components/editor/ZoomBar'
+import { ColorChooser } from '@/components/editor/ColorChooser'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -87,7 +88,7 @@ export function EditorPage() {
   const [loopDrawerOpen, setLoopDrawerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   /** Palette colours not painted anywhere — what "Quitar colores sin usar" would drop. */
-  const unusedSlots = useEditorStore((st) => st.slots.filter((hex) => !Object.values(st.cells).includes(hex)).length)
+  const unusedSlots = useEditorStore((st) => st.slots.filter((hex) => hex && !Object.values(st.cells).includes(hex)).length)
   const paintedCells = useEditorStore((st) => Object.keys(st.cells).length)
   /** Non-null while an export failure toast is showing — see `handleExport`. */
   const [exportError, setExportError] = useState<string | null>(null)
@@ -655,6 +656,9 @@ export function EditorPage() {
           </div>
         </div>
       )}
+
+      {/* Encima de todo, también de la hoja de colores del celular: se abre desde la bandeja y desde el lienzo. */}
+      <ColorChooser />
 
       {noteOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40" onClick={() => setNoteOpen(false)}>

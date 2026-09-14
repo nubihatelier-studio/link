@@ -49,6 +49,8 @@ interface PatternsState {
     changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: 0 | 1 },
   ) => void
   setNote: (id: string, note: string) => void
+  /** Saves the editor's palette tray with the pattern — see `PatternDoc.palette`. */
+  setPalette: (id: string, palette: (string | null)[]) => void
   setLoop: (id: string, loop: LoopData | undefined) => void
   /** Makes the pattern an earring pair, changes how its right earring is kept, or (undefined) makes it a single piece again. */
   setPair: (id: string, pair: PairData | undefined) => void
@@ -321,6 +323,17 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       const doc = s.patterns[id]
       if (!doc) return s
       updated = { ...doc, note, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setPalette: (id, palette) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc) return s
+      updated = { ...doc, palette, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

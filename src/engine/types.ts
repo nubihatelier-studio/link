@@ -142,6 +142,13 @@ export interface PatternDoc {
    * numbering by order of first use, exactly as they always did.
    */
   letters?: LetterAssignment
+  /**
+   * The palette tray — the colors loaded to paint with, `null` for an empty
+   * slot (see `engine/tray.ts`). Kept so a color loaded and not painted yet is
+   * still there when the pattern is reopened. Absent on patterns made before
+   * this: they open with their painted colors.
+   */
+  palette?: (string | null)[]
   createdAt: number
   updatedAt: number
 }

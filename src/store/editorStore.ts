@@ -12,6 +12,7 @@ import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { clampZoom } from '@/lib/zoomScale'
+import { activeAfterEmptying, fillSlot, loadColor, slotOf, TRAY_SIZE, trayFor, withoutUnpainted, type Tray } from '@/engine/tray'
 import { usePatternsStore } from './patternsStore'
 import { useWeaveStore } from './weaveStore'
 
@@ -20,13 +21,11 @@ export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | '
 export type SlotId = number
 export type CloneDirection = 'vertical' | 'horizontal'
 
-/**
- * Rotating neutral grays for freshly added slots. Distinct (not all
- * `#808080`) so two slots added back to back don't register the exact same
- * hex and end up sharing a letter before the user has picked a real color
- * for either of them.
- */
-const NEUTRAL_SLOT_DEFAULTS = ['#808080', '#9a9a9a', '#6e6e6e', '#b4b4b4', '#585858', '#c8c8c8']
+/** Which slot the color chooser is filling, and whether it loads a color or recolors one already painted. */
+export interface ColorChooserRequest {
+  slot: SlotId
+  mode: 'fill' | 'recolor'
+}
 
 export interface SelectionRect {
   r0: number
@@ -206,15 +205,31 @@ interface EditorState {
   future: EditorSnapshot[]
 
   tool: Tool
-  slots: string[]
+  /** The palette tray — see `engine/tray.ts`. `null` is an empty slot. Saved with the pattern. */
+  slots: Tray
+  /** The slot being painted with, or -1 while no color is loaded yet. */
   activeSlot: SlotId
-  addSlot: (hex?: string) => void
+  /** "+ Casilla": adds an empty slot and opens the color chooser on it. */
+  addSlot: () => void
   /**
-   * Paint with this color: selects the slot that already holds it, or adds
-   * one. Never recolors the active slot — overwriting it is what made a
-   * color picked from the swatches or the eyedropper seem not to stay.
+   * Paint with this color: selects the slot that already holds it, or loads
+   * it into the first empty slot. Never recolors the active slot —
+   * overwriting it is what made a color picked from the eyedropper seem not
+   * to stay.
    */
   chooseColor: (hex: string) => void
+  /** Puts `hex` in `slot` and paints with it (or with the slot already holding it). */
+  fillSlot: (slot: SlotId, hex: string) => void
+  /** Empties a slot — only one whose color isn't painted anywhere. */
+  emptySlot: (slot: SlotId) => void
+  /** Recolors every bead of the slot's color to `hex`, in one undo step, and the slot with it. */
+  recolorSlot: (slot: SlotId, hex: string) => void
+  /** The open color chooser, if any — rendered once by the editor page. */
+  colorChooser: ColorChooserRequest | null
+  openColorChooser: (slot: SlotId, mode?: ColorChooserRequest['mode']) => void
+  /** Opens the chooser on the first empty slot — what painting with no color loaded does. */
+  requestColor: () => void
+  closeColorChooser: () => void
   zoom: number
   /**
    * Purely an editing aid — a thin dashed line marking where the body ends
@@ -256,7 +271,6 @@ interface EditorState {
   loadPattern: (doc: PatternDoc) => void
   setTool: (tool: Tool) => void
   setActiveSlot: (slot: SlotId) => void
-  setSlotColor: (slot: SlotId, hex: string) => void
   setZoom: (zoom: number) => void
   renamePattern: (name: string) => void
 
@@ -360,6 +374,18 @@ function scheduleAutosave(patternId: string, cells: ColorMap, side: EarringSide 
 function flushAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   pendingAutosave?.()
+}
+
+/** Sets the tray and the active slot, and saves the tray with the pattern. */
+function setTray(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  slots: Tray,
+  activeSlot: SlotId,
+) {
+  set({ slots, activeSlot })
+  const { patternId } = get()
+  if (patternId) usePatternsStore.getState().setPalette(patternId, slots)
 }
 
 function persistCells(patternId: string, cells: ColorMap, side: EarringSide) {
@@ -709,11 +735,51 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   clearWeaveResetPending: () => set({ weaveResetPending: null }),
 
   tool: 'pencil',
-  slots: ['#1c1c1e', '#c9a227', '#8da2b0', '#ffffff'],
-  activeSlot: 0,
-  addSlot: (hex) => {
-    const newHex = hex ?? NEUTRAL_SLOT_DEFAULTS[get().slots.length % NEUTRAL_SLOT_DEFAULTS.length]
-    set((s) => ({ slots: [...s.slots, newHex], activeSlot: s.slots.length }))
+  slots: Array<null>(TRAY_SIZE).fill(null),
+  activeSlot: -1,
+  addSlot: () => {
+    const slot = get().slots.length
+    setTray(get, set, [...get().slots, null], get().activeSlot)
+    set({ colorChooser: { slot, mode: 'fill' } })
+  },
+  fillSlot: (slot, hex) => {
+    const next = fillSlot(get().slots, slot, hex)
+    setTray(get, set, next.tray, next.active)
+  },
+  emptySlot: (slot) => {
+    const { slots, cells, activeSlot } = get()
+    const hex = slots[slot]
+    if (!hex || Object.values(cells).some((c) => c && c.toLowerCase() === hex.toLowerCase())) return
+    const next = [...slots]
+    next[slot] = null
+    setTray(get, set, next, activeAfterEmptying(next, activeSlot))
+  },
+  recolorSlot: (slot, hex) => {
+    const { slots, cells } = get()
+    const old = slots[slot]
+    if (!old || old.toLowerCase() === hex.toLowerCase()) return
+    if (Object.values(cells).includes(old)) get().commit(replaceColorInCells(cells, old, hex))
+    const next = [...slots]
+    // Recoloring into a color another slot already holds merges the two.
+    const existing = slotOf(slots, hex)
+    next[slot] = existing >= 0 ? null : hex
+    setTray(get, set, next, existing >= 0 ? existing : slot)
+  },
+  colorChooser: null,
+  openColorChooser: (slot, mode = 'fill') => set({ colorChooser: { slot, mode } }),
+  requestColor: () => {
+    const { slots } = get()
+    const vacant = slots.indexOf(null)
+    if (vacant >= 0) set({ colorChooser: { slot: vacant, mode: 'fill' } })
+    else get().addSlot()
+  },
+  closeColorChooser: () => {
+    // A slot added by "+ Casilla" and then cancelled doesn't linger past six.
+    const { slots, colorChooser, activeSlot } = get()
+    if (colorChooser && slots.length > TRAY_SIZE && colorChooser.slot === slots.length - 1 && !slots[colorChooser.slot]) {
+      setTray(get, set, slots.slice(0, -1), activeSlot)
+    }
+    set({ colorChooser: null })
   },
 
   zoom: 100,
@@ -747,15 +813,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   loadPattern: (doc) => {
-    const defaultSlots = ['#1c1c1e', '#c9a227', '#8da2b0', '#ffffff']
-    // Any color already painted in this pattern that isn't one of the 4
-    // defaults becomes a real, visible slot too — not just a letter with no
-    // slot to show for it. Otherwise a cell can read "E" on the canvas while
-    // no "E" circle exists anywhere in the panel, which looks like a bug.
-    const paintedExtras = paletteFromCells(doc.cells)
-      .map((p) => p.hex)
-      .filter((hex) => !defaultSlots.includes(hex))
-    const slots = [...defaultSlots, ...paintedExtras]
+    // The tray saved with the pattern, or its painted colors — never colors
+    // nobody chose. See `engine/tray.ts#trayFor`.
+    const slots = trayFor(doc.palette, doc.cells)
     set({
       patternId: doc.id,
       name: doc.name,
@@ -780,7 +840,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       pasteFlipH: false,
       pasteFlipV: false,
       slots,
-      activeSlot: 0,
+      activeSlot: slots.findIndex(Boolean),
+      colorChooser: null,
     })
   },
 
@@ -790,16 +851,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
   setActiveSlot: (slot) => set({ activeSlot: slot }),
   chooseColor: (hex) => {
-    const slot = get().slots.findIndex((s) => s.toLowerCase() === hex.toLowerCase())
-    if (slot >= 0) set({ activeSlot: slot })
-    else get().addSlot(hex)
-  },
-  setSlotColor: (slot, hex) => {
-    set((s) => {
-      const next = [...s.slots]
-      next[slot] = hex
-      return { slots: next }
-    })
+    const next = loadColor(get().slots, hex)
+    setTray(get, set, next.tray, next.active)
   },
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
   setShowFringeDivider: (show) => set({ showFringeDivider: show }),
@@ -975,12 +1028,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
   clearUnusedSlots: () => {
     const { cells, slots, activeSlot } = get()
-    const painted = new Set(Object.values(cells).filter(Boolean))
-    const kept = slots.filter((hex) => painted.has(hex))
-    // A palette with nothing in it has no way back, so the active colour stays.
-    const next = kept.length > 0 ? kept : [slots[activeSlot] ?? slots[0]]
     const activeHex = slots[activeSlot]
-    set({ slots: next, activeSlot: Math.max(0, next.indexOf(activeHex)) })
+    const next = withoutUnpainted(slots, cells)
+    // Emptied slots are just empty now — they can be filled again — so there's
+    // no need to keep an unpainted active color around as a way back.
+    setTray(get, set, next, activeAfterEmptying(next, activeHex ? slotOf(next, activeHex) : -1))
   },
 
   eraseSelection: () => {

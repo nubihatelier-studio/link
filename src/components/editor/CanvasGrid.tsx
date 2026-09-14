@@ -70,6 +70,12 @@ export function CanvasGrid() {
    * region or pastes. Cleared the moment a second finger lands.
    */
   const pendingTap = useRef<{ row: number; col: number } | null>(null)
+  /**
+   * Set when a painting tool is pressed with no color loaded yet: lifting the
+   * finger opens the color chooser instead of painting nothing. A tap, like
+   * fill, so a pinch never opens it.
+   */
+  const pendingColorRequest = useRef(false)
 
   const {
     patternId,
@@ -101,6 +107,7 @@ export function CanvasGrid() {
     strokeCancel,
     paintLine,
     pickColor,
+    requestColor,
     floodFill,
     pasteClipboardAt,
     copySelection,
@@ -158,7 +165,7 @@ export function CanvasGrid() {
       }),
     )
   }, [patternId, bounds.width, bounds.height, setZoom])
-  const activeColor = slots[activeSlot]
+  const activeColor = activeSlot >= 0 ? (slots[activeSlot] ?? null) : null
 
   // Leaving the line tool (or switching patterns) abandons any pending
   // click-to-start line so it doesn't linger and surprise a later click.
@@ -528,7 +535,7 @@ export function CanvasGrid() {
     }
 
     // line preview
-    if (tool === 'line' && lineStart && hoverCell) {
+    if (tool === 'line' && lineStart && hoverCell && activeColor) {
       for (const c of lineCells(lineStart.row, lineStart.col, hoverCell.row, hoverCell.col)) {
         if (!inBounds(c.row, c.col)) continue
         const pos = cellPosition(technique, c.row, c.col, rows, staggerPhase)
@@ -597,6 +604,7 @@ export function CanvasGrid() {
         else strokeEnd()
       } else if (isPointerDown.current) setSelection(null)
       pendingTap.current = null
+      pendingColorRequest.current = false
       isPointerDown.current = false
       isFringeSculpting.current = false
       lastCell.current = null
@@ -635,6 +643,11 @@ export function CanvasGrid() {
 
     if (pasteArmed && clipboard) {
       pendingTap.current = cell
+      return
+    }
+
+    if (!activeColor && (tool === 'pencil' || tool === 'line' || tool === 'fill')) {
+      pendingColorRequest.current = true
       return
     }
 
@@ -743,6 +756,12 @@ export function CanvasGrid() {
     if (activePointers.current.size < 2) pinch.current = null
     if (activePointers.current.size >= 1) return // still mid-pinch (or settling back to one finger): don't treat as a draw release
 
+    if (pendingColorRequest.current) {
+      pendingColorRequest.current = false
+      requestColor()
+      return
+    }
+
     const tap = pendingTap.current
     pendingTap.current = null
     if (tap) {
@@ -826,6 +845,10 @@ export function CanvasGrid() {
     else if (e.key === 'ArrowRight') col = Math.min(cols - 1, col + 1)
     else if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault()
+      if (tool !== 'eraser' && !activeColor) {
+        requestColor()
+        return
+      }
       const hex = tool === 'eraser' ? null : activeColor
       strokeStart()
       strokeCell(row, col, hex)
@@ -854,6 +877,12 @@ export function CanvasGrid() {
       {!readOnlyMirror && pasteArmed && clipboard && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/90 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
           Toca una celda para pegar · H/V voltear · Esc cancelar
+        </div>
+      )}
+      {/* Un patrón recién creado no tiene colores cargados: dice por dónde empezar. */}
+      {!readOnlyMirror && !pasteArmed && slots.every((hex) => !hex) && (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/95 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
+          {t.editor.tray.firstColorHint}
         </div>
       )}
       {!pasteArmed && tool === 'line' && lineStart && (
