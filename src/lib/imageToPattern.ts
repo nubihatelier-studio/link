@@ -1,7 +1,7 @@
 import type { ColorMap, Technique } from '@/engine/types'
 import type { MiyukiColor } from '@/data/colorTypes'
 import { ALL_CATALOGS } from '@/data/catalog'
-import { rowPitch } from '@/engine/geometry'
+import { effectiveStaggerPhase, rowPitch } from '@/engine/geometry'
 import { labToHex, nearestCatalogColor, rgbToLab, type RGB } from './color'
 import { kMeansQuantize, mergeSimilarColors } from './quantize'
 
@@ -19,6 +19,8 @@ export interface ImageToPatternOptions {
    * rectangle — the difference between reproducing a chart and blurring it.
    */
   grid?: BeadGrid | null
+  /** The technique the pattern is being made for — decides how a staggered chart's columns line up (see `staggerAlignment`). */
+  technique?: Technique
 }
 
 export interface ImageToPatternResult {
@@ -73,15 +75,20 @@ export function suggestGridForImage(
  * average first isn't enough on its own: it leaves smooth residue at both ends
  * of the profile, which still scored 0.99 on a pure ramp.)
  *
- * And among lags that score alike it returns the **smallest**, because every
+ * And it returns the **fundamental**, not the strongest lag, because every
  * multiple of the true pitch correlates just as well — taking the strongest
- * outright picked 34px on a 17px chart, halving the column count.
+ * outright picked 34px on a 17px chart, halving the column count. Which lag is
+ * strongest among the multiples is down to the motif: down one column of the
+ * test chart 22, 43, 65 and 86px scored 0.76, 0.73, 0.75 and 0.77. "The
+ * smallest lag within 10% of the best" held on that chart and read 108px — five
+ * beads — on another, so the rule looks at the best lag's *divisors* instead
+ * (see `fundamentalOf`).
  *
  * The period comes back fractional. A real pitch rarely lands on a whole
- * number of pixels, and rounding it is not harmless: this chart's rows are
- * 10.8px apart, which split the peak between lag 10 (0.499) and lag 11
- * (0.495) — taking the winner gave 87 rows instead of 81, and the sampling
- * points drifted between rows until the diamonds came out fat. The fraction is
+ * number of pixels, and rounding it is not harmless: on the test chart a
+ * 10.8px spacing split the peak between lag 10 (0.499) and lag 11 (0.495) —
+ * taking the winner gave 87 instead of 81, and the sampling points drifted
+ * until the diamonds came out fat. The fraction is
  * recovered from the harmonics, where the same error is divided by n.
  *
  * `strength` is not the raw correlation but how far the winning lag rises
@@ -105,7 +112,7 @@ export function dominantPeriod(profile: number[], minPeriod: number, maxPeriod: 
   const hi = Math.floor(maxPeriod)
   const lo = Math.max(2, Math.floor(minPeriod))
   if (hi < lo || profile.length < lo * 2) return { period: 0, strength: 0 }
-  const centred = slopeOf(detrend(profile, hi))
+  const centred = slopeOf(soften(detrend(profile, hi)))
   const scores: { period: number; strength: number }[] = []
   for (let lag = lo; lag <= hi; lag++) {
     let num = 0
@@ -122,15 +129,41 @@ export function dominantPeriod(profile: number[], minPeriod: number, maxPeriod: 
   const best = scores.reduce((m, s) => (s.strength > m.strength ? s : m), { period: 0, strength: 0 })
   if (best.strength <= 0) return { period: 0, strength: 0 }
   // The fundamental, not one of its multiples — see the note above.
-  const fundamental = scores.find((s) => s.strength >= best.strength * FUNDAMENTAL_MARGIN) ?? best
+  const fundamental = fundamentalOf(scores, best)
   return {
     period: refinePeriod(scores, fundamental.period),
     strength: Math.max(0, fundamental.strength - troughBeside(scores, fundamental.period)),
   }
 }
 
-/** Within this much of the best score, a shorter period is taken to be the real one. */
-const FUNDAMENTAL_MARGIN = 0.9
+/**
+ * The shortest period the best lag is a multiple of: its halves, thirds,
+ * quarters… are tried, and the smallest one that is itself a peak scoring
+ * close to the best wins. Only divisors count — a lag that merely scores well
+ * somewhere shorter isn't the pitch — and a half-bead echo doesn't pass: the
+ * slope of a shaded bead turns negative half a bead along (-0.73 on the test
+ * chart), so it is no peak at all.
+ */
+function fundamentalOf(scores: { period: number; strength: number }[], best: { period: number; strength: number }) {
+  let pick = best
+  for (let k = 2; best.period / k >= scores[0].period; k++) {
+    const target = best.period / k
+    const i = scores.reduce((m, s, j) => (Math.abs(s.period - target) <= 1 && (m < 0 || s.strength > scores[m].strength) ? j : m), -1)
+    if (i < 0) continue
+    const s = scores[i]
+    const isPeak = (scores[i - 1]?.strength ?? -Infinity) <= s.strength && (scores[i + 1]?.strength ?? -Infinity) <= s.strength
+    if (isPeak && s.strength >= best.strength * DIVISOR_SHARE) pick = s
+  }
+  return pick
+}
+
+/**
+ * How close to the best lag's score a divisor must come to be taken as the real
+ * period. Generous on purpose: a pitch that isn't a whole number of pixels
+ * correlates worse at its own lag than at a multiple that happens to land on a
+ * whole pixel — a 21.6px bead scored 0.56 at lag 22 and 0.91 at lag 108.
+ */
+const DIVISOR_SHARE = 0.5
 
 /**
  * The fractional pitch behind an integer peak. The n-th harmonic sits at n
@@ -175,6 +208,27 @@ function troughBeside(scores: { period: number; strength: number }[], period: nu
 }
 
 /**
+ * A light blur, so a pitch that isn't a whole number of pixels still lines up
+ * with itself. A one-pixel edge shifted by half a pixel no longer overlaps at
+ * all, and the lag next to a 9.5px bead scored so low that 19px — two beads —
+ * won instead.
+ */
+function soften(values: number[]): number[] {
+  const kernel = [1, 4, 6, 4, 1]
+  return values.map((_, i) => {
+    let sum = 0
+    let weight = 0
+    for (let k = -2; k <= 2; k++) {
+      const v = values[i + k]
+      if (v === undefined) continue
+      sum += v * kernel[k + 2]
+      weight += kernel[k + 2]
+    }
+    return sum / weight
+  })
+}
+
+/**
  * Point-to-point slope, mean-centred: what separates a grid from anything
  * smooth. Flat for a ramp, spiky and periodic for a row of beads.
  */
@@ -206,31 +260,32 @@ function detrend(profile: number[], window: number): number[] {
 }
 
 /**
- * Where the first bead starts, given the pitch: the offset whose sampling
- * points land on bead centres rather than on the outlines between them.
- * Scored by `costAt`, which should return how *mixed* the colour is around a
- * point — a centre is flat, an edge is not. Half a bead off is the difference
- * between reading a chart and reading its gridlines, which is what turned a
- * gold bead into grey.
+ * Whether the chart's columns sit level (`'straight'`, a loom chart) or every
+ * other column half a bead lower (`'staggered'`, a peyote chart). `'auto'`
+ * reads it from the image; the other two are the weaver's override when the
+ * reading is wrong.
  */
-export function bestPhase(pitch: number, costAt: (offset: number) => number, steps = 12): number {
-  let best = { offset: 0, cost: Infinity }
-  for (let i = 0; i < steps; i++) {
-    const offset = (pitch * i) / steps
-    const cost = costAt(offset)
-    if (cost < best.cost) best = { offset, cost }
-  }
-  return best.offset
-}
+export type ChartStagger = 'auto' | 'straight' | 'staggered'
+
+export const CHART_STAGGER_ORDER: ChartStagger[] = ['auto', 'straight', 'staggered']
 
 /** A bead grid found in an image: where it starts, how far apart the beads are, and how many there are. */
 export interface BeadGrid {
   x0: number
+  /** Top edge of the first bead in the even columns (0, 2, 4…). */
   y0: number
   pitchX: number
+  /** Height of one bead, measured down a single column. */
   pitchY: number
   cols: number
+  /** Beads per column. */
   rows: number
+  /**
+   * How much lower the odd columns start than the even ones, in px: 0 on a
+   * straight chart, about ±pitchY/2 on a staggered one (negative when the odd
+   * columns are the high ones).
+   */
+  staggerY: number
   /** Autocorrelation strength of the weaker axis (0-1) — see `MIN_GRID_STRENGTH`. */
   strength: number
 }
@@ -249,26 +304,61 @@ const MAX_BEADS_PER_SIDE = 120
 const MIN_BEADS_PER_SIDE = 8
 
 /**
- * Finds the bead grid in a picture of a *chart* (or of a piece photographed
- * flat and square-on): trims the paper margin, measures the bead pitch on each
- * axis, and locks the phase onto bead centres. Returns null when there's no
- * regular grid — the caller then falls back to plain pixelation.
- *
- * This is what the importer was missing: it used to guess the grid from the
- * photo's aspect ratio alone, which on a 13-column chart came out as 8
- * columns — each sampled cell straddling two beads, so a gold bead averaged
- * with its blue neighbours and landed on grey.
+ * Below this, the colour changes down the columns don't line up on any
+ * boundary lattice — the chart's colours differ only in lightness — and the
+ * phase is read from brightness instead.
  */
-export function detectBeadGrid(image: CanvasImageSource & { width: number; height: number }): BeadGrid | null {
+const MIN_BOUNDARY_CONTRAST = 1.15
+
+/** The pixels of an image, as `getImageData` hands them over. */
+export interface PixelImage {
+  data: Uint8ClampedArray
+  width: number
+  height: number
+}
+
+function readPixels(image: CanvasImageSource & { width: number; height: number }): PixelImage | null {
   const canvas = document.createElement('canvas')
   canvas.width = image.width
   canvas.height = image.height
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
   ctx.drawImage(image, 0, 0)
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  const W = canvas.width
-  const H = canvas.height
+  return { data: ctx.getImageData(0, 0, canvas.width, canvas.height).data, width: canvas.width, height: canvas.height }
+}
+
+/**
+ * Finds the bead grid in a picture of a *chart* (or of a piece photographed
+ * flat and square-on). Returns null when there's no regular grid — the caller
+ * then falls back to plain pixelation. See `findBeadGrid`.
+ */
+export function detectBeadGrid(
+  image: CanvasImageSource & { width: number; height: number },
+  stagger: ChartStagger = 'auto',
+): BeadGrid | null {
+  const pixels = readPixels(image)
+  return pixels ? findBeadGrid(pixels, stagger) : null
+}
+
+/**
+ * Trims the paper margin, measures the bead pitch on each axis, and locks the
+ * phase onto bead centres.
+ *
+ * The vertical pitch is measured **down each family of columns separately**
+ * (even ones, odd ones), never across the whole width. On a peyote chart every
+ * other column sits half a bead lower, so a profile averaged over all columns
+ * has an edge every *half* bead — and it repeats there almost as strongly as at
+ * the real bead (0.675 against 0.686 on the test chart), which read a 13 × 40
+ * chart as 81 rows, every bead sampled twice and once across its seam: the
+ * motif came out thick and a two-colour chart counted seven. One family on its
+ * own is a straight stack of beads with only one period in it.
+ *
+ * The bead count, the stagger and which columns are the high ones are then
+ * decided in one search over every reading (see below). What doesn't work is
+ * one phase for all columns followed by "is it staggered?" — that phase is
+ * already a compromise between the two families and always answers no.
+ */
+export function findBeadGrid({ data, width: W, height: H }: PixelImage, stagger: ChartStagger = 'auto'): BeadGrid | null {
   const at = (x: number, y: number) => (y * W + x) * 4
   const lum = (x: number, y: number) => {
     const o = at(x, y)
@@ -293,84 +383,247 @@ export function detectBeadGrid(image: CanvasImageSource & { width: number; heigh
     for (let y = top + 1; y < bottom; y++) sum += Math.abs(lum(x + 1, y) - lum(x - 1, y))
     colProfile.push(sum / Math.max(1, innerH))
   }
-  const rowProfile: number[] = []
-  for (let y = top + 1; y < bottom; y++) {
-    let sum = 0
-    for (let x = left + 1; x < right; x++) sum += Math.abs(lum(x, y + 1) - lum(x, y - 1))
-    rowProfile.push(sum / Math.max(1, innerW))
-  }
-
   const px = dominantPeriod(colProfile, MIN_BEAD_PITCH_PX, innerW / 3)
-  const py = dominantPeriod(rowProfile, MIN_BEAD_PITCH_PX, innerH / 3)
-  const strength = Math.min(px.strength, py.strength)
-  if (strength < MIN_GRID_STRENGTH || px.period < MIN_BEAD_PITCH_PX || py.period < MIN_BEAD_PITCH_PX) return null
-
-  // Rounding the span by the raw period is half a bead off as often as not:
-  // 876px at 10px gave 88 rows, whose sampling points land between rows and
-  // drag colour in from the neighbour — the diamonds came out fat. Each
-  // candidate around it is tried for real and scored by how *pure* the colours
-  // it reads are (a centre is one flat colour; a straddled edge is a blend),
-  // which picked 81 rows: 99.8% pure against 97.6% for 88.
-  // Straight division by the measured pitch. Refining the count by "which
-  // reading looks flattest" was tried and reverted: flatness rewards the blank
-  // margin, so the count drifted outward and invented a 14th column of white
-  // down the edge of a 13-column chart. Landing a bead or two off on a long
-  // piece is the lesser error, and the weaver can nudge the sliders.
-  const cols = Math.round(innerW / px.period)
-  const rows = Math.round(innerH / py.period)
-  if (cols < MIN_BEADS_PER_SIDE || rows < MIN_BEADS_PER_SIDE || cols > MAX_BEADS_PER_SIDE || rows > MAX_BEADS_PER_SIDE) return null
+  if (px.strength < MIN_GRID_STRENGTH || px.period < MIN_BEAD_PITCH_PX) return null
+  const cols = countAlongEdges(colProfile, innerW, px.period)
+  if (cols < MIN_BEADS_PER_SIDE || cols > MAX_BEADS_PER_SIDE) return null
   // Re-derive the pitch from the whole run instead of the raw lag: rounding a
   // 17.31px pitch to 17 drifts a full bead across 13 columns.
   const pitchX = innerW / cols
-  const pitchY = innerH / rows
 
-  /** How mixed the colour is around a point — flat inside a bead, noisy on an outline. */
-  const spread = (cx: number, cy: number) => {
-    let n = 0
-    const sum = [0, 0, 0]
-    const sumSq = [0, 0, 0]
-    const rx = Math.max(1, Math.round(pitchX / 6))
-    const ry = Math.max(1, Math.round(pitchY / 6))
-    for (let dy = -ry; dy <= ry; dy++) {
-      for (let dx = -rx; dx <= rx; dx++) {
-        const o = at(clamp(cx + dx, 0, W - 1), clamp(cy + dy, 0, H - 1))
-        n++
-        for (let k = 0; k < 3; k++) {
-          sum[k] += data[o + k]
-          sumSq[k] += data[o + k] * data[o + k]
+  // Phases lock onto bead *boundaries* — where the edges are — not onto the
+  // flattest spot. Flatness was the criterion before and a shaded chart
+  // defeats it: the dark lower half of a drawn bead is flatter than its
+  // highlighted middle, so it chose the seams and read every bead half
+  // across its neighbour. The left edge of the content box is a boundary too,
+  // so the phase is a small nudge either way — never most of a bead, which
+  // would push the last column off the image.
+  const x0 = left + wrapHalf(boundaryPhase(pitchX, innerW, (i) => colProfile[i - 1] ?? 0).offset, pitchX)
+  const colCentre = (col: number) => x0 + col * pitchX + pitchX / 2
+  const familyCols = (family: 0 | 1) => Array.from({ length: cols }, (_, c) => c).filter((c) => c % 2 === family)
+  /** The pixel columns down the middle of these bead columns — clear of the outlines between them. */
+  const middleXs = (columns: number[]) => {
+    const band = Math.max(1, Math.floor(pitchX / 4))
+    return columns.flatMap((c) => {
+      const cx = Math.round(colCentre(c))
+      const out: number[] = []
+      for (let x = cx - band; x <= cx + band; x++) if (x >= 0 && x < W) out.push(x)
+      return out
+    })
+  }
+
+  /**
+   * Brightness down the middle of one family's columns. Brightness itself, not
+   * edge energy like `colProfile`: a drawn bead is shaded — light, then dark —
+   * so the *size* of the change has two bumps per bead and repeats every half
+   * bead (lag 11 scored 0.36 on the test chart, beating the real 22), while
+   * `dominantPeriod` takes the slope of what it's given and keeps its sign:
+   * light-to-dark and dark-to-light no longer look alike, and lag 11 falls to
+   * -0.73 against 0.76 for the bead.
+   */
+  const familyProfile = (family: 0 | 1) => {
+    const xs = middleXs(familyCols(family))
+    const profile: number[] = []
+    for (let y = top + 1; y < bottom; y++) {
+      let sum = 0
+      for (const x of xs) sum += lum(x, y)
+      profile.push(sum / Math.max(1, xs.length))
+    }
+    return profile
+  }
+  const py = ([0, 1] as const).map((f) => dominantPeriod(familyProfile(f), MIN_BEAD_PITCH_PX, innerH / 3))
+  const strongest = py[0].strength >= py[1].strength ? py[0] : py[1]
+  // Both families are the same beads, so a clean reading of both should
+  // agree; when they don't, the stronger one is the better witness.
+  const agree = py[0].period > 0 && py[1].period > 0 && Math.abs(py[0].period - py[1].period) < 0.1 * strongest.period
+  const roughPitchY = agree ? (py[0].period + py[1].period) / 2 : strongest.period
+  const strength = Math.min(px.strength, strongest.strength)
+  if (strength < MIN_GRID_STRENGTH || roughPitchY < MIN_BEAD_PITCH_PX) return null
+
+  /**
+   * Where the colour changes down one family's columns. Chromaticity — each
+   * channel's share of the total — rather than brightness, because shading
+   * only scales a colour: a bead's highlight and shadow keep its chromaticity,
+   * while a blue bead meeting a gold one swaps it. Brightness is kept as the
+   * fallback for a chart whose colours differ only in lightness (black, grey,
+   * white), where chromaticity has nothing to say.
+   */
+  const familyEdges = (family: 0 | 1, kind: 'chroma' | 'lum') => {
+    const xs = middleXs(familyCols(family))
+    const chroma = (x: number, y: number) => {
+      const o = at(x, y)
+      const total = data[o] + data[o + 1] + data[o + 2] + 1
+      return [data[o] / total, data[o + 1] / total, data[o + 2] / total]
+    }
+    const edges: number[] = []
+    for (let y = top; y <= bottom; y++) {
+      const up = Math.max(0, y - 1)
+      const down = Math.min(H - 1, y + 1)
+      let sum = 0
+      for (const x of xs) {
+        if (kind === 'lum') {
+          sum += Math.abs(lum(x, down) - lum(x, up))
+        } else {
+          const [a, b] = [chroma(x, up), chroma(x, down)]
+          sum += Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
         }
       }
+      edges.push(sum / Math.max(1, xs.length))
     }
-    let variance = 0
-    for (let k = 0; k < 3; k++) {
-      const mean = sum[k] / n
-      variance += sumSq[k] / n - mean * mean
-    }
-    return variance
+    return edges
   }
-  const phaseCost = (axis: 'x' | 'y') => (offset: number) => {
-    let total = 0
-    let n = 0
-    for (let row = 0; row < rows; row += Math.max(1, Math.floor(rows / 12))) {
-      for (let col = 0; col < cols; col += Math.max(1, Math.floor(cols / 12))) {
-        const cx = Math.round(left + (axis === 'x' ? offset : 0) + col * pitchX + pitchX / 2)
-        const cy = Math.round(top + (axis === 'y' ? offset : 0) + row * pitchY + pitchY / 2)
-        total += spread(cx, cy)
-        n++
-      }
+  const chromaEdges = [familyEdges(0, 'chroma'), familyEdges(1, 'chroma')]
+  const colourLinesUp = boundaryPhase(roughPitchY, innerH, (i) => chromaEdges[0][i] ?? 0).contrast >= MIN_BOUNDARY_CONTRAST
+  const edges = colourLinesUp ? chromaEdges : [familyEdges(0, 'lum'), familyEdges(1, 'lum')]
+
+  /**
+   * How well a lattice of bead boundaries sits on a family's colour changes:
+   * the average strongest edge within a pixel of each boundary, from `start`
+   * pixels below the top, `count` beads long.
+   */
+  const latticeScore = (family: 0 | 1, start: number, pitch: number, count: number) => {
+    let score = 0
+    for (let k = 0; k <= count; k++) {
+      const i = Math.round(start + k * pitch)
+      score += Math.max(edges[family][i - 1] ?? 0, edges[family][i] ?? 0, edges[family][i + 1] ?? 0)
     }
-    return total / Math.max(1, n)
+    return score / (count + 1)
   }
 
-  return {
-    x0: left + bestPhase(pitchX, phaseCost('x')),
-    y0: top + bestPhase(pitchY, phaseCost('y')),
-    pitchX,
-    pitchY,
-    cols,
-    rows,
-    strength,
+  // The bead count, the stagger and which columns are the high ones are
+  // decided together, by trying each reading and keeping the one whose
+  // boundaries land on the colour changes. Dividing the height by the
+  // measured pitch isn't precise enough: the lag comes back a few percent off
+  // (21.07px for 21.6) and by row 40 that is a whole bead. A staggered chart
+  // stands half a bead taller than its rows, since its low columns hang below
+  // the others — so the same height holds a different count read each way.
+  // The first boundary sits on the top of the content box, give or take a
+  // quarter bead for an antialiased edge.
+  type Reading = { rows: number; pitch: number; start: number; highFamily: 0 | 1 | null; score: number }
+  let best: Reading | null = null
+  const consider = (rows: number, highFamily: 0 | 1 | null) => {
+    if (rows < MIN_BEADS_PER_SIDE || rows > MAX_BEADS_PER_SIDE) return
+    const pitch = innerH / (highFamily === null ? rows : rows + 0.5)
+    for (let step = -6; step <= 6; step++) {
+      const start = (step / 24) * pitch
+      const score =
+        highFamily === null
+          ? (latticeScore(0, start, pitch, rows) + latticeScore(1, start, pitch, rows)) / 2
+          : (latticeScore(highFamily, start, pitch, rows) + latticeScore(highFamily === 0 ? 1 : 0, start + pitch / 2, pitch, rows)) / 2
+      if (!best || score > best.score) best = { rows, pitch, start, highFamily, score }
+    }
   }
+  const estimate = innerH / roughPitchY
+  for (let d = -2; d <= 2; d++) {
+    if (stagger !== 'staggered') consider(Math.round(estimate) + d, null)
+    if (stagger !== 'straight') {
+      consider(Math.round(estimate - 0.5) + d, 0)
+      consider(Math.round(estimate - 0.5) + d, 1)
+    }
+  }
+  const reading = best as Reading | null
+  if (!reading) return null
+  const pitchY = reading.pitch
+  const rows = reading.rows
+  const highTop = top + reading.start
+  const evenTop = reading.highFamily === 1 ? highTop + pitchY / 2 : highTop
+  const oddTop = reading.highFamily === 0 ? highTop + pitchY / 2 : highTop
+
+  return { x0, y0: evenTop, pitchX, pitchY, cols, rows, staggerY: oddTop - evenTop, strength }
+}
+
+/**
+ * How many beads fit across a span, given the pitch the autocorrelation
+ * measured and the edge profile it came from.
+ *
+ * Dividing the span by the pitch isn't safe on its own: the pitch comes back a
+ * few percent off whenever the beads aren't drawn perfectly evenly — the test
+ * chart alternates 15px and 18px columns, measured 16.1px for a real 17 and
+ * read 13 columns as 14. So the neighbouring counts are tried as well, and the
+ * one whose bead boundaries land on the profile's edges wins: with the right
+ * count they stay on the outlines from one side to the other, with a wrong one
+ * they drift off them by the middle.
+ *
+ * This scores *edges*, not flatness. Choosing the count whose reading looked
+ * flattest was tried and reverted: flatness rewards the blank margin, so the
+ * count drifted outward and invented a column of white down the chart's edge.
+ */
+function countAlongEdges(profile: number[], span: number, period: number): number {
+  const mean = profile.reduce((a, b) => a + b, 0) / (profile.length || 1)
+  if (mean <= 0) return Math.round(span / period)
+  const estimate = Math.round(span / period)
+  let best = { count: estimate, score: -Infinity }
+  for (let count = Math.max(1, estimate - 1); count <= estimate + 1; count++) {
+    const pitch = span / count
+    let score = 0
+    for (let k = 1; k < count; k++) {
+      // The profile starts one pixel into the span (see its loop).
+      const i = Math.round(k * pitch) - 1
+      let peak = 0
+      for (let j = i - 1; j <= i + 1; j++) if (j >= 0 && j < profile.length) peak = Math.max(peak, profile[j])
+      score += peak
+    }
+    score /= Math.max(1, count - 1) * mean
+    if (score > best.score) best = { count, score }
+  }
+  return best.count
+}
+
+/**
+ * The offset (in [0, pitch)) at which a lattice of bead boundaries lands on
+ * the most edge energy, and how clearly it stands out: the best offset's
+ * energy over the average offset's. `energyAt(i)` is the energy i pixels into
+ * the span; each boundary takes the strongest pixel within one of it, since
+ * an outline is a couple of pixels thick and the pitch is fractional.
+ */
+function boundaryPhase(pitch: number, span: number, energyAt: (i: number) => number, steps = 24): { offset: number; contrast: number } {
+  let best = { offset: 0, score: -Infinity }
+  let total = 0
+  for (let s = 0; s < steps; s++) {
+    const offset = (pitch * s) / steps
+    let score = 0
+    let n = 0
+    for (let pos = offset; pos < span; pos += pitch) {
+      const i = Math.round(pos)
+      score += Math.max(energyAt(i - 1), energyAt(i), energyAt(i + 1))
+      n++
+    }
+    score /= Math.max(1, n)
+    total += score
+    if (score > best.score) best = { offset, score }
+  }
+  const mean = total / steps
+  return { offset: best.offset, contrast: mean > 1e-9 ? best.score / mean : 0 }
+}
+
+/** `value` brought into [-period/2, period/2) — the shortest way round a repeating phase. */
+function wrapHalf(value: number, period: number): number {
+  return ((((value + period / 2) % period) + period) % period) - period / 2
+}
+
+/**
+ * How the beads of a chart land on the rows of the pattern.
+ *
+ * On a straight chart, or for a technique that doesn't stagger its columns,
+ * bead r of each column is simply row r.
+ *
+ * Peyote, though, draws its columns in a fixed order that follows from how
+ * the piece is started (`effectiveStaggerPhase`: the last column strung is a
+ * high one). A chart drawn the other way round — its high columns where the
+ * pattern's low ones are — is lined up by moving the chart's high columns up
+ * one bead: their first bead (the one poking out above the top) is dropped,
+ * and so is the last bead of the other columns (poking out below), which
+ * leaves one row fewer. The drawing itself stays exactly where it was. The
+ * alternative, turning the chart upside down, only fits an odd column count
+ * and puts the motif on its head in the editor.
+ */
+export function staggerAlignment(grid: BeadGrid, technique: Technique): { rows: number; shiftedParity: 0 | 1 | null } {
+  if (grid.staggerY === 0 || technique !== 'peyote') return { rows: grid.rows, shiftedParity: null }
+  const chartLowParity = grid.staggerY > 0 ? 1 : 0
+  // `cellPosition` lowers column c when c + phase is odd.
+  const patternLowParity = effectiveStaggerPhase({ technique, cols: grid.cols }) === 0 ? 1 : 0
+  if (chartLowParity === patternLowParity) return { rows: grid.rows, shiftedParity: null }
+  return { rows: grid.rows - 1, shiftedParity: patternLowParity }
 }
 
 /** The bounding box of everything that isn't blank paper, or null if the image is blank. */
@@ -420,7 +673,7 @@ function medianPatch(data: Uint8ClampedArray, W: number, H: number, cx: number, 
  */
 export function imageToPattern(
   image: HTMLImageElement | ImageBitmap,
-  { cols, rows, numColors, catalog = ALL_CATALOGS, mergeThreshold, grid }: ImageToPatternOptions,
+  { cols, rows, numColors, catalog = ALL_CATALOGS, mergeThreshold, grid, technique = 'loom' }: ImageToPatternOptions,
 ): ImageToPatternResult {
   const canvas = document.createElement('canvas')
   canvas.width = cols
@@ -434,7 +687,7 @@ export function imageToPattern(
 
   // Con una grilla detectada se lee el centro de cada mostacilla; si no, se
   // cae al pixelado de siempre, que es lo correcto para una foto sin grilla.
-  const pixels: RGB[] = grid ? sampleAtBeadCentres(image, grid, cols, rows) : []
+  const pixels: RGB[] = grid ? sampleAtBeadCentres(image, grid, cols, rows, technique) : []
   if (pixels.length === 0) {
     for (let i = 0; i < cols * rows; i++) {
       const o = i * 4
@@ -486,23 +739,24 @@ function sqDist(a: { l: number; a: number; b: number }, b: { l: number; a: numbe
 
 /**
  * One colour per cell, read from the centre of the matching bead in the
- * original image. The grid may hold more beads than the requested cols/rows
- * (or fewer, if the weaver overrode the sliders), so positions are mapped
- * proportionally instead of assumed equal.
+ * original image — each column at its own height, so a staggered chart is
+ * read bead by bead instead of across the seams. The pattern may have more
+ * cells than the grid has beads (or fewer, if the weaver overrode the
+ * sliders), so positions are mapped proportionally instead of assumed equal.
  */
 function sampleAtBeadCentres(
   image: CanvasImageSource & { width: number; height: number },
   grid: BeadGrid,
   cols: number,
   rows: number,
+  technique: Technique,
 ): RGB[] {
-  const canvas = document.createElement('canvas')
-  canvas.width = image.width
-  canvas.height = image.height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return []
-  ctx.drawImage(image, 0, 0)
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const pixels = readPixels(image)
+  return pixels ? sampleGrid(pixels, grid, cols, rows, technique) : []
+}
+
+export function sampleGrid({ data, width, height }: PixelImage, grid: BeadGrid, cols: number, rows: number, technique: Technique): RGB[] {
+  const { rows: gridRows, shiftedParity } = staggerAlignment(grid, technique)
   const rx = Math.max(1, Math.round(grid.pitchX / 5))
   const ry = Math.max(1, Math.round(grid.pitchY / 5))
 
@@ -510,10 +764,12 @@ function sampleAtBeadCentres(
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const gridCol = cols === grid.cols ? col : Math.min(grid.cols - 1, Math.floor((col * grid.cols) / cols))
-      const gridRow = rows === grid.rows ? row : Math.min(grid.rows - 1, Math.floor((row * grid.rows) / rows))
+      const gridRow = rows === gridRows ? row : Math.min(gridRows - 1, Math.floor((row * gridRows) / rows))
+      const odd = gridCol % 2 === 1
+      const bead = gridRow + (shiftedParity === gridCol % 2 ? 1 : 0)
       const cx = Math.round(grid.x0 + gridCol * grid.pitchX + grid.pitchX / 2)
-      const cy = Math.round(grid.y0 + gridRow * grid.pitchY + grid.pitchY / 2)
-      out.push(medianPatch(data, canvas.width, canvas.height, cx, cy, rx, ry))
+      const cy = Math.round(grid.y0 + (odd ? grid.staggerY : 0) + bead * grid.pitchY + grid.pitchY / 2)
+      out.push(medianPatch(data, width, height, cx, cy, rx, ry))
     }
   }
   return out
@@ -555,8 +811,9 @@ export function suggestColorCount(
   cols: number,
   rows: number,
   grid?: BeadGrid | null,
+  technique: Technique = 'loom',
 ): number {
-  if (grid) return countDistinctColors(sampleAtBeadCentres(image, grid, cols, rows))
+  if (grid) return countDistinctColors(sampleAtBeadCentres(image, grid, cols, rows, technique))
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, cols)
   canvas.height = Math.max(1, rows)

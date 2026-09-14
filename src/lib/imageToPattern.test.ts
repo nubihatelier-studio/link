@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { bestPhase, countDistinctColors, dominantPeriod, MIN_GRID_STRENGTH, suggestGridForImage } from './imageToPattern'
+import {
+  countDistinctColors,
+  dominantPeriod,
+  findBeadGrid,
+  MIN_GRID_STRENGTH,
+  sampleGrid,
+  staggerAlignment,
+  suggestGridForImage,
+  type BeadGrid,
+  type PixelImage,
+} from './imageToPattern'
 
 // Miyuki Delica 11/0, the catalog default (src/data/beadTypes.ts).
 const DELICA_W = 1.6
@@ -72,21 +82,6 @@ describe('dominantPeriod — el paso de la grilla, por autocorrelación', () => 
   })
 })
 
-describe('bestPhase — caer en el centro de la mostacilla, no en el borde', () => {
-  it('elige el corrimiento que aterriza en el centro', () => {
-    // Costo mínimo a medio paso: es donde está el centro si la grilla arranca en un borde.
-    const pitch = 12
-    const costo = (offset: number) => Math.abs(((offset % pitch) + pitch) % pitch - pitch / 2)
-    expect(bestPhase(pitch, costo, 12)).toBeCloseTo(pitch / 2, 1)
-  })
-
-  it('si ya está centrada, no la mueve', () => {
-    const pitch = 10
-    const costo = (offset: number) => Math.min(offset, pitch - offset) === 0 ? 0 : 5
-    expect(bestPhase(pitch, costo, 10)).toBe(0)
-  })
-})
-
 describe('countDistinctColors — cuántos colores tiene de verdad la imagen', () => {
   const AZUL = { r: 30, g: 60, b: 180 }
   const DORADO = { r: 200, g: 165, b: 60 }
@@ -119,5 +114,128 @@ describe('countDistinctColors — cuántos colores tiene de verdad la imagen', (
     expect(countDistinctColors(pixeles([AZUL], 100))).toBe(2)
     const muchos = Array.from({ length: 900 }, (_, i) => ({ r: (i * 37) % 256, g: (i * 91) % 256, b: (i * 17) % 256 }))
     expect(countDistinctColors(muchos)).toBeLessThanOrEqual(12)
+  })
+})
+
+describe('findBeadGrid — gráficos rectos y escalonados', () => {
+  const AZUL = [50, 70, 190]
+  const DORADO = [214, 180, 90]
+
+  /** Un color por mostacilla, repartido sin ningún período propio que confunda la grilla. */
+  function motivo(fila: number, col: number): number[] {
+    const h = Math.sin(fila * 12.9898 + col * 78.233) * 43758.5453
+    return h - Math.floor(h) < 0.4 ? DORADO : AZUL
+  }
+
+  /**
+   * Un gráfico dibujado como los que se importan de verdad: margen de papel,
+   * contorno oscuro y cada mostacilla sombreada — clara arriba, oscura abajo,
+   * que es lo que hacía repetir el brillo cada media mostacilla. Con
+   * `altas` = 1 las columnas impares suben media mostacilla (como el gráfico
+   * de prueba); con 0, las pares; sin `altas`, el gráfico es recto.
+   */
+  function grafico(opts: { cols: number; rows: number; pitchX: number; pitchY: number; altas?: 0 | 1 }): PixelImage {
+    const margen = 12
+    const { cols, rows, pitchX, pitchY, altas } = opts
+    const width = Math.ceil(margen * 2 + cols * pitchX)
+    const height = Math.ceil(margen * 2 + (rows + 0.5) * pitchY)
+    const data = new Uint8ClampedArray(width * height * 4).fill(255)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const col = Math.floor((x - margen) / pitchX)
+        if (col < 0 || col >= cols) continue
+        const baja = altas !== undefined && col % 2 !== altas
+        const dentro = y - margen - (baja ? pitchY / 2 : 0)
+        const fila = Math.floor(dentro / pitchY)
+        if (dentro < 0 || fila >= rows) continue
+        const enX = (x - margen) / pitchX - col
+        const enY = dentro / pitchY - fila
+        const borde = enX < 0.08 || enX > 0.92 || enY < 0.06 || enY > 0.94
+        // Brillo arriba, sombra abajo: el sombreado de un gráfico real.
+        const luz = borde ? 0.35 : enY < 0.55 ? 1.1 - enY * 0.3 : 0.55
+        const [r, g, b] = motivo(fila, col)
+        const o = (y * width + x) * 4
+        data[o] = r * luz
+        data[o + 1] = g * luz
+        data[o + 2] = b * luz
+      }
+    }
+    return { data, width, height }
+  }
+
+  /** Los colores leídos, como 'D' (dorado) o 'A' (azul), para comparar con el motivo. */
+  function leido(img: PixelImage, grid: BeadGrid, rows: number, technique: 'loom' | 'peyote') {
+    const px = sampleGrid(img, grid, grid.cols, rows, technique)
+    return px.map((p) => (p.r > p.b ? 'D' : 'A')).join('')
+  }
+  function esperado(cols: number, rows: number, primeraFila: (col: number) => number) {
+    let out = ''
+    for (let fila = 0; fila < rows; fila++) for (let col = 0; col < cols; col++) out += motivo(fila + primeraFila(col), col) === DORADO ? 'D' : 'A'
+    return out
+  }
+
+  it('un gráfico escalonado y sombreado: 13 × 40, no el doble de filas', () => {
+    const img = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 1 })
+    const grid = findBeadGrid(img)!
+    expect(grid).not.toBeNull()
+    expect(grid.cols).toBe(13)
+    expect(grid.rows).toBe(40)
+    expect(grid.pitchY).toBeCloseTo(21.6, 0)
+    // Las impares arriba: empiezan media mostacilla antes que las pares.
+    expect(grid.staggerY).toBeLessThan(-21.6 * 0.35)
+    expect(grid.staggerY).toBeGreaterThan(-21.6 * 0.65)
+  })
+
+  it('cada columna se lee a su altura: el motivo sale mostacilla por mostacilla', () => {
+    const img = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 1 })
+    const grid = findBeadGrid(img)!
+    expect(leido(img, grid, 40, 'loom')).toBe(esperado(13, 40, () => 0))
+  })
+
+  it('en peyote, un gráfico con las columnas altas al revés se corre una mostacilla y pierde una fila', () => {
+    // 13 columnas: el tejido deja altas las pares (la primera y la última), el gráfico trae altas las impares.
+    const img = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 1 })
+    const grid = findBeadGrid(img)!
+    expect(staggerAlignment(grid, 'peyote')).toEqual({ rows: 39, shiftedParity: 1 })
+    expect(leido(img, grid, 39, 'peyote')).toBe(esperado(13, 39, (col) => (col % 2 === 1 ? 1 : 0)))
+  })
+
+  it('en peyote, un gráfico que ya calza con el tejido se lee entero, sin correr nada', () => {
+    const img = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 0 })
+    const grid = findBeadGrid(img)!
+    expect(grid.staggerY).toBeGreaterThan(0)
+    expect(staggerAlignment(grid, 'peyote')).toEqual({ rows: 40, shiftedParity: null })
+    expect(leido(img, grid, 40, 'peyote')).toBe(esperado(13, 40, () => 0))
+  })
+
+  it('un gráfico recto sigue siendo recto', () => {
+    const img = grafico({ cols: 20, rows: 30, pitchX: 14, pitchY: 12 })
+    const grid = findBeadGrid(img)!
+    expect(grid.cols).toBe(20)
+    expect(grid.rows).toBe(30)
+    expect(grid.staggerY).toBe(0)
+    expect(staggerAlignment(grid, 'peyote')).toEqual({ rows: 30, shiftedParity: null })
+    expect(leido(img, grid, 30, 'loom')).toBe(esperado(20, 30, () => 0))
+  })
+
+  it('quien teje manda: forzar recto o escalonado pasa por encima de lo detectado', () => {
+    const escalonado = grafico({ cols: 13, rows: 40, pitchX: 17, pitchY: 21.6, altas: 1 })
+    expect(findBeadGrid(escalonado, 'straight')!.staggerY).toBe(0)
+    const recto = grafico({ cols: 20, rows: 30, pitchX: 14, pitchY: 12 })
+    const forzado = findBeadGrid(recto, 'staggered')!
+    expect(Math.abs(forzado.staggerY)).toBeCloseTo(forzado.pitchY / 2, 1)
+  })
+
+  it('una imagen sin grilla no inventa una', () => {
+    const width = 200
+    const height = 200
+    const data = new Uint8ClampedArray(width * height * 4)
+    for (let i = 0; i < width * height; i++) {
+      data[i * 4] = (i % width) / 2
+      data[i * 4 + 1] = 100
+      data[i * 4 + 2] = Math.floor(i / width)
+      data[i * 4 + 3] = 255
+    }
+    expect(findBeadGrid({ data, width, height })).toBeNull()
   })
 })
