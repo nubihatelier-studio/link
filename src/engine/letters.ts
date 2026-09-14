@@ -154,14 +154,22 @@ export function assignLettersAcross(pieces: LetterPattern[], saved?: LetterAssig
  * free. Letters belonging to colours that are no longer painted stay taken, so
  * a colour that comes back finds its own letter waiting instead of wearing
  * someone else's.
+ *
+ * Two colours can remember the same letter — "Cambiar este color" hands the
+ * old colour's letter to the new one and keeps it on the old one too, so an
+ * undo brings the old colour back as itself. Should both ever be painted at
+ * once, the one woven first keeps the letter and the other takes the lowest
+ * free one: a letter never labels two colours.
  */
 function lettersFor(used: string[], saved?: LetterAssignment): LetterAssignment {
   if (!saved) return Object.fromEntries(used.map((hex, i) => [hex, letterForIndex(i)]))
   const taken = new Set(Object.values(saved))
+  const given = new Set<string>()
   const out: LetterAssignment = {}
   for (const hex of used) {
     const existing = saved[hex]
-    if (existing) {
+    if (existing && !given.has(existing)) {
+      given.add(existing)
       out[hex] = existing
       continue
     }
@@ -169,6 +177,7 @@ function lettersFor(used: string[], saved?: LetterAssignment): LetterAssignment 
     while (taken.has(letterForIndex(i))) i++
     out[hex] = letterForIndex(i)
     taken.add(out[hex])
+    given.add(out[hex])
   }
   return out
 }

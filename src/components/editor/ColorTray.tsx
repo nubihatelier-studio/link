@@ -18,7 +18,8 @@ const ACTIVE_RING = 'ring-2 ring-accent-500 ring-offset-2 ring-offset-surface'
  *   a new pattern says where to start.
  * - A loaded color is picked with one tap. Painted colors carry their
  *   letter; loaded ones not painted yet carry none (they haven't earned one).
- * - Tapping the active color again opens the chooser to change it.
+ * - Tapping the active color again opens its card (change, swap, merge,
+ *   select its beads, empty the slot).
  */
 export function ColorTray({ layout, onChosen }: { layout: 'row' | 'wrap'; onChosen?: () => void }) {
   const slots = useEditorStore((s) => s.slots)
@@ -26,6 +27,7 @@ export function ColorTray({ layout, onChosen }: { layout: 'row' | 'wrap'; onChos
   const setActiveSlot = useEditorStore((s) => s.setActiveSlot)
   const chooseColor = useEditorStore((s) => s.chooseColor)
   const openColorChooser = useEditorStore((s) => s.openColorChooser)
+  const openColorCard = useEditorStore((s) => s.openColorCard)
   const addSlot = useEditorStore((s) => s.addSlot)
   const letters = usePatternLetters()
   const letterOf = (hex: string) => letters.find((l) => l.hex.toLowerCase() === hex.toLowerCase())
@@ -58,7 +60,7 @@ export function ColorTray({ layout, onChosen }: { layout: 'row' | 'wrap'; onChos
           <button
             key={`slot-${i}`}
             onClick={() => {
-              if (active) openColorChooser(i, entry ? 'recolor' : 'fill')
+              if (active) openColorCard(i)
               else {
                 setActiveSlot(i)
                 onChosen?.()

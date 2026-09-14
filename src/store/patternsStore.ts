@@ -49,6 +49,13 @@ interface PatternsState {
     changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: 0 | 1 },
   ) => void
   setNote: (id: string, note: string) => void
+  /**
+   * Gives `toHex` the letter `fromHex` holds, before a recolor repaints one
+   * into the other — the color changed, the chart's notation didn't. `fromHex`
+   * keeps it too, so undoing the recolor brings it back as itself. A `toHex`
+   * that already has a letter keeps its own.
+   */
+  shareLetter: (id: string, fromHex: string, toHex: string) => void
   /** Saves the editor's palette tray with the pattern — see `PatternDoc.palette`. */
   setPalette: (id: string, palette: (string | null)[]) => void
   setLoop: (id: string, loop: LoopData | undefined) => void
@@ -326,6 +333,16 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)
+  },
+
+  shareLetter: (id, fromHex, toHex) => {
+    const doc = get().patterns[id]
+    if (!doc) return
+    const letters = extendAssignment(piecesOf(leftPieceOf(doc), doc.pair), doc.letters)
+    if (!letters[fromHex] || letters[toHex]) return
+    const updated = { ...doc, letters: { ...letters, [toHex]: letters[fromHex] }, updatedAt: Date.now() }
+    set((s) => ({ patterns: { ...s.patterns, [id]: updated } }))
+    persistPattern(updated)
   },
 
   setPalette: (id, palette) => {

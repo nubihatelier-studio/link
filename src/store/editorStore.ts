@@ -56,6 +56,20 @@ interface EditorSnapshot {
   fringe: FringeData
   staggerPhase: 0 | 1
   loop: LoopData | undefined
+  /**
+   * Set on the step a color card's recolor or merge made: the slot it
+   * changed, and what the slot held before and after. The tray isn't part of
+   * undo in general (loading a color is no edit to the design), but these two
+   * steps change a slot *because* they change the beads, and undoing the beads
+   * without the slot left the old color painted with no slot to pick it from.
+   */
+  trayChange?: TrayChange
+}
+
+interface TrayChange {
+  slot: SlotId
+  before: string | null
+  after: string | null
 }
 
 interface EditorState {
@@ -230,6 +244,12 @@ interface EditorState {
   /** Opens the chooser on the first empty slot — what painting with no color loaded does. */
   requestColor: () => void
   closeColorChooser: () => void
+  /** The slot whose color card is open — what tapping the active color again shows. */
+  colorCard: SlotId | null
+  openColorCard: (slot: SlotId) => void
+  closeColorCard: () => void
+  /** Fuses the slot's color into `intoHex` everywhere, in one undo step, and empties its slot. */
+  mergeSlotInto: (slot: SlotId, intoHex: string) => void
   zoom: number
   /**
    * Purely an editing aid — a thin dashed line marking where the body ends
@@ -374,6 +394,36 @@ function scheduleAutosave(patternId: string, cells: ColorMap, side: EarringSide 
 function flushAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   pendingAutosave?.()
+}
+
+/** Tags the step just committed with the slot change that went with it — see `EditorSnapshot.trayChange`. */
+function markTrayChange(get: () => EditorState, set: (partial: Partial<EditorState>) => void, trayChange: TrayChange) {
+  const { history } = get()
+  const last = history[history.length - 1]
+  if (last) set({ history: [...history.slice(0, -1), { ...last, trayChange }] })
+}
+
+/**
+ * Undoes or redoes a slot change: the slot goes from `from` back to `to` if
+ * it still holds `from`. If the weaver has put something else there since,
+ * `to` is loaded into another slot instead of overwriting her choice.
+ */
+function applyTrayChange(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  slot: SlotId,
+  from: string | null,
+  to: string | null,
+) {
+  const { slots, activeSlot } = get()
+  if (slots[slot] === from) {
+    const next = [...slots]
+    next[slot] = to && slotOf(slots, to) < 0 ? to : null
+    setTray(get, set, next, to ? slotOf(next, to) : activeAfterEmptying(next, activeSlot))
+  } else if (to) {
+    const next = loadColor(slots, to)
+    setTray(get, set, next.tray, next.active)
+  }
 }
 
 /** Sets the tray and the active slot, and saves the tray with the pattern. */
@@ -758,15 +808,34 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     const { slots, cells } = get()
     const old = slots[slot]
     if (!old || old.toLowerCase() === hex.toLowerCase()) return
-    if (Object.values(cells).includes(old)) get().commit(replaceColorInCells(cells, old, hex))
+    if (Object.values(cells).includes(old)) {
+      const { patternId } = get()
+      if (patternId) usePatternsStore.getState().shareLetter(patternId, old, hex)
+      get().commit(replaceColorInCells(cells, old, hex))
+    }
     const next = [...slots]
     // Recoloring into a color another slot already holds merges the two.
     const existing = slotOf(slots, hex)
     next[slot] = existing >= 0 ? null : hex
     setTray(get, set, next, existing >= 0 ? existing : slot)
+    markTrayChange(get, set, { slot, before: old, after: next[slot] })
   },
   colorChooser: null,
-  openColorChooser: (slot, mode = 'fill') => set({ colorChooser: { slot, mode } }),
+  openColorChooser: (slot, mode = 'fill') => set({ colorChooser: { slot, mode }, colorCard: null }),
+  colorCard: null,
+  openColorCard: (slot) => set({ colorCard: slot }),
+  closeColorCard: () => set({ colorCard: null }),
+  mergeSlotInto: (slot, intoHex) => {
+    const { slots, cells } = get()
+    const from = slots[slot]
+    if (!from || from.toLowerCase() === intoHex.toLowerCase()) return
+    get().commit(replaceColorInCells(cells, from, intoHex))
+    const next = [...slots]
+    next[slot] = null
+    const into = slotOf(next, intoHex)
+    setTray(get, set, next, into >= 0 ? into : activeAfterEmptying(next, get().activeSlot))
+    markTrayChange(get, set, { slot, before: from, after: null })
+  },
   requestColor: () => {
     const { slots } = get()
     const vacant = slots.indexOf(null)
@@ -842,6 +911,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       slots,
       activeSlot: slots.findIndex(Boolean),
       colorChooser: null,
+      colorCard: null,
     })
   },
 
@@ -1120,8 +1190,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       staggerPhase: prev.staggerPhase,
       loop: prev.loop,
       history: history.slice(0, -1),
-      future: [{ cells, rows, rowShape, fringe, staggerPhase, loop }, ...future].slice(0, 100),
+      future: [{ cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: prev.trayChange }, ...future].slice(0, 100),
     })
+    if (prev.trayChange) applyTrayChange(get, set, prev.trayChange.slot, prev.trayChange.after, prev.trayChange.before)
     const id = get().patternId
     if (id && get().side === 'right') {
       // On the right earring only its colours ever change (its shape follows the left).
@@ -1148,8 +1219,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       staggerPhase: next.staggerPhase,
       loop: next.loop,
       future: future.slice(1),
-      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop }].slice(-100),
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: next.trayChange }].slice(-100),
     })
+    if (next.trayChange) applyTrayChange(get, set, next.trayChange.slot, next.trayChange.before, next.trayChange.after)
     const id = get().patternId
     if (id && get().side === 'right') {
       set({ pair: { mode: 'independent', rightCells: next.cells } })

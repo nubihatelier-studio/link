@@ -368,3 +368,19 @@ describe('letras estables: una vez A, siempre A', () => {
     expect(siguiente).toEqual({ [ORO]: 'A', [NEGRO]: 'B', [ROJO]: 'C' })
   })
 })
+
+describe('assignLetters — dos colores que recuerdan la misma letra', () => {
+  const loom = (cells: ColorMap): LetterPattern => ({ technique: 'loom', cols: 2, rows: 1, cells })
+
+  it('el primero en tejerse la conserva y el otro toma la siguiente libre: una letra nunca nombra dos colores', () => {
+    const saved = { [RED]: 'A', [PINK]: 'A', [GREEN]: 'B' }
+    const entries = assignLetters(loom({ '0,0': RED, '0,1': PINK }), saved)
+    expect(labels(entries)).toEqual({ [RED]: 'A', [PINK]: 'C' })
+  })
+
+  it('pintado uno solo de los dos, lleva la letra compartida', () => {
+    const saved = { [RED]: 'A', [PINK]: 'A' }
+    expect(labels(assignLetters(loom({ '0,0': PINK }), saved))).toEqual({ [PINK]: 'A' })
+    expect(labels(assignLetters(loom({ '0,0': RED }), saved))).toEqual({ [RED]: 'A' })
+  })
+})

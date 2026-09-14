@@ -2,9 +2,11 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PatternDoc } from '@/engine/types'
+import { assignLetters } from '@/engine/letters'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternsStore } from '@/store/patternsStore'
 import { CanvasGrid } from './CanvasGrid'
+import { ColorCard } from './ColorCard'
 import { ColorChooser } from './ColorChooser'
 import { ColorStrip } from './ColorStrip'
 
@@ -35,6 +37,7 @@ function renderEditorBits() {
     <>
       <ColorStrip onOpenPalette={() => {}} />
       <ColorChooser />
+      <ColorCard />
     </>,
   )
 }
@@ -87,7 +90,7 @@ describe('La bandeja de colores', () => {
     expect(screen.getByRole('button', { name: /cargado, todavía sin pintar/ })).toHaveTextContent('')
   })
 
-  it('tocar un color lo deja activo, y tocarlo de nuevo abre el selector para cambiarlo', async () => {
+  it('tocar un color lo deja activo, y tocarlo de nuevo abre su ficha', async () => {
     const user = userEvent.setup()
     open(doc({ cells: { '0,0': AZUL }, palette: [DORADO, AZUL, null, null, null, null] }))
     renderEditorBits()
@@ -98,15 +101,27 @@ describe('La bandeja de colores', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await user.click(a)
-    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Cambiar el color A' })).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Color A' })).toBeInTheDocument()
   })
 
-  it('cambiar un color pintado recolorea todas sus mostacillas en un paso de deshacer', () => {
-    open(doc({ cells: { '0,0': AZUL, '0,1': AZUL }, palette: [AZUL, null, null, null, null, null] }))
-    editor().recolorSlot(0, '#aa0000')
-    expect(editor().cells).toEqual({ '0,0': '#aa0000', '0,1': '#aa0000' })
-    expect(editor().slots[0]).toBe('#aa0000')
+  it('cambiar un color pintado recolorea todas sus mostacillas en un paso de deshacer, y conserva su letra', () => {
+    open(doc({ cells: { '0,0': DORADO, '0,1': AZUL, '1,0': AZUL }, palette: [DORADO, AZUL, null, null, null, null] }))
+    const letra = (hex: string) => assignLetters({ ...saved().config, cells: editor().cells }, saved().letters).find((e) => e.hex === hex)?.letter
+    expect(letra(AZUL)).toBe('B')
+
+    editor().recolorSlot(1, '#aa0000')
+    expect(editor().cells).toEqual({ '0,0': DORADO, '0,1': '#aa0000', '1,0': '#aa0000' })
+    expect(editor().slots[1]).toBe('#aa0000')
     expect(editor().history).toHaveLength(1)
+    expect(letra('#aa0000')).toBe('B')
+
+    // Deshacer devuelve el azul con su misma letra, y a su casilla.
+    editor().undo()
+    expect(letra(AZUL)).toBe('B')
+    expect(editor().slots[1]).toBe(AZUL)
+    editor().redo()
+    expect(editor().slots[1]).toBe('#aa0000')
+    expect(letra('#aa0000')).toBe('B')
   })
 
   it('"+ Casilla" agrega una séptima y abre el selector; cancelar no la deja vacía de más', async () => {

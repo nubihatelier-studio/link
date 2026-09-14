@@ -187,6 +187,22 @@ export const t = {
       addSlotLabel: 'Agregar una casilla',
       firstColorHint: 'Toca una casilla vacía para cargar tu primer color',
     },
+    /** La ficha de un color: se abre al tocar de nuevo el color activo, o su fila en la paleta. */
+    card: {
+      title: (letter: string) => (letter ? `Color ${letter}` : 'Color cargado'),
+      count: (n: number) => (n === 0 ? 'Todavía sin pintar' : `${n} ${n === 1 ? 'mostacilla' : 'mostacillas'}`),
+      recolor: 'Cambiar este color',
+      recolorHint: 'en todo el patrón',
+      swap: 'Intercambiar con otro color',
+      swapPick: 'Toca el color con que se intercambia',
+      merge: 'Fusionar con otro color',
+      mergePick: 'Toca el color que se queda: este desaparece y sus mostacillas pasan a ese',
+      select: 'Seleccionar sus mostacillas',
+      empty: 'Vaciar la casilla',
+      emptyBlocked: 'está pintado',
+      back: 'Volver',
+      close: 'Cerrar',
+    },
     /** El selector que se abre al llenar o cambiar una casilla. */
     chooser: {
       fillTitle: (n: number) => `Casilla ${n}`,
@@ -395,14 +411,6 @@ export const t = {
     confirm: 'Exportar',
     /** Guard: a PDF with nothing in it is not a document. */
     nothingSelected: 'Elige al menos una sección.',
-  },
-  advancedColor: {
-    title: 'Editor de color avanzado',
-    replaceAll: 'Reemplazar en todo el patrón',
-    merge: 'Fusionar colores',
-    swap: 'Intercambiar con…',
-    selectColor: 'Seleccionar mostacillas de este color',
-    preview: 'Vista previa',
   },
   gradient: {
     title: 'Degradado',

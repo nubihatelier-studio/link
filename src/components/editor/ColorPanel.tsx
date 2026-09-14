@@ -4,22 +4,18 @@ import {
   ArrowDownLeft,
   ArrowDownRight,
   ArrowRight,
+  ChevronRight,
   FlipHorizontal2,
   FlipVertical2,
-  Merge,
-  Replace,
-  Shuffle,
-  SquareDashedMousePointer,
 } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternsStore } from '@/store/patternsStore'
 import type { GradientDirection } from '@/engine/gradient'
-import { QUICK_SWATCHES } from '@/data/standardPalette'
 import { contrastTextColor } from '@/lib/color'
 import { describeColor } from '@/lib/colorName'
-import { ColorPicker } from './ColorPicker'
 import { ColorTray } from './ColorTray'
 import { usePatternLetters } from '@/hooks/usePatternLetters'
+import { slotOf } from '@/engine/tray'
 import { t } from '@/i18n/es'
 
 const CLONE_REPEATS = [2, 3, 5]
@@ -36,56 +32,24 @@ export function ColorPanel({
     cloneDirection,
     setCloneDirection,
     cloneSelection,
-    mergeColors,
-    swapColors,
-    selectColor,
     reflectSelection,
     applyGradient,
   } = useEditorStore()
-  const [mergeTarget, setMergeTarget] = useState<string | null>(null)
-  const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
-  const [replaceDraft, setReplaceDraft] = useState('#000000')
-  const [swapTarget, setSwapTarget] = useState<string | null>(null)
   const [gradientStart, setGradientStart] = useState<string | null>(null)
   const [gradientEnd, setGradientEnd] = useState<string | null>(null)
   const [gradientDirection, setGradientDirection] = useState<GradientDirection>('vertical')
 
-  function closeAllPanels() {
-    setMergeTarget(null)
-    setReplaceTarget(null)
-    setSwapTarget(null)
-  }
-
-  function openReplace(hex: string) {
-    setMergeTarget(null)
-    setSwapTarget(null)
-    setReplaceDraft(hex)
-    setReplaceTarget((current) => (current === hex ? null : hex))
-  }
-
-  function openMerge(hex: string) {
-    setReplaceTarget(null)
-    setSwapTarget(null)
-    setMergeTarget((current) => (current === hex ? null : hex))
-  }
-
-  function openSwap(hex: string) {
-    setReplaceTarget(null)
-    setMergeTarget(null)
-    setSwapTarget((current) => (current === hex ? null : hex))
-  }
-
-  function handleSelectColor(hex: string) {
-    closeAllPanels()
-    selectColor(hex)
-  }
-
-  function confirmReplace(fromHex: string) {
-    mergeColors(fromHex, replaceDraft)
-    setReplaceTarget(null)
-  }
-
   const palette = usePatternLetters()
+  const slots = useEditorStore((st) => st.slots)
+  const chooseColor = useEditorStore((st) => st.chooseColor)
+  const openColorCard = useEditorStore((st) => st.openColorCard)
+
+  /** A painted color no slot holds (an undo brought it back) is loaded first, so its card has a slot to act on. */
+  function openCardFor(hex: string) {
+    if (slotOf(slots, hex) < 0) chooseColor(hex)
+    const slot = slotOf(useEditorStore.getState().slots, hex)
+    if (slot >= 0) openColorCard(slot)
+  }
   const reletterPattern = usePatternsStore((s) => s.reletterPattern)
   const colorLetters = useMemo(
     () => Object.fromEntries(palette.map((p) => [p.hex, p.letter])),
@@ -175,142 +139,28 @@ export function ColorPanel({
             </button>
           )}
         </div>
-        <ul className="flex flex-col gap-1.5">
-          {palette.map((p) => {
-            const isMergeOpen = mergeTarget === p.hex
-            const isReplaceOpen = replaceTarget === p.hex
-            const isSwapOpen = swapTarget === p.hex
-            const otherColors = palette.filter((o) => o.hex !== p.hex)
-            return (
-              <li key={p.hex} className="rounded-lg hover:bg-surface-2">
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                  <span
-                    onDoubleClick={() => openReplace(p.hex)}
-                    title={p.hex}
-                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border text-[10px] font-bold"
-                    style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
-                  >
-                    {colorLetters[p.hex] ?? ''}
-                  </span>
-                  <span className="flex-1 truncate text-xs text-text-muted" title={p.hex}>
-                    {describeColor(p.hex)}
-                  </span>
-                  <span className="text-xs font-semibold">{p.count}</span>
-                  <button
-                    aria-label={t.advancedColor.selectColor}
-                    title={t.advancedColor.selectColor}
-                    onClick={() => handleSelectColor(p.hex)}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3"
-                  >
-                    <SquareDashedMousePointer size={13} />
-                  </button>
-                  <button
-                    aria-label={t.advancedColor.replaceAll}
-                    title={t.advancedColor.replaceAll}
-                    onClick={() => openReplace(p.hex)}
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
-                      ${isReplaceOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
-                  >
-                    <Replace size={13} />
-                  </button>
-                  {otherColors.length > 0 && (
-                    <button
-                      aria-label={t.advancedColor.swap}
-                      title={t.advancedColor.swap}
-                      onClick={() => openSwap(p.hex)}
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
-                        ${isSwapOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
-                    >
-                      <Shuffle size={13} />
-                    </button>
-                  )}
-                  {otherColors.length > 0 && (
-                    <button
-                      aria-label={t.advancedColor.merge}
-                      title={t.advancedColor.merge}
-                      onClick={() => openMerge(p.hex)}
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors
-                        ${isMergeOpen ? 'bg-accent-500 text-accent-ink' : 'text-text-muted hover:bg-surface-3'}`}
-                    >
-                      <Merge size={13} />
-                    </button>
-                  )}
-                </div>
-                {isReplaceOpen && (
-                  <div data-testid="replace-panel" className="mx-2 mb-2 flex flex-col gap-2 rounded-lg bg-surface-3 p-2">
-                    <p className="text-[11px] font-semibold text-text-muted">{t.advancedColor.replaceAll}</p>
-                    <ColorPicker value={replaceDraft} onChange={setReplaceDraft} />
-                    <div className="grid grid-cols-8 gap-1">
-                      {QUICK_SWATCHES.map((hex) => (
-                        <button
-                          key={hex}
-                          title={hex}
-                          onClick={() => setReplaceDraft(hex)}
-                          className="aspect-square rounded-md border border-border/50"
-                          style={{ backgroundColor: hex }}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-text-muted">{t.advancedColor.preview}</span>
-                      <span
-                        className="h-6 w-6 rounded-md border border-border"
-                        style={{ backgroundColor: replaceDraft }}
-                      />
-                      <button
-                        onClick={() => confirmReplace(p.hex)}
-                        className="ml-auto rounded-full bg-accent-500 px-3 py-1 text-xs font-semibold text-accent-ink hover:bg-accent-400"
-                      >
-                        {t.common.confirm}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {isSwapOpen && (
-                  <div data-testid="swap-panel" className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
-                    <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.swap}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {otherColors.map((o) => (
-                        <button
-                          key={o.hex}
-                          title={`${p.hex} ↔ ${o.hex}`}
-                          onClick={() => {
-                            swapColors(p.hex, o.hex)
-                            setSwapTarget(null)
-                          }}
-                          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-[10px] font-bold"
-                          style={{ backgroundColor: o.hex, color: contrastTextColor(o.hex) }}
-                        >
-                          {colorLetters[o.hex] ?? ''}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {isMergeOpen && (
-                  <div data-testid="merge-panel" className="mx-2 mb-2 rounded-lg bg-surface-3 p-2">
-                    <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.advancedColor.merge}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {otherColors.map((o) => (
-                        <button
-                          key={o.hex}
-                          title={`${p.hex} → ${o.hex}`}
-                          onClick={() => {
-                            mergeColors(p.hex, o.hex)
-                            setMergeTarget(null)
-                          }}
-                          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-[10px] font-bold"
-                          style={{ backgroundColor: o.hex, color: contrastTextColor(o.hex) }}
-                        >
-                          {colorLetters[o.hex] ?? ''}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </li>
-            )
-          })}
+        {/* Una fila por color pintado: tocarla abre su ficha, donde están cambiarlo,
+            intercambiarlo, fusionarlo y seleccionar sus mostacillas. */}
+        <ul className="flex flex-col gap-1">
+          {palette.map((p) => (
+            <li key={p.hex}>
+              <button
+                onClick={() => openCardFor(p.hex)}
+                aria-label={t.editor.usedColorHint(p.letter, p.count)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-surface-2"
+              >
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-[11px] font-bold"
+                  style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
+                >
+                  {p.letter}
+                </span>
+                <span className="flex-1 truncate text-sm text-text-muted">{describeColor(p.hex)}</span>
+                <span className="text-sm font-semibold tabular-nums">{p.count}</span>
+                <ChevronRight size={14} className="text-text-soft" />
+              </button>
+            </li>
+          ))}
           {palette.length === 0 && <p className="text-xs text-text-muted">{t.editor.paletteEmpty}</p>}
         </ul>
       </section>
