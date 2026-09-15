@@ -31,11 +31,11 @@ import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { TemplateIcon, type TemplateId } from '@/components/configurator/TemplateIcon'
 import { PatternThumb } from '@/components/shared/PatternThumb'
+import { templateSummary } from '@/components/templates/templateSummary'
 import { NameDialog } from '@/components/shared/NameDialog'
 import { UndoToast } from '@/components/shared/UndoToast'
 import type { PatternDoc } from '@/engine/types'
 import type { TemplateMode } from '@/engine/template'
-import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
 
 const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
 type SizeMode = 'count' | 'finalSize'
@@ -172,10 +172,8 @@ export function ConfiguratorPage() {
   const [templateMenuId, setTemplateMenuId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const [deletedTemplate, setDeletedTemplate] = useState<PatternDoc | null>(null)
-  /** The chosen template — one that ships with the app, or one the weaver saved. */
-  const userTemplate = userTemplateId
-    ? (templatesById[userTemplateId] ?? NUBIH_TEMPLATES.find((tpl) => tpl.id === userTemplateId))
-    : undefined
+  /** The saved template chosen instead of a built-in starting point. The ones that ship with the app live in the Plantillas tab. */
+  const userTemplate = userTemplateId ? templatesById[userTemplateId] : undefined
 
   const [technique, setTechnique] = useState<Technique>('loom')
   const [cols, setCols] = useState(16)
@@ -348,23 +346,6 @@ export function ConfiguratorPage() {
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.nubihTemplatesTitle}</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {NUBIH_TEMPLATES.map((tpl) => (
-            <TemplateCard
-              key={tpl.id}
-              template={tpl}
-              selected={userTemplateId === tpl.id}
-              onSelect={() => {
-                setUserTemplateId(tpl.id)
-                setSelectedTemplate(null)
-              }}
-            />
-          ))}
-        </div>
-      </section>
-
       {templates.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.userTemplates.title}</h2>
@@ -422,14 +403,7 @@ export function ConfiguratorPage() {
             <div className="min-w-0">
               <p className="truncate text-lg font-bold">{userTemplate.name}</p>
               <p className="text-sm text-text-muted">
-                {t.configurator.userTemplates.summary(
-                  t.technique[userTemplate.config.technique],
-                  userTemplate.config.cols,
-                  userTemplate.config.rows,
-                  beadCount(userTemplate.config.technique, userTemplate.config.cols, userTemplate.config.rows, userTemplate.rowShape) +
-                    totalFringeBeadCount(userTemplate.fringe) +
-                    loopBeadCount(userTemplate.loop),
-                )}
+                {templateSummary(userTemplate)}
               </p>
             </div>
           </Card>

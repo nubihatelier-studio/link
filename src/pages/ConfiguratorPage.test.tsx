@@ -524,30 +524,20 @@ describe('ConfiguratorPage — tus plantillas', () => {
   })
 })
 
-describe('ConfiguratorPage — Plantillas Nubih', () => {
+describe('ConfiguratorPage — las Plantillas Nubih viven en la pestaña Plantillas', () => {
   beforeEach(() => {
     usePatternsStore.setState({ patterns: {}, order: [], templates: {}, hydrated: true, migrationResult: null })
   })
 
-  it('vienen con la app, sin opciones de renombrar o eliminar, y se crea desde ellas igual que desde una propia', async () => {
-    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
-    usePatternsStore.setState({ createFromTemplate })
+  it('"Crear patrón" ya no las muestra', async () => {
     const { ConfiguratorPage } = await import('./ConfiguratorPage')
     render(
       <MemoryRouter>
         <ConfiguratorPage />
       </MemoryRouter>,
     )
-    const user = userEvent.setup()
-
-    expect(screen.getByText(t.configurator.nubihTemplatesTitle)).toBeInTheDocument()
-    expect(screen.queryByText(t.configurator.userTemplates.title)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t.configurator.userTemplates.options('Pulsera Azur') })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Pulsera Azur' }))
-    expect(screen.getByText(/Loom · 9 × 61/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
-    expect(createFromTemplate).toHaveBeenCalledWith('nubih_pulsera_azur', 'full')
+    expect(screen.queryByText(t.configurator.nubihTemplatesTitle)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pulsera Azur' })).not.toBeInTheDocument()
   })
 })
 

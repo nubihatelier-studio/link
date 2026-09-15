@@ -13,7 +13,7 @@ export const t = {
     createNew: '+ Crear nuevo',
     continueWeaving: 'Continuar tejiendo',
     onboardingMessage:
-      '¡Bienvenida a Nubih Creator! Te dejamos un aro con flecos de muestra para que explores — tócalo para editarlo, o crea el tuyo con "+ Crear nuevo".',
+      '¡Bienvenida a Nubih Creator! Te dejamos un aro con flecos de muestra para que explores — tócalo para editarlo, o crea el tuyo con el botón "+".',
     searchPlaceholder: 'Buscar por nombre…',
     searchNoResults: 'Ningún patrón coincide con la búsqueda',
     sortRecent: 'Reciente',
@@ -34,6 +34,17 @@ export const t = {
     },
     favorite: (name: string) => `Marcar ${name} como favorito`,
     unfavorite: (name: string) => `Quitar ${name} de favoritos`,
+  },
+  /** La barra de abajo de las pantallas principales. */
+  nav: {
+    label: 'Navegación principal',
+    home: 'Inicio',
+    templates: 'Plantillas',
+    create: 'Crear patrón',
+    createFromTemplate: 'Crear patrón',
+  },
+  templates: {
+    emptySaved: 'Todavía no guardas plantillas. En el editor: "⋯" → Guardar como plantilla.',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',

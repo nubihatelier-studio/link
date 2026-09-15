@@ -4,6 +4,7 @@ import { usePatternsStore } from '@/store/patternsStore'
 import { useAppUpdate } from '@/hooks/useAppUpdate'
 import { HomePage } from '@/pages/HomePage'
 import { ConfiguratorPage } from '@/pages/ConfiguratorPage'
+import { TemplatesPage } from '@/pages/TemplatesPage'
 import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
@@ -37,6 +38,7 @@ function App() {
     <main className="min-h-dvh bg-canvas text-text">
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/plantillas" element={<TemplatesPage />} />
         <Route path="/new" element={<ConfiguratorPage />} />
         <Route path="/new/photo" element={<PhotoToPatternPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />

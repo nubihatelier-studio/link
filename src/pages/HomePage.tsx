@@ -15,7 +15,7 @@ import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/b
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
 import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { APP_VERSION } from '@/version'
-import { Button } from '@/components/shared/Button'
+import { MainNav } from '@/components/shared/MainNav'
 import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -194,7 +194,7 @@ export function HomePage() {
   const displayedPatterns = sortPatterns(filterPatternsByName(visiblePatterns, searchQuery), librarySort)
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl px-4 pb-28 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
+    <div className="mx-auto min-h-screen max-w-3xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
       <header className="mb-6 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <img src="/logo.png" alt="" className="h-10 w-10 shrink-0 rounded-full" />
@@ -484,11 +484,7 @@ export function HomePage() {
         {t.privacy.version(APP_VERSION)}
       </p>
 
-      <div className="fixed inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-canvas via-canvas to-transparent px-6 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <Button className="max-w-sm" fullWidth onClick={() => navigate('/new')}>
-          {t.home.createNew}
-        </Button>
-      </div>
+      <MainNav />
 
       {pendingDelete && (
         <UndoToast
