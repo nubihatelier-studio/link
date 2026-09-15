@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { MoreVertical } from 'lucide-react'
+import { MoreVertical, Star } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
-import { useWeaveStore, parseWeaveProgressKey, weaveProgressKey } from '@/store/weaveStore'
+import { useWeaveStore, parseWeaveProgressKey } from '@/store/weaveStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
 import { pickMostRecentInProgress, summarizeWeaveProgress } from '@/engine/weaveProgressSummary'
 import { leftPieceOf, rightEarring } from '@/engine/pair'
 import { filterPatternsByName, sortPatterns, type LibrarySort } from '@/lib/patternLibrary'
+import { LIBRARY_FILTERS, matchesLibraryFilter, weaveStatusOf, type LibraryFilter } from '@/lib/libraryFilter'
 import { t } from '@/i18n/es'
 import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
@@ -49,6 +50,8 @@ export function HomePage() {
   const [renameDraft, setRenameDraft] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [librarySort, setLibrarySort] = useState<LibrarySort>('recent')
+  const [filter, setFilter] = useState<LibraryFilter>('all')
+  const setFavorite = usePatternsStore((s) => s.setFavorite)
   const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
   // Search/sort only earn their place once the list is long enough to need them.
   const showLibraryControls = order.length > 5
@@ -159,12 +162,8 @@ export function HomePage() {
       return !!doc && (side === 'left' || !!doc.pair)
     }),
   )
-  const heroKey = pickMostRecentInProgress(liveProgress)
-  /** A piece marked "Terminado" in weave mode — both earrings, for a pair. */
-  function weaveFinished(id: string, doc: PatternDoc) {
-    const leftDone = Boolean(weaveProgress[weaveProgressKey(id, 'left')]?.finishedAt)
-    return doc.pair ? leftDone && Boolean(weaveProgress[weaveProgressKey(id, 'right')]?.finishedAt) : leftDone
-  }
+  // "Continuar tejiendo" belongs to "Todos": in the other filters every match is simply listed.
+  const heroKey = filter === 'all' ? pickMostRecentInProgress(liveProgress) : null
   const hero = heroKey ? parseWeaveProgressKey(heroKey) : null
   const heroPatternId = hero?.patternId ?? null
   const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
@@ -184,10 +183,14 @@ export function HomePage() {
         )
       : null
 
-  const visiblePatterns = order
-    .filter((id) => id !== pendingDelete?.id && id !== heroPatternId)
+  /** Everything in the library right now — minus a pattern whose delete is still undoable. */
+  const libraryPatterns = order
+    .filter((id) => id !== pendingDelete?.id)
     .map((id) => patterns[id])
     .filter((p): p is PatternDoc => !!p)
+  const statusOf = (doc: PatternDoc) => weaveStatusOf(doc, weaveProgress)
+  const filterCount = (f: LibraryFilter) => libraryPatterns.filter((doc) => matchesLibraryFilter(doc, statusOf(doc), f)).length
+  const visiblePatterns = libraryPatterns.filter((doc) => doc.id !== heroPatternId && matchesLibraryFilter(doc, statusOf(doc), filter))
   const displayedPatterns = sortPatterns(filterPatternsByName(visiblePatterns, searchQuery), librarySort)
 
   return (
@@ -318,7 +321,24 @@ export function HomePage() {
         </button>
       )}
 
-      <h2 className="mb-4 text-lg font-semibold">{t.home.title}</h2>
+      <h2 className="mb-3 text-lg font-semibold">{t.home.title}</h2>
+
+      {libraryPatterns.length > 0 && (
+        <div role="group" aria-label={t.home.filters.label} className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          {LIBRARY_FILTERS.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              aria-pressed={filter === f}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors
+                ${filter === f ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text hover:bg-surface-3'}`}
+            >
+              {t.home.filters[f]}{' '}
+              <span className={`text-xs tabular-nums ${filter === f ? 'opacity-70' : 'text-text-muted'}`}>{filterCount(f)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {showLibraryControls && (
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -341,10 +361,17 @@ export function HomePage() {
         </div>
       )}
 
-      {visiblePatterns.length === 0 ? (
+      {libraryPatterns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
           {t.home.empty}
         </div>
+      ) : visiblePatterns.length === 0 ? (
+        // In "Todos" the only pattern may be the one featured above; nothing more to say.
+        filter !== 'all' && (
+          <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
+            {t.home.emptyFilter[filter]}
+          </div>
+        )
       ) : displayedPatterns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-text-muted">
           {t.home.searchNoResults}
@@ -392,7 +419,7 @@ export function HomePage() {
                     {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
                   </p>
                   <p className="text-xs text-text-muted">{colorCount} colores</p>
-                  {weaveFinished(id, p) ? (
+                  {statusOf(p) === 'finished' ? (
                     <p className="mt-1.5">
                       <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-[11px] font-semibold text-accent-600">
                         ✓ {t.weave.finishedLabel}
@@ -424,6 +451,15 @@ export function HomePage() {
                     {cardBody}
                   </button>
                 )}
+                <button
+                  onClick={() => setFavorite(id, !p.favorite)}
+                  aria-pressed={Boolean(p.favorite)}
+                  aria-label={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
+                  title={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-surface-3 ${p.favorite ? 'text-accent-500' : 'text-text-muted'}`}
+                >
+                  <Star size={20} fill={p.favorite ? 'currentColor' : 'none'} />
+                </button>
                 <button
                   className="shrink-0 rounded-full px-3 py-1 text-xs text-text-muted hover:bg-surface-3"
                   onClick={() => handleDuplicate(id)}

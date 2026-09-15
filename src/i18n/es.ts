@@ -19,6 +19,21 @@ export const t = {
     sortRecent: 'Reciente',
     sortName: 'Nombre',
     sortTechnique: 'Técnica',
+    /** Filtros de la biblioteca — ver lib/libraryFilter.ts. */
+    filters: {
+      label: 'Filtrar patrones',
+      all: 'Todos',
+      favorites: 'Favoritos',
+      inProgress: 'En progreso',
+      finished: 'Terminados',
+    },
+    emptyFilter: {
+      favorites: 'Toca la estrella de un patrón para tenerlo aquí.',
+      inProgress: 'Nada en proceso: abre un patrón en modo tejido para empezar.',
+      finished: 'Aquí aparecen las piezas que marcas como terminadas en modo tejido.',
+    },
+    favorite: (name: string) => `Marcar ${name} como favorito`,
+    unfavorite: (name: string) => `Quitar ${name} de favoritos`,
   },
   backup: {
     exportAll: 'Descargar respaldo completo',

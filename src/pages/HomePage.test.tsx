@@ -371,3 +371,84 @@ describe('HomePage — duplicar con renombrado inline', () => {
     expect(screen.getByText('Flor peyote (copia)')).toBeInTheDocument()
   })
 })
+
+describe('HomePage — filtros y favoritos', () => {
+  const EN_CURSO: PatternDoc = { ...PATTERN, id: 'p_curso', name: 'Big Flowers', updatedAt: 3 }
+  const TERMINADO: PatternDoc = { ...PATTERN, id: 'p_listo', name: 'Pulsera Azur', updatedAt: 2 }
+  const FAVORITO: PatternDoc = { ...PATTERN, id: 'p_fav', name: 'Flower Ring', favorite: true, updatedAt: 1 }
+
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter(
+      [EN_CURSO, TERMINADO, FAVORITO],
+      [
+        { patternId: EN_CURSO.id, currentIndex: 4, updatedAt: 10 },
+        { patternId: TERMINADO.id, currentIndex: 80, finishedAt: 20, updatedAt: 20 },
+      ],
+    )
+    usePatternsStore.setState({
+      patterns: { [EN_CURSO.id]: EN_CURSO, [TERMINADO.id]: TERMINADO, [FAVORITO.id]: FAVORITO },
+      order: [EN_CURSO.id, TERMINADO.id, FAVORITO.id],
+      templates: {},
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+  })
+
+  async function renderHome() {
+    const { HomePage } = await import('./HomePage')
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    )
+    return userEvent.setup()
+  }
+  const chip = (name: RegExp) => screen.getByRole('button', { name })
+
+  it('muestra los cuatro filtros con su cantidad', async () => {
+    await renderHome()
+    await waitFor(() => expect(chip(/^En progreso 1$/)).toBeInTheDocument())
+    expect(chip(/^Todos 3$/)).toHaveAttribute('aria-pressed', 'true')
+    expect(chip(/^Favoritos 1$/)).toBeInTheDocument()
+    expect(chip(/^Terminados 1$/)).toBeInTheDocument()
+  })
+
+  it('cada filtro muestra sólo lo suyo, sin la card de "Continuar tejiendo"', async () => {
+    const user = await renderHome()
+    await waitFor(() => expect(screen.getByText('Continuar tejiendo')).toBeInTheDocument())
+
+    await user.click(chip(/^En progreso/))
+    expect(screen.queryByText('Continuar tejiendo')).not.toBeInTheDocument()
+    expect(screen.getByText('Big Flowers')).toBeInTheDocument()
+    expect(screen.queryByText('Pulsera Azur')).not.toBeInTheDocument()
+
+    await user.click(chip(/^Terminados/))
+    expect(screen.getByText('Pulsera Azur')).toBeInTheDocument()
+    expect(screen.queryByText('Big Flowers')).not.toBeInTheDocument()
+
+    await user.click(chip(/^Favoritos/))
+    expect(screen.getByText('Flower Ring')).toBeInTheDocument()
+    expect(screen.queryByText('Pulsera Azur')).not.toBeInTheDocument()
+  })
+
+  it('la estrella marca y desmarca un favorito, sin cambiar su lugar en "Reciente"', async () => {
+    const user = await renderHome()
+    await user.click(screen.getByRole('button', { name: 'Marcar Pulsera Azur como favorito' }))
+    expect(usePatternsStore.getState().patterns[TERMINADO.id].favorite).toBe(true)
+    expect(usePatternsStore.getState().patterns[TERMINADO.id].updatedAt).toBe(2)
+    expect(chip(/^Favoritos 2$/)).toBeInTheDocument()
+
+    await user.click(chip(/^Favoritos/))
+    await user.click(screen.getByRole('button', { name: 'Quitar Flower Ring de favoritos' }))
+    expect(usePatternsStore.getState().patterns[FAVORITO.id].favorite).toBeUndefined()
+    expect(screen.queryByText('Flower Ring')).not.toBeInTheDocument()
+  })
+
+  it('un filtro vacío explica cómo llenarlo', async () => {
+    usePatternsStore.getState().setFavorite(FAVORITO.id, false)
+    const user = await renderHome()
+    await user.click(chip(/^Favoritos/))
+    expect(screen.getByText('Toca la estrella de un patrón para tenerlo aquí.')).toBeInTheDocument()
+  })
+})

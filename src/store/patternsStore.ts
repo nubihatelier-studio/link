@@ -57,6 +57,8 @@ interface PatternsState {
   ) => string
   createPatternWithCells: (config: PatternConfig, cells: ColorMap, name?: string) => string
   renamePattern: (id: string, name: string) => void
+  /** The library's star. Doesn't count as an edit: the pattern keeps its place in "Reciente". */
+  setFavorite: (id: string, favorite: boolean) => void
   deletePattern: (id: string) => void
   duplicatePattern: (id: string) => string | null
   setCells: (id: string, cells: ColorMap) => void
@@ -250,6 +252,15 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)
+  },
+
+  setFavorite: (id, favorite) => {
+    const doc = get().patterns[id]
+    if (!doc) return
+    const { favorite: _previous, ...rest } = doc
+    const updated: PatternDoc = favorite ? { ...rest, favorite: true } : rest
+    set((s) => ({ patterns: { ...s.patterns, [id]: updated } }))
+    persistPattern(updated)
   },
 
   deletePattern: (id) => {

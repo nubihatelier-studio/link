@@ -156,6 +156,8 @@ export interface PatternDoc {
    * store keeps them apart: they never show up in the library.
    */
   isTemplate?: true
+  /** Marked with the star in the library — "Favoritos". Absent means not a favorite. */
+  favorite?: true
   createdAt: number
   updatedAt: number
 }
