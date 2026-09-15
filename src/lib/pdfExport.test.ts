@@ -579,3 +579,55 @@ describe('exportPatternToPdf — integración, documento completo (Prioridad 1)'
  * off paper. These assert the actual printed text, not just page counts —
  * "there are more pages now" would also pass if the pages were blank.
  */
+
+describe('exportPatternToPdf — el logo en el encabezado', () => {
+  const bead = getBeadType('miyuki-delica-11')
+  /** Un PNG de 4×2 de verdad, para que jsPDF pueda incrustarlo sin dibujar en pantalla. */
+  const PNG_4x2 =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAIAAADwyuo0AAAAEklEQVR4nGM8sUCDAQaYGJAAACZuAZR50uyxAAAAAElFTkSuQmCC'
+
+  beforeEach(() => {
+    lastDoc = undefined
+    vi.resetModules()
+  })
+
+  async function exportWithLogo(name: string, logo: unknown) {
+    // Cada llamada estrena módulos: si no, la segunda reusa el mock de la primera.
+    vi.resetModules()
+    vi.doMock('./loadImage', () => ({
+      loadPng: vi.fn(async () => {
+        if (!logo) throw new Error('sin logo')
+        return logo
+      }),
+      loadImage: vi.fn(),
+      WORDMARK_SRC: { light: '/logo-wordmark.png', dark: '/logo-wordmark-dark.png' },
+    }))
+    const { exportPatternToPdf } = await import('./pdfExport')
+    await exportPatternToPdf({ name, technique: 'peyote', cols: 6, rows: 10, cells: fillCells(6, 10), beadType: bead })
+    vi.doUnmock('./loadImage')
+    return lastDoc!
+  }
+
+  it('incrusta el logo en el documento', async () => {
+    const doc = await exportWithLogo('Aro', { dataUrl: PNG_4x2, width: 4, height: 2 })
+    expect(doc.output()).toContain('/Image')
+  })
+
+  it('un nombre largo se corta con puntos suspensivos para no pasar por debajo del logo', async () => {
+    const largo = 'Aro de flecos con nombre larguísimo para la prueba del encabezado'
+    const titulo = (texts: string[]) => texts.find((t) => t.startsWith('Aro de flecos'))!
+    const conLogo = titulo(pdfTexts(await exportWithLogo(largo, { dataUrl: PNG_4x2, width: 4, height: 2 })))
+    const sinLogo = titulo(pdfTexts(await exportWithLogo(largo, null)))
+    // Un nombre así de largo no cabe ni a página completa, pero con el logo al
+    // lado cabe todavía menos: nunca se mete debajo de él.
+    expect(conLogo.length).toBeLessThan(sinLogo.length)
+    expect(conLogo.length).toBeLessThan(largo.length)
+    expect(largo.startsWith(conLogo.slice(0, -1))).toBe(true) // el corte es del final, con un carácter de puntos suspensivos
+  })
+
+  it('sin logo (sin conexión, bloqueado) el encabezado sale como siempre', async () => {
+    const doc = await exportWithLogo('Aro corto', null)
+    expect(pdfTexts(doc)).toContain('Aro corto')
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1)
+  })
+})

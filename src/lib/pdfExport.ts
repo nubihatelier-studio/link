@@ -1,4 +1,5 @@
 import type { ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
+import { loadPng, WORDMARK_SRC, type PngFile } from './loadImage'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
 import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, rowPitch, type StaggerPhase } from '@/engine/geometry'
@@ -172,6 +173,17 @@ const A4_WIDTH_MM = 210
 const A4_HEIGHT_MM = 297
 /** Gap between the chart and materials columns in the one-page layout. */
 const COLUMN_GUTTER_MM = 10
+/** Height of the brand wordmark printed at the top right of the first page. */
+const LOGO_HEIGHT_MM = 9
+
+/** `text`, cut with an ellipsis if it doesn't fit `maxWidth` at the current font. */
+function fitText(doc: JsPDF, text: string, maxWidth: number): string {
+  if (doc.getTextWidth(text) <= maxWidth) return text
+  let cut = text
+  while (cut.length > 1 && doc.getTextWidth(`${cut}…`) > maxWidth) cut = cut.slice(0, -1)
+  return `${cut}…`
+}
+
 /** Y position where content below the title + spec line starts — matches the fixed positions `drawHeaderBlock` draws at (16, 23), same convention the ficha page always used. */
 const HEADER_BOTTOM_MM = 30
 const FOOTER_RESERVE_MM = 10
@@ -396,11 +408,21 @@ function stampFooterOnAllPages(doc: JsPDF, pageWidth: number, pageHeight: number
  * spanning the full page width above both columns) and the paginated
  * fallback's ficha page (where it's always sat, unchanged).
  */
-function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number) {
+function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number, logo?: PngFile) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  // The wordmark sits top right, and the pattern's name gets whatever width is
+  // left — a long name is cut with an ellipsis rather than running under it.
+  let nameWidth = pageWidth - margin * 2
+  if (logo) {
+    const height = LOGO_HEIGHT_MM
+    const width = (logo.width / logo.height) * height
+    doc.addImage(logo.dataUrl, 'PNG', pageWidth - margin - width, 9, width, height)
+    nameWidth -= width + 6
+  }
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(0)
-  doc.text(opts.name || 'Patrón Nubih', margin, 16)
+  doc.text(fitText(doc, opts.name || 'Patrón Nubih', nameWidth), margin, 16)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -638,7 +660,10 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const palette = assignLettersAcross(pieces, opts.letterAssignment)
   const letterForHex = new Map(palette.map((p) => [p.hex, p.letter]))
 
-  drawHeaderBlock(doc, opts, margin)
+  // The logo is a nice-to-have: if it can't be loaded (offline, blocked), the
+  // header prints exactly as it always did.
+  const logo = await loadPng(WORDMARK_SRC.light).catch(() => undefined)
+  drawHeaderBlock(doc, opts, margin, logo)
 
   if (onePage) {
     const columnTop = HEADER_BOTTOM_MM
