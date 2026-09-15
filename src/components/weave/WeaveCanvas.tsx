@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Cell, ColorMap, FringeData, LoopData, RowShape, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, loopAnchorX, rowPitch, type StaggerPhase } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -31,7 +31,7 @@ interface WeaveCanvasProps {
    * `engine/weaveOrder.ts#peyoteThreadThroughCells`.
    */
   threadThroughCells?: Cell[]
-  staggerPhase?: 0 | 1
+  staggerPhase?: StaggerPhase
   /** Absent/undefined is treated as a full rectangle. Decides which body cells exist (and so are drawn), and anchors the loop. */
   rowShape?: RowShape[]
   /** Hanging loop at the top tip — see `engine/types.ts#LoopData`. Absent = no loop. */
@@ -126,14 +126,15 @@ export function WeaveCanvas({
     return m
   }, [order])
 
-  // "Next bead" ring/arrow always target the upcoming step's first cell — every body and fringe
-  // step is a single bead, so that's exact.
+  // "Next bead" ring/arrow start from the upcoming step's first cell — its top bead, for a brick
+  // 2-drop/3-drop stitch, whose whole stack is ringed.
   // The loop is its own final step and isn't part of the grid (its synthetic
   // cells carry row -1 purely as a counting key), so the "next bead" ring and
   // the tap target follow the drawn arch instead of a cell position.
   const nextStep = order[currentIndex + 1]
   const nextIsLoop = nextStep?.isLoop === true
   const nextCell = nextIsLoop ? undefined : nextStep?.cells[0]
+  const nextStitchCells = useMemo(() => (nextIsLoop || !nextStep ? [] : nextStep.cells), [nextIsLoop, nextStep])
   /**
    * Every bead of the pass (or row) about to be worked, so the weaver sees the
    * whole instruction at once instead of only the single next bead. The bright
@@ -316,9 +317,13 @@ export function WeaveCanvas({
       const y = originY + pos.y * CELL_PX
       ctx.strokeStyle = '#c9a227'
       ctx.lineWidth = 3
-      ctx.beginPath()
-      roundRect(ctx, x - 1, y - 1, CELL_PX + 2, rowStepPx + 2, radius + 1)
-      ctx.stroke()
+      // A brick 2-drop/3-drop stitch is a stack of beads picked up together: ring them all.
+      for (const cell of nextStitchCells) {
+        const p = cellPosition(technique, cell.row, cell.col, rows, staggerPhase)
+        ctx.beginPath()
+        roundRect(ctx, MARGIN + p.x * CELL_PX - 1, originY + p.y * CELL_PX - 1, CELL_PX + 2, rowStepPx + 2, radius + 1)
+        ctx.stroke()
+      }
 
       if (threadStops) {
         const centerOf = (cell: Cell) => {
@@ -374,7 +379,7 @@ export function WeaveCanvas({
       ctx.font = '700 12px system-ui, sans-serif'
       ctx.fillText(String(label), MARGIN - 4, originY + pos.y * CELL_PX + CELL_PX / 2 + 4)
     }
-  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, direction, threadStops, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
+  }, [technique, cols, rows, cells, fringe, currentIndex, indexByCell, nextCell, nextStitchCells, direction, threadStops, width, height, staggerPhase, loop, loopAnchor, loopDone, nextIsLoop, originY, currentUnitCells, threadThroughCells, CELL_PX, activeRow])
 
   /**
    * Keeps the next bead in view. A strip fitted to its width is taller than the

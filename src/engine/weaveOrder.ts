@@ -1,5 +1,5 @@
 import type { Cell, FringeData, RowShape, Technique } from './types'
-import { cellPosition } from './geometry'
+import { cellPosition, dropOf, type StaggerPhase } from './geometry'
 
 export type WeaveDirection = 'ltr' | 'rtl'
 
@@ -25,7 +25,7 @@ export interface WeaveStep {
   isFringe?: true
   /** True when this fringe step's bead is the turn bead (the deepest one, where the thread turns back up). */
   isTurnBead?: true
-  /** True only for brick's very first step — the widest row, adjacent to the fringe, that the whole body is built up from. See `buildBrickOrder`. */
+  /** True on brick's first row (every step of it) — the row the whole body is built from. See `buildBrickOrder`. */
   isBaseRow?: true
   /**
    * True only for the final step — a woven hanging loop's ring, bundled
@@ -134,20 +134,33 @@ function buildLoomOrder(cols: number, rows: number, fringe?: FringeData): WeaveO
  * fringes from the nearest column and sweeping away from that edge is the one
  * that doesn't make the thread jump back across the whole width first.
  */
-function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowShape?: RowShape[]): WeaveOrder {
+function buildBrickOrder(cols: number, rows: number, fringe?: FringeData, rowShape?: RowShape[], drop = 1): WeaveOrder {
   const order: WeaveOrder = []
   let rowsWalked = 0
   let lastDirection: WeaveDirection = 'ltr'
 
-  for (let row = 0; row < rows; row++) {
-    const shape = rowShape?.[row]
-    const colStart = shape?.offset ?? 0
-    const colEnd = shape ? shape.offset + shape.length : cols
+  // 2-drop and 3-drop: a stitch picks up a stack of two or three beads, so a
+  // step is that stack, top bead first, and the rows are walked stack by
+  // stack. `unit` counts stitch rows. With 1-drop a stack is one row and one
+  // bead, which is the order this always was.
+  for (let top = 0; top < rows; top += drop) {
+    const stackRows: number[] = []
+    for (let row = top; row < Math.min(rows, top + drop); row++) stackRows.push(row)
+    const spanOf = (row: number) => {
+      const shape = rowShape?.[row]
+      return shape ? { start: shape.offset, end: shape.offset + shape.length } : { start: 0, end: cols }
+    }
+    // The rows of a stack share their width; should a hand edit have left
+    // them apart, the stitch covers every column any of them reaches.
+    const colStart = Math.min(...stackRows.map((row) => spanOf(row).start))
+    const colEnd = Math.max(...stackRows.map((row) => spanOf(row).end))
     const direction: WeaveDirection = rowsWalked % 2 === 0 ? 'ltr' : 'rtl'
     const span = colEnd - colStart
     for (let i = 0; i < span; i++) {
       const col = direction === 'ltr' ? colStart + i : colEnd - 1 - i
-      const step: WeaveStep = { cells: [{ row, col }], unit: row, direction, grouped: false }
+      const cells = stackRows.filter((row) => col >= spanOf(row).start && col < spanOf(row).end).map((row) => ({ row, col }))
+      if (cells.length === 0) continue
+      const step: WeaveStep = { cells, unit: rowsWalked, direction, grouped: false }
       if (rowsWalked === 0) step.isBaseRow = true
       order.push(step)
     }
@@ -306,12 +319,14 @@ export function buildWeaveOrder(
   fringe?: FringeData,
   rowShape?: RowShape[],
   loopBeadCount = 0,
+  /** Only its drop matters, and only to brick — see `buildBrickOrder`. */
+  staggerPhase: StaggerPhase = 0,
 ): WeaveOrder {
   switch (technique) {
     case 'loom':
       return appendLoopStep(buildLoomOrder(cols, rows, fringe), loopBeadCount)
     case 'brick':
-      return appendLoopStep(buildBrickOrder(cols, rows, fringe, rowShape), loopBeadCount)
+      return appendLoopStep(buildBrickOrder(cols, rows, fringe, rowShape, dropOf(staggerPhase)), loopBeadCount)
     case 'peyote':
       return appendLoopStep(buildPeyoteOrder(cols, rows), loopBeadCount)
   }
@@ -331,12 +346,16 @@ export function directionAtStep(
   order: WeaveOrder,
   index: number,
   bodyRows?: number,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): { dx: number; dy: number } | null {
   const next = order[index + 1]
   if (!next) return null
   const current = order[index]
-  const from = current.cells[current.cells.length - 1]
+  // A brick 2-drop/3-drop stitch is a stack: the needle moves from stack to
+  // stack along the row, so measure top bead to top bead, not from the bottom
+  // of one stack up to the top of the next.
+  const stitchToStitch = !current.grouped && !current.isFringe && !next.isFringe && current.cells.length > 1
+  const from = stitchToStitch ? current.cells[0] : current.cells[current.cells.length - 1]
   const to = next.cells[0]
   const p0 = cellPosition(technique, from.row, from.col, bodyRows, staggerPhase)
   const p1 = cellPosition(technique, to.row, to.col, bodyRows, staggerPhase)

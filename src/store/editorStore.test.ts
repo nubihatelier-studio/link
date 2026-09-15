@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyFringe } from '@/engine/fringe'
+import { isShiftedRow, type StaggerPhase } from '@/engine/geometry'
 import { createRectangleRowShape, createShapedRowShape, preferredRowsFor } from '@/engine/shape'
 import type { FringeData, LoopData, PatternDoc, RowShape } from '@/engine/types'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -721,8 +722,8 @@ describe('editorStore — argolla de enganche (Tarea 3): activar/desactivar, con
 })
 
 describe('editorStore — staggerPhase se mantiene centrado a través del store real (verificación final Ronda I)', () => {
-  function physicalLeft(row: number, offset: number, phase: 0 | 1): boolean | number {
-    return offset + ((row + phase) % 2 === 1 ? 0.5 : 0)
+  function physicalLeft(row: number, offset: number, phase: StaggerPhase): boolean | number {
+    return offset + (isShiftedRow(row, phase) ? 0.5 : 0)
   }
 
   function assertCenteredAndBounded(cols: number) {
@@ -808,5 +809,83 @@ describe('editorStore — staggerPhase se mantiene centrado a través del store 
     }
     useEditorStore.getState().loadPattern(doc)
     expect(useEditorStore.getState().staggerPhase).toBe(0)
+  })
+})
+
+describe('editorStore — brick 1-drop / 2-drop / 3-drop', () => {
+  const patternId = 'p_test_drop'
+
+  function setup(rowShape: RowShape[], rows: number, cols: number, cells: Record<string, string> = {}) {
+    resetStore({ rowShape, patternId, cells, fringe: createEmptyFringe(cols) })
+    useEditorStore.setState({ cols, rows })
+    const doc: PatternDoc = {
+      id: patternId,
+      name: 'Test',
+      config: { technique: 'brick', cols, rows, beadTypeId: 'miyuki-delica-11' },
+      cells,
+      rowShape,
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    usePatternsStore.setState({ patterns: { [patternId]: doc }, order: [patternId] })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  }
+
+  it('pasar un triángulo 7×7 a 2-drop: filas enteras de a 2 agregadas arriba, forma rehecha, la última fila no se mueve, y se guarda', () => {
+    setup(createShapedRowShape('triangle', 7, 7), 7, 7, { '6,0': '#111111' })
+    useEditorStore.getState().setBrickDrop(2)
+    const { rows, rowShape, staggerPhase, cells } = useEditorStore.getState()
+    expect(rows).toBe(8)
+    expect(staggerPhase).toEqual({ phase: 1, drop: 2 })
+    expect(rowShape.map((r) => r.length)).toEqual([4, 4, 5, 5, 6, 6, 7, 7])
+    expect(isShiftedRow(7, staggerPhase)).toBe(false) // igual que la fila 6 de antes
+    expect(cells['7,0']).toBe('#111111') // lo pintado bajó con su fila
+    const saved = usePatternsStore.getState().patterns[patternId]
+    expect(saved.config).toMatchObject({ rows: 8, staggerPhase: 1, brickDrop: 2 })
+  })
+
+  it('deshacer vuelve a 1-drop con su forma, y en la config desaparece el drop', () => {
+    const shape = createShapedRowShape('triangle', 7, 7)
+    setup(shape, 7, 7)
+    useEditorStore.getState().setBrickDrop(3)
+    useEditorStore.getState().undo()
+    const { rows, rowShape, staggerPhase } = useEditorStore.getState()
+    expect(rows).toBe(7)
+    expect(rowShape).toEqual(shape)
+    expect(staggerPhase).toBe(0)
+    expect(usePatternsStore.getState().patterns[patternId].config).not.toHaveProperty('brickDrop')
+  })
+
+  it('cambiar el drop reinicia el progreso de tejido guardado', () => {
+    setup(createShapedRowShape('rectangle', 4, 4), 4, 4)
+    useWeaveStore.getState().setIndex(patternId, 5, 3)
+    useEditorStore.getState().setBrickDrop(2)
+    expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1)
+    expect(useEditorStore.getState().weaveResetPending).toBe(5)
+  })
+
+  it('en 2-drop, agregar y quitar arriba mueve una pila entera', () => {
+    const stagger = { phase: 0, drop: 2 } as const
+    setup(createShapedRowShape('triangle', 7, 10, stagger), 10, 7)
+    useEditorStore.setState({ staggerPhase: stagger })
+    useEditorStore.getState().addRowAtTop()
+    let state = useEditorStore.getState()
+    expect(state.rows).toBe(12)
+    expect(state.rowShape[0].length).toBe(state.rowShape[1].length)
+    expect(state.staggerPhase).toEqual({ phase: 1, drop: 2 })
+    useEditorStore.getState().removeRowAtTop()
+    state = useEditorStore.getState()
+    expect(state.rows).toBe(10)
+    expect(state.staggerPhase).toEqual(stagger)
+  })
+
+  it('en 2-drop, achicar una fila achica su pila entera', () => {
+    const stagger = { phase: 0, drop: 2 } as const
+    setup(createShapedRowShape('triangle', 7, 10, stagger), 10, 7)
+    useEditorStore.setState({ staggerPhase: stagger })
+    useEditorStore.getState().shrinkRowEdge(1, 'left')
+    const { rowShape } = useEditorStore.getState()
+    expect(rowShape[0].length).toBe(2)
+    expect(rowShape[1].length).toBe(2)
   })
 })

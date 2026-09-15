@@ -1,13 +1,13 @@
 import { create } from 'zustand'
-import type { ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
+import type { BrickDrop, ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
 import { floodFillCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { normalizeLoop } from '@/engine/loop'
-import { effectiveStaggerPhase } from '@/engine/geometry'
+import { dropOf, effectiveStaggerPhase, flipStagger, isShiftedRow, staggerOf, stitchRowOf, type StaggerPhase } from '@/engine/geometry'
 import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
-import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
+import { createRectangleRowShape, createShapedRowShape, detectPreset, minTaperWidth, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
@@ -54,7 +54,7 @@ interface EditorSnapshot {
   rows: number
   rowShape: RowShape[]
   fringe: FringeData
-  staggerPhase: 0 | 1
+  staggerPhase: StaggerPhase
   loop: LoopData | undefined
   /**
    * Set on the step a color card's recolor or merge made: the slot it
@@ -86,8 +86,11 @@ interface EditorState {
    * `removeRowAtTop` flip it (see their own comments) so that inserting or
    * removing a row at the top — which reindexes every existing row — doesn't
    * shift their physical stagger and break the pattern's centering.
+   *
+   * Brick 2-drop and 3-drop carry their drop here too (see
+   * `geometry.ts#BrickStagger`), so undo brings a drop back with its shape.
    */
-  staggerPhase: 0 | 1
+  staggerPhase: StaggerPhase
   cells: ColorMap
 
   /**
@@ -164,8 +167,16 @@ interface EditorState {
   addRowAtTop: () => void
   /** Removes the topmost row — a no-op if only 1 row remains (a pattern always keeps at least 1 row). Single undo entry, same as `addRowAtTop`. */
   removeRowAtTop: () => void
+  /**
+   * Brick only: weaves 1-drop, 2-drop or 3-drop from now on. Rows round up to
+   * whole stacks (added at the top, so the fringe keeps hanging from the same
+   * row), a preset silhouette is rebuilt for the new drop, and the last row
+   * keeps its half-bead shift so the fringe doesn't move. One undo step; the
+   * weave progress resets, since every stitch changes.
+   */
+  setBrickDrop: (drop: BrickDrop) => void
   /** Shared plumbing for `addRowAtTop`/`removeRowAtTop`: one undo entry, one persisted write, and an explicit (never silent, never corrupted) weave-progress reset since a row-count change renumbers the whole weave order. */
-  commitShapeChange: (next: { rows: number; rowShape: RowShape[]; cells: ColorMap; staggerPhase: 0 | 1 }) => void
+  commitShapeChange: (next: { rows: number; rowShape: RowShape[]; cells: ColorMap; staggerPhase: StaggerPhase }) => void
   /**
    * Set by `commitShapeChange` to the weave progress index that was just
    * reset (so the UI can offer "Deshacer" on that specific reset), or `null`
@@ -356,6 +367,13 @@ function normalizeRect(r: SelectionRect): SelectionRect {
     r1: Math.max(r.r0, r.r1),
     c1: Math.max(r.c0, r.c1),
   }
+}
+
+/** The rows woven as one stitch row with `row` — just `row` itself for 1-drop. */
+function stackRows(row: number, rows: number, stagger: StaggerPhase): number[] {
+  const drop = dropOf(stagger)
+  const top = stitchRowOf(row, stagger) * drop
+  return Array.from({ length: Math.min(drop, rows - top) }, (_, i) => top + i)
 }
 
 /**
@@ -637,7 +655,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     const next = edge === 'left' ? { offset: shape.offset - 1, length: shape.length + 1 } : { offset: shape.offset, length: shape.length + 1 }
     if (next.offset < 0 || next.offset + next.length > cols) return // already at the grid's own edge
     const nextRowShape = [...rowShape]
-    nextRowShape[row] = next
+    // 2-drop/3-drop: the rows of a stack are one stitch row, so they change together.
+    for (const r of stackRows(row, rows, staggerPhase)) nextRowShape[r] = next
     // Recentered from scratch (Corrección 1) — a single edge edit can leave
     // this row's own offset out of step with its neighbors' (see
     // `recenterRowShape`'s doc comment), so every row's offset is re-derived
@@ -664,7 +683,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     const droppedCol = edge === 'left' ? shape.offset : shape.offset + shape.length - 1
     const next = edge === 'left' ? { offset: shape.offset + 1, length: shape.length - 1 } : { offset: shape.offset, length: shape.length - 1 }
     const nextRowShape = [...rowShape]
-    nextRowShape[row] = next
+    const stack = stackRows(row, rows, staggerPhase)
+    for (const r of stack) nextRowShape[r] = next
     const recentered = recenterRowShape(nextRowShape, cols, staggerPhase)
     set({ rowShape: recentered })
 
@@ -677,9 +697,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     // sweep then catches anything else recentering orphaned elsewhere (this
     // row's *other* edge, or a different row nudged to stay smooth) — both
     // fold into the same single undo step.
-    const directKey = cellKey(row, droppedCol)
-    const withDirectDrop = directKey in cells ? { ...cells } : cells
-    delete withDirectDrop[directKey]
+    const directKeys = stack.map((r) => cellKey(r, droppedCol))
+    const withDirectDrop = directKeys.some((key) => key in cells) ? { ...cells } : cells
+    for (const key of directKeys) delete withDirectDrop[key]
     const pruned = pruneOrphanedCells(withDirectDrop, cols, rows, fringe, recentered)
     if (pruned !== cells) get().commit(pruned)
 
@@ -692,14 +712,16 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     if (get().side === 'right') return
     const { cells, rows, rowShape, cols, fringe, staggerPhase } = get()
     const oldFirst = rowShape[0]
-    const length = Math.max(1, oldFirst.length - 1)
+    // 2-drop/3-drop add a whole stack — one stitch row — and taper to two columns, not one.
+    const drop = dropOf(staggerPhase)
+    const length = Math.max(Math.min(cols, minTaperWidth(drop)), oldFirst.length - 1)
     // Inserting a row reindexes every existing row by +1, flipping which
     // absolute index (and thus brick parity) each one lands on — flipping
     // staggerPhase in lockstep exactly cancels that shift, so every
     // pre-existing row's real physical stagger (and its centered offset)
     // stays the same; only the new row's own slot is actually new. See this
     // file's `staggerPhase` field doc and `shape.ts#recenterRowShape`.
-    const nextStaggerPhase: 0 | 1 = staggerPhase === 0 ? 1 : 0
+    const nextStaggerPhase = flipStagger(staggerPhase)
     // Prepend a placeholder (its offset doesn't matter — recenterRowShape
     // re-derives every row's offset from scratch right after) rather than
     // patching just this one row and leaving the rest untouched: inserting
@@ -707,39 +729,76 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     // brick parity, so an offset that was correct before is generally wrong
     // now (see `recenterRowShape`'s doc comment — this is the "romboide"
     // bug: 5 additions in a row used to skew the whole silhouette).
-    const nextRowShape = recenterRowShape([{ offset: 0, length }, ...rowShape], cols, nextStaggerPhase)
+    const added = Array.from({ length: drop }, () => ({ offset: 0, length }))
+    const nextRowShape = recenterRowShape([...added, ...rowShape], cols, nextStaggerPhase)
     // Every existing cell (body and fringe alike — they share the same
     // `cells` map) shifts down by one row to make room for the new top row.
     const shiftedCells: ColorMap = {}
     for (const [key, hex] of Object.entries(cells)) {
       const { row, col } = parseCellKey(key)
-      shiftedCells[cellKey(row + 1, col)] = hex
+      shiftedCells[cellKey(row + drop, col)] = hex
     }
     // Recentering the rest of the rows could nudge one enough to orphan a
     // cell that was valid under the old (pre-shift) offsets.
-    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows + 1, fringe, nextRowShape)
-    get().commitShapeChange({ rows: rows + 1, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
+    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows + drop, fringe, nextRowShape)
+    get().commitShapeChange({ rows: rows + drop, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
   },
 
   removeRowAtTop: () => {
     // The right earring's shape follows the left, mirrored — it's edited there.
     if (get().side === 'right') return
     const { rows, rowShape, cells, cols, fringe, staggerPhase } = get()
-    if (rows <= 1) return // a pattern always keeps at least 1 row
+    // 2-drop/3-drop remove a whole stack, and always keep one.
+    const drop = dropOf(staggerPhase)
+    if (rows <= drop) return // a pattern always keeps at least 1 row
     // Removing the top row reindexes every remaining row by -1 — the same
     // parity-cancelling flip as addRowAtTop (±1 mod 2 is the same shift).
-    const nextStaggerPhase: 0 | 1 = staggerPhase === 0 ? 1 : 0
-    const nextRowShape = recenterRowShape(rowShape.slice(1), cols, nextStaggerPhase)
+    const nextStaggerPhase = flipStagger(staggerPhase)
+    const nextRowShape = recenterRowShape(rowShape.slice(drop), cols, nextStaggerPhase)
     // Shifts every remaining row up by one; anything painted in the row
     // being removed no longer exists.
     const shiftedCells: ColorMap = {}
     for (const [key, hex] of Object.entries(cells)) {
       const { row, col } = parseCellKey(key)
-      if (row === 0) continue
-      shiftedCells[cellKey(row - 1, col)] = hex
+      if (row < drop) continue
+      shiftedCells[cellKey(row - drop, col)] = hex
     }
-    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows - 1, fringe, nextRowShape)
-    get().commitShapeChange({ rows: rows - 1, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
+    const nextCells = pruneOrphanedCells(shiftedCells, cols, rows - drop, fringe, nextRowShape)
+    get().commitShapeChange({ rows: rows - drop, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
+  },
+
+  setBrickDrop: (drop) => {
+    // The right earring's shape follows the left, mirrored — it's edited there.
+    if (get().side === 'right') return
+    const { technique, cells, rows, rowShape, cols, fringe, staggerPhase } = get()
+    const oldDrop = dropOf(staggerPhase)
+    if (technique !== 'brick' || oldDrop === drop) return
+
+    const nextRows = Math.ceil(rows / drop) * drop
+    const added = nextRows - rows
+    // The last row keeps its half-bead shift, so the fringe hangs where it did.
+    const base = staggerOf(0, drop)
+    const nextStaggerPhase = isShiftedRow(nextRows - 1, base) === isShiftedRow(rows - 1, staggerPhase) ? base : flipStagger(base)
+
+    const preset = detectPreset(rowShape, cols, oldDrop)
+    let nextRowShape: RowShape[]
+    if (preset) {
+      nextRowShape = createShapedRowShape(preset, cols, nextRows, nextStaggerPhase)
+    } else {
+      // A hand-edited silhouette: new rows on top copy the first row, and each
+      // stack takes its widest row's width.
+      const widths = [...Array.from({ length: added }, () => rowShape[0].length), ...rowShape.map((r) => r.length)]
+      const stacked = widths.map((_, r) => Math.max(...stackRows(r, nextRows, nextStaggerPhase).map((sr) => widths[sr])))
+      nextRowShape = recenterRowShape(stacked.map((length) => ({ offset: 0, length })), cols, nextStaggerPhase)
+    }
+
+    const shiftedCells: ColorMap = {}
+    for (const [key, hex] of Object.entries(cells)) {
+      const { row, col } = parseCellKey(key)
+      shiftedCells[cellKey(row + added, col)] = hex
+    }
+    const nextCells = pruneOrphanedCells(shiftedCells, cols, nextRows, fringe, nextRowShape)
+    get().commitShapeChange({ rows: nextRows, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
   },
 
   note: '',

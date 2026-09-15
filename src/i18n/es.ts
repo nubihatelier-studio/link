@@ -350,7 +350,6 @@ export const t = {
     shape: {
       title: 'Forma del cuerpo',
       shortTitle: 'Forma',
-      row: (n: number) => `Fila ${n}`,
       beadsUnit: 'mostacillas',
       hint: 'Aumenta o achica cada fila de a una mostacilla por lado, como un aumento o disminución real en brick stitch.',
       shrinkLeft: 'Achicar por la izquierda',
@@ -359,6 +358,10 @@ export const t = {
       growRight: 'Agrandar por la derecha',
       addRowTop: '+ Agregar fila arriba',
       removeRowTop: 'Quitar fila',
+      addRowsTop: (n: number) => `+ Agregar ${n} filas arriba`,
+      removeRowsTop: (n: number) => `Quitar ${n} filas`,
+      rows: (from: number, to: number) => (from === to ? `Fila ${from}` : `Filas ${from}–${to}`),
+      dropHint: 'Cambiarlo rehace la forma para el nuevo drop y reinicia el progreso de tejido. Se puede deshacer.',
       weaveResetNotice: 'Se reinició el progreso de tejido guardado — el orden de tejido cambió.',
     },
     /** Par de aros — ver engine/pair.ts. El que se diseña es el izquierdo; el derecho es su reflejo. */
@@ -400,9 +403,18 @@ export const t = {
       noColorsYet: 'Pinta al menos una mostacilla primero para poder elegir el color de la argolla.',
     },
   },
+  /** Brick 1-drop / 2-drop / 3-drop — ver `engine/geometry.ts#BrickStagger`. */
+  brickDrop: {
+    title: 'Mostacillas por puntada',
+    hint: 'En 2-drop y 3-drop cada puntada recoge 2 o 3 mostacillas, así que las filas van de a 2 o de a 3 y la punta parte con 2 columnas.',
+    name: (drop: number) => `${drop}-drop`,
+    perStitch: (drop: number) => (drop === 1 ? '1 por puntada' : `${drop} por puntada`),
+  },
   weave: {
     title: 'Modo tejido',
     row: 'Fila',
+    /** Una fila de puntadas en brick 2-drop o 3-drop: varias filas dibujadas que se tejen juntas. */
+    rows: (from: number, to: number) => (from === to ? `Fila ${from}` : `Filas ${from}–${to}`),
     of: 'de',
     jumpToRow: 'Ir a fila',
     /** Used instead of jumpToRow once the selector also offers fringe columns — "Ir a fila" would misdescribe an option like "Fleco · Columna 5". */

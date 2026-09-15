@@ -2,9 +2,18 @@ import type { ColorMap, FringeData, LoopData, RowShape, Technique } from './type
 import { cellKey } from './cellKey'
 import { loopBeadCount } from './loop'
 import { buildWeaveOrder } from './weaveOrder'
+import type { StaggerPhase } from './geometry'
 
 /** Placeholder token for an empty (uncolored) bead slot in the word chart. */
 const EMPTY_TOKEN = '–'
+
+/**
+ * Joins the beads of one brick 2-drop/3-drop stitch, top bead first: "A+B"
+ * is one stitch picking up an A and a B, so "3A+B" is three such stitches.
+ * Letters themselves can run to two characters (AA, AB… past 26 colours), so
+ * the stitch needs a separator of its own.
+ */
+const STITCH_JOIN = '+'
 
 export interface WordChartLine {
   /**
@@ -56,8 +65,9 @@ export function buildWordChart(
   fringe?: FringeData,
   rowShape?: RowShape[],
   loop?: LoopData,
+  staggerPhase?: StaggerPhase,
 ): WordChartLine[] {
-  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop))
+  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop), staggerPhase)
   const lines: WordChartLine[] = []
 
   let currentKey: string | null = null
@@ -103,11 +113,16 @@ export function buildWordChart(
       }
     }
     endsOnTurnBead = step.isTurnBead === true
-    for (const cell of step.cells) {
+    const letterOf = (cell: { row: number; col: number }) => {
       // A loop bead isn't in the `cells` grid at all (see `weaveOrder.ts#appendLoopStep`) —
       // every bead in the ring shares the loop's own single color instead.
       const hex = step.isLoop ? loop?.color : cells[cellKey(cell.row, cell.col)]
-      const letter = hex ? letterForHex(hex) : EMPTY_TOKEN
+      return hex ? letterForHex(hex) : EMPTY_TOKEN
+    }
+    // A brick 2-drop/3-drop stitch is one token for its whole stack; every
+    // other step counts bead by bead.
+    const stepTokens = step.grouped ? step.cells.map(letterOf) : [step.cells.map(letterOf).join(STITCH_JOIN)]
+    for (const letter of stepTokens) {
       if (letter === runLetter) {
         runCount++
       } else {
@@ -150,3 +165,8 @@ export function wordChartRuns(text: string): { runs: WordChartRun[]; turn: boole
 
 /** The token a word chart uses for an unpainted bead. */
 export const WORD_CHART_EMPTY = EMPTY_TOKEN
+
+/** The letters of one run's stitch, top bead first — a single letter for everything but brick 2-drop and 3-drop. */
+export function stitchLetters(letter: string): string[] {
+  return letter.split(STITCH_JOIN)
+}

@@ -3,7 +3,7 @@ import { cellKey, parseCellKey } from './cellKey'
 import { isPaintableCell, normalizeFringe } from './fringe'
 import { normalizeRowShape } from './shape'
 import { normalizeLoop } from './loop'
-import { effectiveStaggerPhase } from './geometry'
+import { effectiveStaggerPhase, flipStagger, type StaggerPhase } from './geometry'
 
 /**
  * Everything needed to draw, weave, count or export one physical piece. The
@@ -17,7 +17,7 @@ export interface Piece {
   cells: ColorMap
   fringe?: FringeData
   rowShape?: RowShape[]
-  staggerPhase: 0 | 1
+  staggerPhase: StaggerPhase
   loop?: LoopData
 }
 
@@ -65,7 +65,7 @@ export function mirrorGeometry<T extends Omit<Piece, 'cells'>>(piece: T): T {
   const { technique, cols, fringe, rowShape, staggerPhase } = piece
   return {
     ...piece,
-    staggerPhase: technique === 'brick' ? ((1 - staggerPhase) as 0 | 1) : staggerPhase,
+    staggerPhase: technique === 'brick' ? flipStagger(staggerPhase) : staggerPhase,
     rowShape: rowShape?.map((r) => ({ offset: cols - r.offset - r.length, length: r.length })),
     fringe: fringe && { lengths: [...fringe.lengths].reverse(), turnBeads: [...fringe.turnBeads].reverse() },
   }

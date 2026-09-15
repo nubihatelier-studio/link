@@ -1,7 +1,7 @@
 import type { ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, rowPitch } from '@/engine/geometry'
+import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, rowPitch, type StaggerPhase } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -26,7 +26,7 @@ export interface ExportPatternOptions {
   /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
   rowShape?: RowShape[]
   /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
-  staggerPhase?: 0 | 1
+  staggerPhase?: StaggerPhase
   /**
    * The letters the pattern remembers (`PatternDoc.letters`), so paper and
    * screen agree even after colours have been added or erased. Absent falls

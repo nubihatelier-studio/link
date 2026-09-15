@@ -1,4 +1,4 @@
-import type { Technique, BeadTypeDef, CellPosition, RowShape } from './types'
+import type { BrickDrop, Technique, BeadTypeDef, CellPosition, RowShape } from './types'
 import { loopHeightUnits } from './loop'
 import { weaveThreadFactor } from './calibration'
 
@@ -145,9 +145,73 @@ function physicalRowPitch(technique: Technique): number {
  * extra bead poking above the foundation at the top of every high column
  * and put the whole weave order out of step with the drawing.
  */
-export function effectiveStaggerPhase(config: { technique: Technique; cols: number; staggerPhase?: 0 | 1 }): 0 | 1 {
+export function effectiveStaggerPhase(config: {
+  technique: Technique
+  cols: number
+  staggerPhase?: 0 | 1
+  brickDrop?: BrickDrop
+}): StaggerPhase {
   if (config.technique === 'peyote') return config.cols % 2 === 0 ? 1 : 0
-  return config.staggerPhase ?? 0
+  const phase = config.staggerPhase ?? 0
+  return config.technique === 'brick' ? staggerOf(phase, config.brickDrop ?? 1) : phase
+}
+
+/**
+ * Brick woven 2-drop or 3-drop: every stitch picks up two or three beads
+ * instead of one, so the drawn rows go in stacks of that many — the rows of
+ * one stack sit straight on top of each other, and it's the stack as a whole
+ * that is shifted half a bead from the next. `phase` is the same 0/1 flip as
+ * a plain phase, counted in stacks instead of rows.
+ */
+export interface BrickStagger {
+  phase: 0 | 1
+  drop: 2 | 3
+}
+
+/**
+ * How a chart is staggered: a plain 0/1 phase (peyote, loom, and brick
+ * 1-drop — every pattern made before drops existed), or a brick stagger
+ * with stacks of rows. Every function that takes a phase takes this, so a
+ * 2-drop chart is drawn, hit-tested, recentred and woven the same way
+ * everywhere.
+ */
+export type StaggerPhase = 0 | 1 | BrickStagger
+
+/** The 0/1 flip of a stagger, whatever its drop. */
+export function phaseOf(stagger: StaggerPhase): 0 | 1 {
+  return typeof stagger === 'number' ? stagger : stagger.phase
+}
+
+/** Beads per stitch — 1 for everything but brick 2-drop and 3-drop. */
+export function dropOf(stagger: StaggerPhase): BrickDrop {
+  return typeof stagger === 'number' ? 1 : stagger.drop
+}
+
+/** Builds a stagger; 1-drop stays a plain number, exactly as before drops existed. */
+export function staggerOf(phase: 0 | 1, drop: BrickDrop): StaggerPhase {
+  return drop === 1 ? phase : { phase, drop }
+}
+
+/** The same stagger with its phase flipped — what adding or removing a whole stack at the top, or mirroring, needs. */
+export function flipStagger(stagger: StaggerPhase): StaggerPhase {
+  return staggerOf(phaseOf(stagger) === 0 ? 1 : 0, dropOf(stagger))
+}
+
+/** A config carrying `stagger`: its phase, and its drop (left out for 1-drop, as every older pattern has it). */
+export function withStagger<T extends { staggerPhase?: 0 | 1; brickDrop?: BrickDrop }>(config: T, stagger: StaggerPhase): T {
+  const { brickDrop: _drop, ...rest } = config
+  const drop = dropOf(stagger)
+  return { ...rest, staggerPhase: phaseOf(stagger), ...(drop === 1 ? {} : { brickDrop: drop }) } as T
+}
+
+/** Which stack of rows (a stitch row) drawn row `row` belongs to. With 1-drop, the row itself. */
+export function stitchRowOf(row: number, stagger: StaggerPhase): number {
+  return Math.floor(row / dropOf(stagger))
+}
+
+/** Whether brick row `row` is the one pushed half a bead right. */
+export function isShiftedRow(row: number, stagger: StaggerPhase): boolean {
+  return isOddIndex(stitchRowOf(row, stagger) + phaseOf(stagger))
 }
 
 export function isOddIndex(i: number): boolean {
@@ -182,7 +246,8 @@ export function rowPitch(technique: Technique): number {
  * pitch is already 1 with no offset).
  *
  * `staggerPhase` (0 or 1, default 0) shifts brick's row-parity check from the
- * row's raw index to `row + staggerPhase`. It exists so that inserting or
+ * row's raw index to `row + staggerPhase` (for 2-drop and 3-drop, the stack
+ * of rows' index — see `BrickStagger`). It exists so that inserting or
  * removing a row at the top of a pattern — which reindexes every existing
  * row by ±1 — can flip the phase to exactly cancel that reindex, leaving
  * every pre-existing row's real physical stagger (and thus the pattern's
@@ -194,7 +259,7 @@ export function cellPosition(
   row: number,
   col: number,
   bodyRows?: number,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): CellPosition {
   if (bodyRows !== undefined && row >= bodyRows) {
     const anchorY = cellPosition(technique, bodyRows - 1, col, undefined, staggerPhase).y
@@ -207,19 +272,19 @@ export function cellPosition(
     case 'peyote': {
       const pitch = PEYOTE_ROW_COMPACTION
       // Which columns sit half a bead lower — see `effectiveStaggerPhase`.
-      const yOffset = isOddIndex(col + staggerPhase) ? pitch / 2 : 0
+      const yOffset = isOddIndex(col + phaseOf(staggerPhase)) ? pitch / 2 : 0
       return { x: col, y: row * pitch + yOffset }
     }
     case 'brick': {
       const pitch = BRICK_ROW_COMPACTION
-      const xOffset = isOddIndex(row + staggerPhase) ? 0.5 : 0
+      const xOffset = isShiftedRow(row, staggerPhase) ? 0.5 : 0
       return { x: col + xOffset, y: row * pitch }
     }
   }
 }
 
 /** The X position (bead units) of the bead at (row, col) — same as `cellPosition(...).x`, named for callers that only need the horizontal position. */
-export function beadCenterX(technique: Technique, row: number, col: number, staggerPhase: 0 | 1 = 0): number {
+export function beadCenterX(technique: Technique, row: number, col: number, staggerPhase: StaggerPhase = 0): number {
   return cellPosition(technique, row, col, undefined, staggerPhase).x
 }
 
@@ -232,7 +297,7 @@ export function beadCenterX(technique: Technique, row: number, col: number, stag
  * fringe column's X any other way, or two code paths can end up disagreeing
  * about where a given column's fringe hangs from.
  */
-export function fringeAnchorX(technique: Technique, col: number, bodyRows: number, staggerPhase: 0 | 1 = 0): number {
+export function fringeAnchorX(technique: Technique, col: number, bodyRows: number, staggerPhase: StaggerPhase = 0): number {
   return beadCenterX(technique, bodyRows - 1, col, staggerPhase)
 }
 
@@ -249,7 +314,7 @@ export function loopAnchorX(
   technique: Technique,
   cols: number,
   rowShape: RowShape[] | undefined,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): number {
   const topRow = rowShape?.[0]
   const offset = topRow?.offset ?? 0
@@ -355,7 +420,7 @@ export function cellAtPosition(
   technique: Technique,
   xUnits: number,
   yUnits: number,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): { row: number; col: number } {
   switch (technique) {
     case 'loom':
@@ -363,14 +428,14 @@ export function cellAtPosition(
     case 'peyote': {
       const pitch = PEYOTE_ROW_COMPACTION
       const col = Math.floor(xUnits)
-      const yOffset = isOddIndex(col + staggerPhase) ? pitch / 2 : 0
+      const yOffset = isOddIndex(col + phaseOf(staggerPhase)) ? pitch / 2 : 0
       const row = Math.floor((yUnits - yOffset) / pitch)
       return { row, col }
     }
     case 'brick': {
       const pitch = BRICK_ROW_COMPACTION
       const row = Math.floor(yUnits / pitch)
-      const xOffset = isOddIndex(row + staggerPhase) ? 0.5 : 0
+      const xOffset = isShiftedRow(row, staggerPhase) ? 0.5 : 0
       const col = Math.floor(xUnits - xOffset)
       return { row, col }
     }
@@ -394,7 +459,7 @@ export function cellAtPositionWithFringe(
   bodyRows: number,
   xUnits: number,
   yUnits: number,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): { row: number; col: number } {
   const pitch = rowPitch(technique)
   const anchorY = cellPosition(technique, bodyRows - 1, 0, undefined, staggerPhase).y

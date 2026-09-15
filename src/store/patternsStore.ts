@@ -9,6 +9,7 @@ import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
 import { buildSamplePattern } from '@/data/samplePattern'
 import { patternFromTemplate, templateFromPattern, uniqueName, type TemplateMode } from '@/engine/template'
 import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
+import { withStagger, type StaggerPhase } from '@/engine/geometry'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -68,7 +69,7 @@ interface PatternsState {
   /** Persists a row-count change (add/remove row) in one write — rows, rowShape, cells and fringe all shift together, so they must land in the same save, not four separate ones. */
   setShapeStructure: (
     id: string,
-    changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: 0 | 1 },
+    changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: StaggerPhase },
   ) => void
   setNote: (id: string, note: string) => void
   /**
@@ -403,7 +404,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       if (!doc) return s
       updated = {
         ...doc,
-        config: { ...doc.config, rows: changes.rows, staggerPhase: changes.staggerPhase },
+        config: withStagger({ ...doc.config, rows: changes.rows }, changes.staggerPhase),
         rowShape: changes.rowShape,
         cells: changes.cells,
         fringe: changes.fringe,

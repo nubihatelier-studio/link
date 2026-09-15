@@ -19,6 +19,7 @@ import { loopBeadCount } from '@/engine/loop'
 import { leftPieceOf, piecesOf, rightEarring } from '@/engine/pair'
 import type { EarringSide } from '@/engine/types'
 import { assignLettersAcross } from '@/engine/letters'
+import { dropOf } from '@/engine/geometry'
 import { buildWordChart, wordChartRuns } from '@/engine/wordChart'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
@@ -96,11 +97,13 @@ export function WeavePage() {
   const order = useMemo(
     () =>
       piece
-        ? buildWeaveOrder(piece.technique, piece.cols, piece.rows, piece.fringe, piece.rowShape, loopBeadCount(piece.loop))
+        ? buildWeaveOrder(piece.technique, piece.cols, piece.rows, piece.fringe, piece.rowShape, loopBeadCount(piece.loop), piece.staggerPhase)
         : [],
     [piece],
   )
   const technique = pattern?.config.technique ?? 'loom'
+  /** Brick 2-drop/3-drop weave stacks of rows as one stitch row — see `engine/geometry.ts#BrickStagger`. */
+  const drop = piece ? dropOf(piece.staggerPhase) : 1
   const orderVersion = WEAVE_ORDER_VERSION[technique]
   const rows = pattern?.config.rows ?? 0
   const currentIndex = progressKey ? getIndex(progressKey) : -1
@@ -145,6 +148,7 @@ export function WeavePage() {
       piece.fringe,
       piece.rowShape,
       piece.loop,
+      piece.staggerPhase,
     )
   }, [left, piece, letterEntries])
 
@@ -246,6 +250,13 @@ export function WeavePage() {
 
   const canAdvance = currentIndex < total - 1
 
+  /** "Fila 3", or "Filas 5–6" for a brick 2-drop stitch row — the numbers the ruler beside the chart shows. */
+  function stitchRowLabel(unit: number): string {
+    if (drop === 1) return `${t.weave.row} ${unit + 1}`
+    const from = unit * drop + 1
+    return t.weave.rows(from, Math.min(rows, from + drop - 1))
+  }
+
   // Weave Mode always keeps this on (see the useWakeLock(true) call above), so "supported but not
   // active" only ever means "hasn't acquired yet" or "lost it and is re-acquiring" (e.g. right
   // after returning from background) — both read the same to the weaver: it's trying.
@@ -269,7 +280,7 @@ export function WeavePage() {
           ? t.weave.baseRow
           : technique === 'peyote' && workingRow !== null
             ? `${t.weave.pass} ${workingUnit + 1} · ${t.weave.chartRow(workingRow + 1)}`
-            : `${t.weave.row} ${workingUnit + 1}`
+            : stitchRowLabel(workingUnit)
   // A discreet direction indicator — which way the needle moves along the row being worked (meaningless for fringe steps, which hang straight down).
   const directionArrow = !finished && !onFringe && !onLoop && workingStep ? (workingStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = workingStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
@@ -279,13 +290,13 @@ export function WeavePage() {
       ? wordChartLines.find((l) => l.isFringe && l.unitIndex === workingStep!.unit)
       : wordChartLines.find((l) => !l.isFringe && !l.isLoop && l.unitIndex === workingUnit)
   const sequence = wordChartRuns(currentLine?.text ?? '')
-  // Beads of this unit already on the thread — which chip of the sequence is being worked.
+  // Steps of this unit already done — which chip of the sequence is being worked.
+  // The chips count steps: a bead, or a whole stitch in brick 2-drop/3-drop
+  // (the loop is a single step, so it's never partly done either way).
   const unitStart = workingStep
     ? order.findIndex((s) => s.unit === workingStep.unit && !!s.isFringe === !!workingStep.isFringe && !!s.isLoop === !!workingStep.isLoop)
     : 0
-  const beadsDoneInUnit = finished
-    ? Infinity
-    : beadsThrough(order, workingIndex - 1) - beadsThrough(order, unitStart - 1)
+  const stepsDoneInUnit = finished ? Infinity : workingIndex - unitStart
 
   // "Ir a" selector. Peyote lists PASSES, not grid rows — the foundation is
   // pass 1 and every row after it contributes two, so they're read straight
@@ -299,9 +310,10 @@ export function WeavePage() {
           target: { kind: 'body' as const, index: i },
           label: `${t.weave.pass} ${i + 1}`,
         }))
-      : Array.from({ length: rows }, (_, i) => ({
+      : Array.from({ length: Math.ceil(rows / drop) }, (_, i) => ({
           target: { kind: 'body' as const, index: i },
-          label: technique === 'brick' && i === rows - 1 ? t.weave.baseRow : `${t.weave.row} ${i + 1}`,
+          // Brick is woven from the top down, so its base row is the first one.
+          label: technique === 'brick' && i === 0 ? t.weave.baseRow : stitchRowLabel(i),
         }))
 
   // The loop has no "Ir a" entry of its own (it's always the last step, one tap
@@ -387,7 +399,7 @@ export function WeavePage() {
 
       {!finished && sequence.runs.length > 0 && (
         <div className="border-b border-border px-4 py-3" title={currentLine?.text}>
-          <WeaveSequence runs={sequence.runs} turn={sequence.turn} hexForLetter={hexForLetter} beadsDone={beadsDoneInUnit} />
+          <WeaveSequence runs={sequence.runs} turn={sequence.turn} hexForLetter={hexForLetter} stepsDone={stepsDoneInUnit} />
         </div>
       )}
 

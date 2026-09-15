@@ -1,5 +1,5 @@
 import type { BeadTypeDef, ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
-import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm, type StaggerPhase } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -20,7 +20,7 @@ export interface ExportImageOptions {
   /** Absent/undefined is treated as a full rectangle — see `engine/shape.ts`. */
   rowShape?: RowShape[]
   /** Absent/undefined defaults to 0 — see `engine/geometry.ts#cellPosition`. */
-  staggerPhase?: 0 | 1
+  staggerPhase?: StaggerPhase
   /**
    * The letters the pattern remembers (`PatternDoc.letters`), so paper and
    * screen agree even after colours have been added or erased. Absent falls

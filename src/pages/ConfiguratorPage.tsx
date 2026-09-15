@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import type { FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
-import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm } from '@/engine/geometry'
+import type { BrickDrop, FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
+import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm, staggerOf } from '@/engine/geometry'
 import {
   createFringeLengths,
   createFringeLengthsForShape,
@@ -24,6 +24,7 @@ import { Card } from '@/components/shared/Card'
 import { SelectableCard } from '@/components/shared/SelectableCard'
 import { IconSelectableCard } from '@/components/shared/IconSelectableCard'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
+import { BrickDropPicker } from '@/components/shared/BrickDropPicker'
 import { ColumnsIcon } from '@/components/icons/ColumnsIcon'
 import { FringeIcon } from '@/components/icons/FringeIcon'
 import { RowsIcon } from '@/components/icons/RowsIcon'
@@ -185,6 +186,8 @@ export function ConfiguratorPage() {
   const [fringeMaxLength, setFringeMaxLength] = useState(8)
   const [fringeShape, setFringeShape] = useState<FringeShape>('straight')
   const [bodyShape, setBodyShape] = useState<BodyShapePreset>('rectangle')
+  /** Brick only: beads per stitch — see `engine/geometry.ts#BrickStagger`. */
+  const [brickDrop, setBrickDrop] = useState<BrickDrop>(1)
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null)
   /** The hanging loop the chosen template starts with, if any — see `TemplatePreset.loop`. */
   const [loop, setLoop] = useState<LoopData | undefined>(undefined)
@@ -216,6 +219,7 @@ export function ConfiguratorPage() {
   const fringeActive = isFringeCapable(technique) && fringeEnabled
   const pairChosen = makePair && isPairCapable(technique)
   const shapeActive = isShapeCapable(technique) && bodyShape !== 'rectangle'
+  const drop: BrickDrop = technique === 'brick' ? brickDrop : 1
   const size = useMemo(
     () =>
       physicalSizeMm(
@@ -229,8 +233,8 @@ export function ConfiguratorPage() {
     [technique, cols, rows, bead, fringeActive, fringeMaxLength, loop],
   )
   const rowShapePreview = useMemo(
-    () => (shapeActive ? createShapedRowShape(bodyShape, cols, rows) : null),
-    [shapeActive, bodyShape, cols, rows],
+    () => (shapeActive ? createShapedRowShape(bodyShape, cols, rows, staggerOf(0, drop)) : null),
+    [shapeActive, bodyShape, cols, rows, drop],
   )
   const fringePreviewLengths = useMemo(() => {
     if (!fringeActive) return null
@@ -309,7 +313,8 @@ export function ConfiguratorPage() {
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
       : undefined
     const pair = makePair && isPairCapable(technique) ? ({ mode: 'mirror' } as const) : undefined
-    const id = createPattern({ technique, cols, rows, beadTypeId }, undefined, fringe, rowShapePreview ?? undefined, loop, pair)
+    const config = { technique, cols, rows, beadTypeId, ...(drop === 1 ? {} : { brickDrop: drop }) }
+    const id = createPattern(config, undefined, fringe, rowShapePreview ?? undefined, loop, pair)
     // "Aro con flecos" starts from a symmetric shape (rhombus body + V
     // fringe) — defaulting the length-symmetry toggle on too means a manual
     // tweak keeps that symmetry instead of silently drifting lopsided.
@@ -541,7 +546,7 @@ export function ConfiguratorPage() {
                       // needs an odd row count to stay perfectly centered (see
                       // `preferredRowsFor`'s doc comment) — rectangle and
                       // triangleInverted never need it, so this is a no-op there.
-                      setRows(preferredRowsFor(preset, rows))
+                      setRows(preferredRowsFor(preset, rows, drop))
                     }}
                     className="flex flex-col items-center gap-1 py-4 text-center"
                   >
@@ -550,6 +555,22 @@ export function ConfiguratorPage() {
                   </SelectableCard>
                 ))}
               </div>
+            </section>
+          )}
+
+          {technique === 'brick' && (
+            <section className="mb-8">
+              <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.brickDrop.title}</h2>
+              <p className="mb-3 text-xs text-text-muted">{t.brickDrop.hint}</p>
+              <BrickDropPicker
+                value={brickDrop}
+                onChange={(next) => {
+                  setBrickDrop(next)
+                  setTemplateFringeLengths(null)
+                  // Whole stacks of rows, and the same centring nudge as the shape presets.
+                  setRows(Math.min(MAX_DIM, preferredRowsFor(isShapeCapable(technique) ? bodyShape : 'rectangle', rows, next)))
+                }}
+              />
             </section>
           )}
 

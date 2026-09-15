@@ -2,6 +2,7 @@ import type { ColorMap, FringeData, LoopData, RowShape, Technique } from './type
 import { cellKey } from './cellKey'
 import { buildWeaveOrder } from './weaveOrder'
 import { loopBeadCount } from './loop'
+import type { StaggerPhase } from './geometry'
 
 /**
  * Letter code for the `i`-th used color (0-based), in bijective base-26:
@@ -60,6 +61,8 @@ export interface LetterPattern {
   fringe?: FringeData
   rowShape?: RowShape[]
   loop?: LoopData
+  /** Brick 2-drop and 3-drop weave stitch by stitch, which changes which colour is reached first. */
+  staggerPhase?: StaggerPhase
 }
 
 /**
@@ -120,8 +123,8 @@ export function assignLettersAcross(pieces: LetterPattern[], saved?: LetterAssig
     seen.push(hex)
   }
 
-  for (const { technique, cols, rows, cells, fringe, rowShape, loop } of pieces) {
-    const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop))
+  for (const { technique, cols, rows, cells, fringe, rowShape, loop, staggerPhase } of pieces) {
+    const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, loopBeadCount(loop), staggerPhase)
     for (const step of order) {
       if (step.isLoop) {
         // A woven ring's beads aren't in `cells` (a ring isn't addressable by

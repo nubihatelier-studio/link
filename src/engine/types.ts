@@ -21,7 +21,12 @@ export interface PatternConfig {
   beadTypeId: string
   /** 0 or 1, defaults to 0 for legacy patterns. See `geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1
+  /** Brick only: beads per stitch. Missing means 1-drop, which every pattern made before drops existed is. See `geometry.ts#BrickStagger`. */
+  brickDrop?: BrickDrop
 }
+
+/** Beads picked up in each brick stitch: 1-drop, 2-drop or 3-drop. */
+export type BrickDrop = 1 | 2 | 3
 
 export interface Cell {
   row: number

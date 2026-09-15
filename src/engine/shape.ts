@@ -1,5 +1,5 @@
-import type { RowShape, Technique } from './types'
-import { isOddIndex } from './geometry'
+import type { BrickDrop, RowShape, Technique } from './types'
+import { dropOf, isOddIndex, isShiftedRow, staggerOf, type StaggerPhase } from './geometry'
 
 /** Peyote and loom don't have a natural "brick-stitch increase/decrease" — only brick stitch adds/drops a bead at a row's edge to taper its width. */
 export function isShapeCapable(technique: Technique): boolean {
@@ -78,9 +78,21 @@ export type BodyShapePreset = 'rectangle' | 'triangle' | 'triangleInverted' | 'r
  * again if they want to (still a fully valid, bounded silhouette — just with
  * the small, physically-forced imperfection above).
  */
-export function preferredRowsFor(preset: BodyShapePreset, rows: number): number {
-  if (preset === 'rectangle' || preset === 'triangleInverted') return rows
-  return isOddIndex(rows) ? rows : rows + 1
+export function preferredRowsFor(preset: BodyShapePreset, rows: number, drop: BrickDrop = 1): number {
+  // 2-drop and 3-drop count in stacks of rows: the same rule, applied to the
+  // number of stacks, and never a stack left half woven at the bottom.
+  const stacks = Math.max(1, Math.ceil(rows / drop))
+  if (preset === 'rectangle' || preset === 'triangleInverted') return stacks * drop
+  return (isOddIndex(stacks) ? stacks : stacks + 1) * drop
+}
+
+/**
+ * The narrowest a tapered row gets. 1-drop starts from a single bead; 2-drop
+ * and 3-drop start from two columns, because one column of stacked beads is a
+ * stick, not a tip.
+ */
+export function minTaperWidth(drop: BrickDrop): number {
+  return drop === 1 ? 1 : 2
 }
 
 /**
@@ -123,19 +135,25 @@ export function preferredRowsFor(preset: BodyShapePreset, rows: number): number 
  * bead in a direction fixed by parity, not choice. See shape.test.ts for the
  * proof-by-exhaustive-check across the required dimension matrix.
  */
-function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number): number {
+function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number, drop: BrickDrop = 1): number {
+  // 2-drop and 3-drop taper by stacks of rows: every row of a stack is as wide
+  // as the stack, and it's the stack that grows or shrinks by one bead. With
+  // 1-drop a stack is a single row, so this is the plain per-row ramp.
+  const stacks = Math.ceil(rows / drop)
+  const g = Math.floor(r / drop)
+  const min = Math.min(cols, minTaperWidth(drop))
   switch (preset) {
     case 'rectangle':
       return cols
     case 'triangle': // narrow top, full-width bottom — widest row (rows-1) reaches cols; narrowest (row 0) is cols-(rows-1), floored at 1 (a flat top edge, not a point, once rows-1 >= cols).
-      return Math.min(cols, Math.max(1, cols - (rows - 1 - r)))
+      return Math.min(cols, Math.max(min, cols - (stacks - 1 - g)))
     case 'triangleInverted': // full-width top, narrow bottom — mirror of triangle.
-      return Math.min(cols, Math.max(1, cols - r))
+      return Math.min(cols, Math.max(min, cols - g))
     case 'rhombus': {
       // Grows 1 bead/row from a 1-bead tip up to (at most) cols, then mirrors
       // back down — `d` is the distance to the nearer tip/end.
-      const d = Math.min(r, rows - 1 - r)
-      return Math.min(cols, 1 + d)
+      const d = Math.min(g, stacks - 1 - g)
+      return Math.min(cols, min + d)
     }
   }
 }
@@ -156,11 +174,11 @@ function widthAt(preset: BodyShapePreset, cols: number, rows: number, r: number)
  * `row + staggerPhase`, matching `geometry.ts#cellPosition` — see that
  * function's doc comment for why this parameter exists at all.
  */
-function walkFrom(cols: number, widths: number[], anchor: number, staggerPhase: 0 | 1): number[] {
+function walkFrom(cols: number, widths: number[], anchor: number, staggerPhase: StaggerPhase): number[] {
   const offsets = [anchor]
   for (let r = 1; r < widths.length; r++) {
     const delta = widths[r] - widths[r - 1]
-    const odd = isOddIndex(r + staggerPhase)
+    const odd = isShiftedRow(r, staggerPhase)
     if (Math.abs(delta) > 1) {
       const centered = Math.round((cols - widths[r]) / 2 - (odd ? 0.5 : 0))
       offsets.push(Math.max(0, Math.min(cols - widths[r], centered)))
@@ -192,14 +210,14 @@ function walkFrom(cols: number, widths: number[], anchor: number, staggerPhase: 
  * and of what's left keep whichever keeps every row's center closest to
  * `cols / 2`.
  */
-function walkOffsets(cols: number, widths: number[], staggerPhase: 0 | 1): number[] {
+function walkOffsets(cols: number, widths: number[], staggerPhase: StaggerPhase): number[] {
   const ideal = (cols - widths[0]) / 2
   let best: { offsets: number[]; maxDev: number; rawAsymmetry: number } | null = null
   for (const anchor of new Set([Math.floor(ideal), Math.ceil(ideal)])) {
     const offsets = walkFrom(cols, widths, anchor, staggerPhase)
     if (!offsets.every((o, r) => o >= 0 && o + widths[r] <= cols)) continue
     const maxDev = Math.max(
-      ...offsets.map((o, r) => Math.abs(o + (isOddIndex(r + staggerPhase) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
+      ...offsets.map((o, r) => Math.abs(o + (isShiftedRow(r, staggerPhase) ? 0.5 : 0) + widths[r] / 2 - cols / 2)),
     )
     // A tie here (both anchors land exactly half a bead off, just to
     // opposite sides — the brick stagger term makes that possible) is broken
@@ -268,22 +286,24 @@ function walkOffsets(cols: number, widths: number[], staggerPhase: 0 | 1): numbe
  * absolute guarantee that nothing is ever asked to draw outside the grid —
  * fixed here, in the engine, not papered over with clamping in a renderer.
  */
-export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhase: 0 | 1): RowShape[] {
+export function recenterRowShape(rowShape: RowShape[], cols: number, staggerPhase: StaggerPhase): RowShape[] {
   const widths = rowShape.map((row) => row.length)
   const offsets = walkOffsets(cols, widths, staggerPhase)
   return widths.map((length, r) => ({ offset: Math.max(0, Math.min(cols - length, offsets[r])), length }))
 }
 
-function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
-  const widths = Array.from({ length: rows }, (_, r) => widthAt(preset, cols, rows, r))
-  // A fresh preset is only ever built at pattern creation, where the pattern's
-  // phase is 0 by definition — passed explicitly rather than defaulted so this
-  // assumption is visible instead of implied.
+function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: number, staggerPhase: StaggerPhase): RowShape[] {
+  const widths = presetWidths(preset, cols, rows, dropOf(staggerPhase))
   return recenterRowShape(
     widths.map((length) => ({ offset: 0, length })),
     cols,
-    0,
+    staggerPhase,
   )
+}
+
+/** Every row's width for a preset — the silhouette before it's centred. */
+export function presetWidths(preset: BodyShapePreset, cols: number, rows: number, drop: BrickDrop = 1): number[] {
+  return Array.from({ length: rows }, (_, r) => widthAt(preset, cols, rows, r, drop))
 }
 
 /**
@@ -296,7 +316,14 @@ function createTaperedRowShape(preset: BodyShapePreset, cols: number, rows: numb
  * directly rather than through the edge-growth machinery above, which
  * assumes at least one row-to-row transition exists.
  */
-export function createShapedRowShape(preset: BodyShapePreset, cols: number, rows: number): RowShape[] {
+export function createShapedRowShape(
+  preset: BodyShapePreset,
+  cols: number,
+  rows: number,
+  // A fresh preset is built at pattern creation, where the phase is 0; changing
+  // a pattern's drop rebuilds it with the pattern's own phase.
+  staggerPhase: StaggerPhase = 0,
+): RowShape[] {
   if (cols <= 1) {
     return Array.from({ length: rows }, () => ({ offset: 0, length: Math.max(1, cols) }))
   }
@@ -304,9 +331,26 @@ export function createShapedRowShape(preset: BodyShapePreset, cols: number, rows
     // No taper is possible with a single row — every preset degenerates to
     // its own fraction-of-1 width (triangleInverted's narrow end lands on 1
     // bead; the others land on full width), same as before this round.
-    const width = preset === 'triangleInverted' ? 1 : cols
+    const width = preset === 'triangleInverted' ? Math.min(cols, minTaperWidth(dropOf(staggerPhase))) : cols
     return Array.from({ length: rows }, () => ({ offset: Math.max(0, Math.floor((cols - width) / 2)), length: width }))
   }
   if (preset === 'rectangle') return createRectangleRowShape(cols, rows)
-  return createTaperedRowShape(preset, cols, rows)
+  return createTaperedRowShape(preset, cols, rows, staggerPhase)
+}
+
+/**
+ * Which preset a row shape was made from, judging by its widths alone
+ * (offsets move with the phase, widths don't) — or null for a shape the
+ * weaver edited by hand. Changing the drop rebuilds a preset's silhouette
+ * for the new drop; a hand-edited one only gets its stacks evened out.
+ */
+export function detectPreset(rowShape: RowShape[], cols: number, drop: BrickDrop): BodyShapePreset | null {
+  const rows = rowShape.length
+  if (rows === 0) return null
+  const widths = rowShape.map((r) => r.length)
+  for (const preset of ['triangle', 'triangleInverted', 'rhombus', 'rectangle'] as const) {
+    const expected = rows <= 1 || cols <= 1 ? createShapedRowShape(preset, cols, rows, staggerOf(0, drop)).map((r) => r.length) : presetWidths(preset, cols, rows, drop)
+    if (expected.every((w, i) => w === widths[i])) return preset
+  }
+  return null
 }

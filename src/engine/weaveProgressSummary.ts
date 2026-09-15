@@ -1,10 +1,11 @@
 import type { FringeData, PatternConfig, RowShape } from './types'
 import { beadsThrough, buildWeaveOrder, isFringeStep, totalBeadCount } from './weaveOrder'
+import { dropOf, effectiveStaggerPhase } from './geometry'
 
 export interface WeaveProgressSummary {
   /** 0-based index of the current row (peyote: the current PASS — see `isPass`) — pinned to the last unit while `isFringe` is true, meaningless (0) while `isLoop` is true. */
   unitIndex: number
-  /** Total rows in the body, or total passes for peyote. */
+  /** Total rows in the body (stitch rows for brick 2-drop/3-drop), or total passes for peyote. */
   unitCount: number
   /** 0-100, rounded — based on beads strung, not raw step count (a grouped step can be worth more than one). */
   percent: number
@@ -36,7 +37,8 @@ export function summarizeWeaveProgress(
 ): WeaveProgressSummary | null {
   if (currentIndex < 0) return null
   const { technique, cols, rows } = config
-  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape)
+  const stagger = effectiveStaggerPhase(config)
+  const order = buildWeaveOrder(technique, cols, rows, fringe, rowShape, 0, stagger)
   if (order.length === 0) return null
 
   const clampedIndex = Math.min(currentIndex, order.length - 1)
@@ -47,7 +49,7 @@ export function summarizeWeaveProgress(
   // itself (the foundation is one, then two per grid row) — not from `rows`.
   const unitCount = isPass
     ? new Set(order.filter((st) => !st.isFringe && !st.isLoop).map((st) => st.unit)).size
-    : rows
+    : Math.ceil(rows / dropOf(stagger)) // brick 2-drop/3-drop count stitch rows
   const unitIndex = isFringe ? unitCount - 1 : step.unit
   const percent = Math.round((beadsThrough(order, clampedIndex) / totalBeadCount(order)) * 100)
 

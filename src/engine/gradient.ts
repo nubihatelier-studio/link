@@ -1,5 +1,5 @@
 import { cellKey } from './cellKey'
-import { cellPosition } from './geometry'
+import { cellPosition, type StaggerPhase } from './geometry'
 import type { ColorMap, Technique } from './types'
 
 export type GradientDirection = 'vertical' | 'diagonalDR' | 'diagonalDL'
@@ -66,7 +66,7 @@ export function computeGradientCells(
   stops: string[],
   direction: GradientDirection,
   ditherStrength = 0.6,
-  staggerPhase: 0 | 1 = 0,
+  staggerPhase: StaggerPhase = 0,
 ): ColorMap {
   if (cellsToFill.length === 0 || stops.length === 0) return {}
 
