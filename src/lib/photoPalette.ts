@@ -46,6 +46,29 @@ export function paletteFromPixels(pixels: RGB[], count: number): PhotoColor[] {
     .filter((c) => (seen.has(c.hex) ? false : (seen.add(c.hex), true)))
 }
 
+/** Below this opacity a pixel is the empty background of a PNG, not part of the picture. */
+const MIN_VISIBLE_ALPHA = 20
+
+/**
+ * A photo's pixels as they look on screen. A PNG can carry colour that's
+ * partly see-through — a red at 30% reads as pink over the white it's shown
+ * on — and its raw RGB is the red, not the pink. Reading it raw used to turn
+ * a pink cap drawn that way into "Rojo 99%" (and pixels under 50% were
+ * dropped outright). So each pixel is blended over white, the way the photo
+ * preview itself shows it; only the nearly invisible ones are left out.
+ */
+export function visiblePixels(data: ArrayLike<number>): RGB[] {
+  const pixels: RGB[] = []
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    const alpha = data[i + 3]
+    if (alpha < MIN_VISIBLE_ALPHA) continue
+    const a = alpha / 255
+    const over = (c: number) => Math.round(c * a + 255 * (1 - a))
+    pixels.push({ r: over(data[i]), g: over(data[i + 1]), b: over(data[i + 2]) })
+  }
+  return pixels
+}
+
 /** The longest side a photo is shrunk to before its colors are counted — plenty for a palette, and fast on a phone. */
 const SAMPLE_SIDE = 160
 
@@ -68,13 +91,7 @@ export function readPhotoPixels(file: Blob): Promise<{ pixels: RGB[]; url: strin
       }
       ctx.drawImage(img, 0, 0, w, h)
       const { data } = ctx.getImageData(0, 0, w, h)
-      const pixels: RGB[] = []
-      for (let i = 0; i < data.length; i += 4) {
-        // Transparent pixels (a PNG's empty background) aren't part of the picture.
-        if (data[i + 3] < 128) continue
-        pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2] })
-      }
-      resolve({ pixels, url })
+      resolve({ pixels: visiblePixels(data), url })
     }
     img.onerror = () => reject(new Error('No se pudo leer la imagen'))
     img.src = url

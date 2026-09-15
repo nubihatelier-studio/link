@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { paletteFromPixels, suggestPhotoColorCount } from './photoPalette'
+import { paletteFromPixels, suggestPhotoColorCount, visiblePixels } from './photoPalette'
+import { describeColor } from './colorName'
 import type { RGB } from './color'
 
 /** Una "foto": bloques de color con luz y sombra (el mismo color, más claro y más oscuro). */
@@ -40,5 +41,35 @@ describe('paleta desde una foto', () => {
     expect(paletteFromPixels(many, 40).length).toBeLessThanOrEqual(12)
     expect(suggestPhotoColorCount(photo([{ rgb: ROSADO, n: 100 }]))).toBe(2)
     expect(paletteFromPixels([], 5)).toEqual([])
+  })
+})
+
+describe('paleta desde una foto — transparencias', () => {
+  /** Píxeles RGBA como los entrega el canvas. */
+  function rgba(blocks: { rgba: [number, number, number, number]; n: number }[]): number[] {
+    return blocks.flatMap(({ rgba: px, n }) => Array.from({ length: n }, () => px).flat())
+  }
+
+  it('un rojo semitransparente se lee rosado, como se ve sobre blanco', () => {
+    const [px] = visiblePixels([200, 40, 40, 77])
+    expect(px.r).toBe(255 - Math.round((255 - 200) * 0.302))
+    expect(px.g).toBeGreaterThan(170)
+    expect(px.b).toBeGreaterThan(170)
+  })
+
+  it('el fondo vacío de un PNG queda fuera, pero un color al 40% no', () => {
+    expect(visiblePixels([0, 0, 0, 0, 200, 40, 40, 102])).toHaveLength(1)
+  })
+
+  it('una tapa rosada dibujada con rojo transparente sale rosada y es lo que más ocupa', () => {
+    const pixels = visiblePixels(rgba([
+      { rgba: [200, 40, 40, 70], n: 700 }, // la tapa: rojo al ~27%
+      { rgba: [196, 58, 48, 255], n: 280 }, // el costado rojo
+      { rgba: [150, 40, 35, 255], n: 20 },
+      { rgba: [0, 0, 0, 0], n: 500 }, // fondo vacío
+    ]))
+    const palette = paletteFromPixels(pixels, suggestPhotoColorCount(pixels))
+    expect(palette[0].share).toBeGreaterThan(0.6)
+    expect(describeColor(palette[0].hex)).toMatch(/rosad/i)
   })
 })
