@@ -38,10 +38,9 @@ export default defineConfig({
         icons: [
           { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          // Same two files double as maskable: resources/icon.png already keeps
-          // the logo well inside the safe zone (full-bleed gold background,
-          // teal roundel centered with ~14% margin per side), so no separate
-          // padded variant is needed.
+          // Same two files double as maskable: resources/icon-only.png keeps the
+          // N and the beads inside the safe zone (full-bleed warm white, the art
+          // within the central ~65%), so no separate padded variant is needed.
           { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],

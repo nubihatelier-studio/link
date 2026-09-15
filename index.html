@@ -2,7 +2,7 @@
 <html lang="es-CL">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/pwa-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
@@ -62,15 +62,20 @@
         justify-content: center;
       }
       #initial-loader img {
-        width: 48px;
-        height: 48px;
-        border-radius: 9999px;
+        height: 64px;
+        width: auto;
+        max-width: 70vw;
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="initial-loader"><img src="/logo.png" alt="" width="48" height="48" /></div>
+      <div id="initial-loader">
+        <picture>
+          <source srcset="/logo-wordmark-dark.png" media="(prefers-color-scheme: dark)" />
+          <img src="/logo-wordmark.png" alt="" />
+        </picture>
+      </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
