@@ -63,6 +63,26 @@
   --nb-warning-text: #ab881f;
 }
 
+/* The wordmark comes in two drawings: teal script for a light ground, a light
+   script for a dark one. Same three states as the tokens above. */
+.nb-logo-dark {
+  display: none;
+}
+:root[data-theme="dark"] .nb-logo-light {
+  display: none;
+}
+:root[data-theme="dark"] .nb-logo-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .nb-logo-light {
+    display: none;
+  }
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .nb-logo-dark {
+    display: block;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
     color-scheme: dark;
