@@ -280,10 +280,12 @@ export function HomePage() {
         </div>
       )}
 
+      {/* El aviso va apilado en el celular: en una sola fila el texto quedaba en una
+          columna angosta, partido en muchas líneas, porque los botones no ceden ancho. */}
       {showBackupReminder && (
-        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3">
+        <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-accent-300 bg-accent-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="text-sm text-text">{t.backup.reminderMessage}</p>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             <button
               onClick={backupFromReminder}
               className="rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink hover:bg-accent-400 active:bg-accent-600"
