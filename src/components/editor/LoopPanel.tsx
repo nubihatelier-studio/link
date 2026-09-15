@@ -11,7 +11,8 @@ const VARIANT_OPTIONS: { value: LoopVariant; label: string }[] = [
   { value: 'metal', label: t.editor.loop.variantMetal },
 ]
 
-export function LoopPanel() {
+/** `inSheet`: shown in the phone's bottom sheet, which already carries the title and does the scrolling. */
+export function LoopPanel({ inSheet = false }: { inSheet?: boolean } = {}) {
   const { cells, loop, setLoop } = useEditorStore()
   const palette = paletteFromCells(cells)
 
@@ -40,12 +41,14 @@ export function LoopPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
-          <LoopIcon />
-          {t.editor.loop.title}
-        </h3>
+    <div className={`flex flex-col gap-3 p-4 ${inSheet ? '' : 'h-full overflow-y-auto'}`}>
+      <div className={`flex items-center gap-2 ${inSheet ? 'justify-end' : 'justify-between'}`}>
+        {!inSheet && (
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+            <LoopIcon />
+            {t.editor.loop.title}
+          </h3>
+        )}
         <button
           onClick={() => (loop ? setLoop(undefined) : enable())}
           aria-pressed={!!loop}

@@ -34,6 +34,7 @@ import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { NameDialog } from '@/components/shared/NameDialog'
+import { BottomSheet } from '@/components/shared/BottomSheet'
 import { templateNamed } from '@/engine/template'
 import type { PatternDoc } from '@/engine/types'
 import { Toast } from '@/components/shared/Toast'
@@ -587,67 +588,51 @@ export function EditorPage() {
       </nav>
 
       {colorDrawerOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setColorDrawerOpen(false)}>
-          <div
-            className="flex max-h-[70dvh] w-full flex-col rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5">
-              <h2 className="text-sm font-semibold">{t.editor.colorsTitle}</h2>
-              <button
-                onClick={() => setColorDrawerOpen(false)}
-                className="rounded-full bg-accent-500 px-4 py-1.5 text-sm font-semibold text-accent-ink"
-              >
-                {t.editor.colorsDone}
-              </button>
-            </div>
-            <div className="min-h-0 flex-1">
-              <ColorPanel onColorChosen={() => setColorDrawerOpen(false)} />
-            </div>
-          </div>
-        </div>
+        <BottomSheet title={t.editor.colorsTitle} onClose={() => setColorDrawerOpen(false)}>
+          <ColorPanel onColorChosen={() => setColorDrawerOpen(false)} />
+        </BottomSheet>
       )}
 
       {fringeDrawerOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setFringeDrawerOpen(false)}>
-          <div
-            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center py-2">
-              <div className="h-1 w-10 rounded-full bg-surface-3" />
-            </div>
-            <FringePanel />
-          </div>
-        </div>
+        <BottomSheet
+          title={
+            <>
+              <FringeIcon />
+              {t.editor.fringe.title}
+            </>
+          }
+          onClose={() => setFringeDrawerOpen(false)}
+        >
+          <FringePanel inSheet />
+        </BottomSheet>
       )}
 
       {shapeDrawerOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setShapeDrawerOpen(false)}>
-          <div
-            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center py-2">
-              <div className="h-1 w-10 rounded-full bg-surface-3" />
-            </div>
-            <ShapePanel />
-          </div>
-        </div>
+        <BottomSheet
+          title={
+            <>
+              <ShapeIcon />
+              {t.editor.shape.title}
+            </>
+          }
+          onClose={() => setShapeDrawerOpen(false)}
+        >
+          <ShapePanel inSheet />
+        </BottomSheet>
       )}
 
       {loopDrawerOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden" onClick={() => setLoopDrawerOpen(false)}>
-          <div
-            className="max-h-[75vh] w-full rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center py-2">
-              <div className="h-1 w-10 rounded-full bg-surface-3" />
-            </div>
-            <LoopPanel />
-          </div>
-        </div>
+        <BottomSheet
+          title={
+            <>
+              <LoopIcon />
+              {t.editor.loop.title}
+            </>
+          }
+          onClose={() => setLoopDrawerOpen(false)}
+        >
+          <LoopPanel inSheet />
+        </BottomSheet>
       )}
 
       {shortcutsOpen && (

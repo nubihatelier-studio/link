@@ -3,15 +3,18 @@ import { useEditorStore } from '@/store/editorStore'
 import { t } from '@/i18n/es'
 import { ShapeIcon } from '@/components/icons/ShapeIcon'
 
-export function ShapePanel() {
+/** `inSheet`: shown in the phone's bottom sheet, which already carries the title and does the scrolling. */
+export function ShapePanel({ inSheet = false }: { inSheet?: boolean } = {}) {
   const { rows, cols, rowShape, growRowEdge, shrinkRowEdge, addRowAtTop, removeRowAtTop } = useEditorStore()
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
-        <ShapeIcon />
-        {t.editor.shape.title}
-      </h3>
+    <div className={`flex flex-col gap-3 p-4 ${inSheet ? '' : 'h-full overflow-y-auto'}`}>
+      {!inSheet && (
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+          <ShapeIcon />
+          {t.editor.shape.title}
+        </h3>
+      )}
       <p className="text-xs text-text-muted">{t.editor.shape.hint}</p>
       <div className="flex gap-2">
         <button

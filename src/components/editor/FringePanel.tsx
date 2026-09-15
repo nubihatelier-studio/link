@@ -15,7 +15,8 @@ const QUICK_SHAPES: { shape: FringeSculptShape; label: string }[] = [
 
 const BLOCK_ADJUST_STEPS = [5, 10]
 
-export function FringePanel() {
+/** `inSheet`: shown in the phone's bottom sheet, which already carries the title and does the scrolling. */
+export function FringePanel({ inSheet = false }: { inSheet?: boolean } = {}) {
   const {
     cols,
     fringe,
@@ -48,12 +49,14 @@ export function FringePanel() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
-          <FringeIcon />
-          {t.editor.fringe.title}
-        </h3>
+    <div className={`flex flex-col gap-3 p-4 ${inSheet ? '' : 'h-full overflow-y-auto'}`}>
+      <div className={`flex items-center gap-2 ${inSheet ? 'justify-end' : 'justify-between'}`}>
+        {!inSheet && (
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
+            <FringeIcon />
+            {t.editor.fringe.title}
+          </h3>
+        )}
         <button
           aria-label={t.editor.fringe.showDivider}
           title={t.editor.fringe.showDividerHint}

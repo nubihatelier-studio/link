@@ -266,3 +266,38 @@ describe('EditorPage — guardar como plantilla', () => {
     expect(Object.values(usePatternsStore.getState().templates)).toHaveLength(1)
   })
 })
+
+describe('EditorPage — hojas del celular', () => {
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([PATTERN_WITH_FRINGE])
+    usePatternsStore.setState({
+      patterns: { [PATTERN_WITH_FRINGE.id]: PATTERN_WITH_FRINGE },
+      order: [PATTERN_WITH_FRINGE.id],
+      templates: {},
+      hydrated: true,
+      migrationResult: null,
+    })
+  })
+
+  it('la hoja de flecos tiene su título, se desplaza y se cierra con "Listo"', async () => {
+    const user = userEvent.setup()
+    const { EditorPage } = await import('./EditorPage')
+    render(
+      <MemoryRouter initialEntries={[`/editor/${PATTERN_WITH_FRINGE.id}`]}>
+        <Routes>
+          <Route path="/editor/:id" element={<EditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const chip = screen.getAllByRole('button', { name: t.editor.fringe.shortTitle }).find((b) => b.closest('nav'))!
+    await user.click(chip)
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getByRole('heading', { name: t.editor.fringe.title })).toBeInTheDocument()
+    // El cuerpo de la hoja es el que se desplaza, no una caja recortada.
+    expect(sheet.querySelector('.overflow-y-auto')).not.toBeNull()
+
+    await user.click(within(sheet).getByRole('button', { name: t.editor.colorsDone }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
