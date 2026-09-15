@@ -1,27 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap } from './types'
-import { mirroredCell, reflectRegion } from './mirror'
-
-describe('mirroredCell', () => {
-  it('horizontal mirrors left-right around the vertical center line', () => {
-    expect(mirroredCell(3, 0, 10, 10, 'horizontal')).toEqual({ row: 3, col: 9 })
-    expect(mirroredCell(3, 9, 10, 10, 'horizontal')).toEqual({ row: 3, col: 0 })
-  })
-
-  it('vertical mirrors top-bottom around the horizontal center line', () => {
-    expect(mirroredCell(0, 3, 10, 10, 'vertical')).toEqual({ row: 9, col: 3 })
-    expect(mirroredCell(9, 3, 10, 10, 'vertical')).toEqual({ row: 0, col: 3 })
-  })
-
-  it('off returns the same cell', () => {
-    expect(mirroredCell(4, 5, 10, 10, 'off')).toEqual({ row: 4, col: 5 })
-  })
-
-  it('the exact center column/row of an odd-sized grid mirrors to itself', () => {
-    expect(mirroredCell(2, 2, 5, 5, 'horizontal')).toEqual({ row: 2, col: 2 })
-    expect(mirroredCell(2, 2, 5, 5, 'vertical')).toEqual({ row: 2, col: 2 })
-  })
-})
+import { reflectRegion } from './mirror'
 
 describe('reflectRegion', () => {
   it('flips a 2x2 region horizontally (left-right) in place', () => {

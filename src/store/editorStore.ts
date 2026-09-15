@@ -8,7 +8,7 @@ import { normalizeLoop } from '@/engine/loop'
 import { dropOf, effectiveStaggerPhase, flipStagger, isShiftedRow, staggerOf, stitchRowOf, type StaggerPhase } from '@/engine/geometry'
 import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, createShapedRowShape, detectPreset, minTaperWidth, normalizeRowShape, recenterRowShape } from '@/engine/shape'
-import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
+import { reflectRegion } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { clampZoom } from '@/lib/zoomScale'
@@ -304,8 +304,6 @@ interface EditorState {
   cloneSelection: (direction: CloneDirection, times: number) => void
 
   /** Symmetry-assisted drawing: every stroked cell also paints its mirror counterpart (see engine/mirror.ts). */
-  mirrorMode: MirrorMode
-  setMirrorMode: (mode: MirrorMode) => void
   /** Flips the current selection's contents in place — the one-shot counterpart to live mirror-mode drawing. */
   reflectSelection: (axis: 'horizontal' | 'vertical') => void
 
@@ -960,8 +958,6 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   cloneDirection: 'horizontal',
   setCloneDirection: (dir) => set({ cloneDirection: dir }),
 
-  mirrorMode: 'off',
-  setMirrorMode: (mode) => set((s) => ({ mirrorMode: s.mirrorMode === mode ? 'off' : mode })),
   reflectSelection: (axis) => {
     const { selection, cells } = get()
     if (!selection) return
@@ -1137,7 +1133,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
   strokeCell: (row, col, hex) => {
     if (isReadOnlySide(get())) return
-    const { cells, cols, rows, mirrorMode, fringe, rowShape } = get()
+    const { cells, cols, rows, fringe, rowShape } = get()
     const next = { ...cells }
     let changed = false
 
@@ -1151,10 +1147,6 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     }
 
     paintOne(row, col)
-    if (mirrorMode !== 'off') {
-      const mirrored = mirroredCell(row, col, cols, rows, mirrorMode)
-      paintOne(mirrored.row, mirrored.col)
-    }
 
     if (changed) set({ cells: next })
   },

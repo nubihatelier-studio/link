@@ -54,9 +54,31 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
     toggleFlipH,
     toggleFlipV,
     eraseSelection,
-    mirrorMode,
-    setMirrorMode,
+    reflectSelection,
   } = useEditorStore()
+
+  /**
+   * Un solo par de botones para las dos formas de reflejar que tiene el
+   * editor, según lo que se esté haciendo: mientras se pega, voltean lo que
+   * está por pegarse; el resto del tiempo reflejan la selección ahí mismo.
+   * Antes eran tres pares con el mismo ícono repartidos por la pantalla (el
+   * "pincel espejo" de esta barra, el volteo al pegar, y un "Reflejar"
+   * escondido en el panel de Paleta), y no se entendía cuál hacía qué.
+   */
+  const flipping = pasteArmed
+  const mirrorButtons = (['horizontal', 'vertical'] as const).map((axis) => {
+    const isH = axis === 'horizontal'
+    return {
+      axis,
+      Icon: isH ? FlipHorizontal2 : FlipVertical2,
+      label: flipping
+        ? isH ? t.editor.pasteFlipH : t.editor.pasteFlipV
+        : isH ? t.editor.mirror.horizontal : t.editor.mirror.vertical,
+      active: flipping && (isH ? pasteFlipH : pasteFlipV),
+      disabled: !flipping && !selection,
+      onClick: () => (flipping ? (isH ? toggleFlipH() : toggleFlipV()) : reflectSelection(axis)),
+    }
+  })
 
   return (
     <div className={`flex ${orientation === 'vertical' ? 'flex-col gap-2' : 'flex-row items-center gap-2'}`}>
@@ -76,23 +98,6 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
 
       <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
 
-      <IconButton
-        label={t.editor.mirror.horizontal}
-        active={mirrorMode === 'horizontal'}
-        onClick={() => setMirrorMode('horizontal')}
-      >
-        <FlipHorizontal2 size={18} />
-      </IconButton>
-      <IconButton
-        label={t.editor.mirror.vertical}
-        active={mirrorMode === 'vertical'}
-        onClick={() => setMirrorMode('vertical')}
-      >
-        <FlipVertical2 size={18} />
-      </IconButton>
-
-      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
-
       {/* Marcar, copiar y pegar son los tres pasos de una misma tarea: van
           juntos en su propio grupo, en ese orden, para que se lean como uno.
           Voltear y borrar la selección aparecen dentro del grupo cuando
@@ -106,16 +111,11 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
         <PasteIcon size={18} />
       </IconButton>
-      {pasteArmed && (
-        <>
-          <IconButton label={t.editor.pasteFlipH} active={pasteFlipH} onClick={toggleFlipH}>
-            <FlipHorizontal2 size={18} />
-          </IconButton>
-          <IconButton label={t.editor.pasteFlipV} active={pasteFlipV} onClick={toggleFlipV}>
-            <FlipVertical2 size={18} />
-          </IconButton>
-        </>
-      )}
+      {mirrorButtons.map(({ axis, Icon, label, active, disabled, onClick }) => (
+        <IconButton key={axis} label={label} active={active} disabled={disabled} onClick={onClick}>
+          <Icon size={18} />
+        </IconButton>
+      ))}
       {tool === 'select' && (
         <IconButton label={t.editor.eraseSelection} disabled={!selection} onClick={eraseSelection}>
           <Trash2 size={18} />

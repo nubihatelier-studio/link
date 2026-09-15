@@ -1,26 +1,6 @@
 import { cellKey } from './cellKey'
 import type { ColorMap } from './types'
 
-export type MirrorMode = 'off' | 'horizontal' | 'vertical'
-
-/**
- * The counterpart cell for a symmetry-assisted stroke, reflected across the
- * grid's center line — 'horizontal' mirrors left-right (a vertical center
- * line, matching the existing FlipHorizontal2 icon convention used for
- * paste), 'vertical' mirrors top-bottom (a horizontal center line).
- */
-export function mirroredCell(
-  row: number,
-  col: number,
-  cols: number,
-  rows: number,
-  mode: MirrorMode,
-): { row: number; col: number } {
-  if (mode === 'horizontal') return { row, col: cols - 1 - col }
-  if (mode === 'vertical') return { row: rows - 1 - row, col }
-  return { row, col }
-}
-
 export interface Rect {
   r0: number
   c0: number

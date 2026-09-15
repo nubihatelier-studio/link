@@ -304,12 +304,12 @@ export const t = {
     cloneHorizontal: 'Horizontal',
     repeat: 'Repetir',
     eraseSelection: 'Borrar selección',
-    pasteFlipH: 'Voltear horizontal',
-    pasteFlipV: 'Voltear vertical',
+    pasteFlipH: 'Pegar volteado de lado',
+    pasteFlipV: 'Pegar volteado hacia abajo',
+    /** Los dos botones de la barra: reflejan lo seleccionado — ver ToolPanel.tsx. */
     mirror: {
-      horizontal: 'Espejo horizontal',
-      vertical: 'Espejo vertical',
-      reflect: 'Reflejar',
+      horizontal: 'Reflejar la selección de lado',
+      vertical: 'Reflejar la selección hacia abajo',
     },
     shortcutsTitle: 'Atajos de teclado',
     fringe: {
