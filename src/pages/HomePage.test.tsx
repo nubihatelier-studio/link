@@ -84,7 +84,8 @@ describe('HomePage — eliminar con deshacer', () => {
 
     expect(screen.getByText(PATTERN.name)).toBeInTheDocument()
 
-    await user.click(screen.getByText('Eliminar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
 
     // Optimistically hidden right away, but not yet gone from the store or the adapter.
     expect(screen.queryByText(PATTERN.name)).not.toBeInTheDocument()
@@ -105,7 +106,8 @@ describe('HomePage — eliminar con deshacer', () => {
     const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime })
     await renderHome()
 
-    await user.click(screen.getByText('Eliminar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
     expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
 
     await act(async () => {
@@ -122,7 +124,8 @@ describe('HomePage — eliminar con deshacer', () => {
     const user = userEvent.setup()
     const { unmount } = await renderHome()
 
-    await user.click(screen.getByText('Eliminar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
     expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
 
     unmount()
@@ -135,7 +138,8 @@ describe('HomePage — eliminar con deshacer', () => {
     const user = userEvent.setup()
     await renderHome()
 
-    await user.click(screen.getByText('Eliminar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
     expect(usePatternsStore.getState().patterns[PATTERN.id]).toEqual(PATTERN)
 
     await act(async () => {
@@ -338,7 +342,8 @@ describe('HomePage — duplicar con renombrado inline', () => {
     const user = userEvent.setup()
     await renderHome()
 
-    await user.click(screen.getByText('Duplicar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Duplicar' }))
 
     const input = await screen.findByDisplayValue('Flor peyote (copia)')
     expect(document.activeElement).toBe(input)
@@ -348,7 +353,8 @@ describe('HomePage — duplicar con renombrado inline', () => {
     const user = userEvent.setup()
     await renderHome()
 
-    await user.click(screen.getByText('Duplicar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Duplicar' }))
     const input = await screen.findByDisplayValue('Flor peyote (copia)')
     await user.clear(input)
     await user.type(input, 'Aro dorado{Enter}')
@@ -363,7 +369,8 @@ describe('HomePage — duplicar con renombrado inline', () => {
     const user = userEvent.setup()
     await renderHome()
 
-    await user.click(screen.getByText('Duplicar'))
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    await user.click(screen.getByRole('button', { name: 'Duplicar' }))
     const input = await screen.findByDisplayValue('Flor peyote (copia)')
     await user.type(input, ' cambiado{Escape}')
 
@@ -450,5 +457,64 @@ describe('HomePage — filtros y favoritos', () => {
     const user = await renderHome()
     await user.click(chip(/^Favoritos/))
     expect(screen.getByText('Toca la estrella de un patrón para tenerlo aquí.')).toBeInTheDocument()
+  })
+})
+
+describe('HomePage — tarjetas', () => {
+  const CON_COLORES: PatternDoc = {
+    ...PATTERN,
+    cells: { '0,0': '#111111', '0,1': '#222222', '0,2': '#333333', '0,3': '#444444', '0,4': '#555555', '0,5': '#666666' },
+  }
+
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter([CON_COLORES])
+    usePatternsStore.setState({
+      patterns: { [CON_COLORES.id]: CON_COLORES },
+      order: [CON_COLORES.id],
+      templates: {},
+      hydrated: true,
+      migrationResult: null,
+    })
+    useWeaveStore.setState({ progress: {}, loaded: {}, allLoaded: false })
+  })
+
+  async function renderHome() {
+    const { HomePage } = await import('./HomePage')
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/editor/:id" element={<p>Editor abierto</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    return userEvent.setup()
+  }
+
+  it('muestra hasta cuatro colores como puntitos y el resto como +N, y ya no "Duplicar"/"Eliminar" sueltos', async () => {
+    await renderHome()
+    expect(screen.getByLabelText('6 colores')).toBeInTheDocument()
+    expect(screen.getByText('+2')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Duplicar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument()
+  })
+
+  it('el "⋯" ofrece Duplicar, Renombrar, Descargar y Eliminar; renombrar edita el nombre ahí mismo', async () => {
+    const user = await renderHome()
+    await user.click(screen.getByRole('button', { name: `Opciones de ${PATTERN.name}` }))
+    for (const name of ['Duplicar', 'Renombrar', 'Descargar', 'Eliminar']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+    await user.click(screen.getByRole('button', { name: 'Renombrar' }))
+    const input = screen.getByDisplayValue(PATTERN.name)
+    await user.clear(input)
+    await user.type(input, 'Flor nueva{Enter}')
+    expect(usePatternsStore.getState().patterns[PATTERN.id].name).toBe('Flor nueva')
+  })
+
+  it('tocar la tarjeta abre el patrón', async () => {
+    const user = await renderHome()
+    await user.click(screen.getByText(PATTERN.name))
+    expect(screen.getByText('Editor abierto')).toBeInTheDocument()
   })
 })

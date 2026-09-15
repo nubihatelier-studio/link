@@ -33,6 +33,9 @@ export const t = {
       finished: 'Aquí aparecen las piezas que marcas como terminadas en modo tejido.',
     },
     favorite: (name: string) => `Marcar ${name} como favorito`,
+    cardOptions: (name: string) => `Opciones de ${name}`,
+    download: 'Descargar',
+    colorCount: (n: number) => (n === 1 ? '1 color' : `${n} colores`),
     unfavorite: (name: string) => `Quitar ${name} de favoritos`,
   },
   /** La barra de abajo de las pantallas principales. */

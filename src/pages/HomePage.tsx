@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { MoreVertical, Star } from 'lucide-react'
+import { MoreHorizontal, MoreVertical, Star } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore, parseWeaveProgressKey } from '@/store/weaveStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
-import { getBeadType } from '@/data/beadTypes'
+import { beadCount } from '@/engine/geometry'
+import { totalFringeBeadCount } from '@/engine/fringe'
+import { loopBeadCount } from '@/engine/loop'
+import { paletteFromCells } from '@/lib/palette'
 import type { PatternDoc } from '@/engine/types'
 import { pickMostRecentInProgress, summarizeWeaveProgress } from '@/engine/weaveProgressSummary'
 import { leftPieceOf, rightEarring } from '@/engine/pair'
 import { filterPatternsByName, sortPatterns, type LibrarySort } from '@/lib/patternLibrary'
 import { LIBRARY_FILTERS, matchesLibraryFilter, weaveStatusOf, type LibraryFilter } from '@/lib/libraryFilter'
 import { t } from '@/i18n/es'
-import { exportFullBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
+import { exportFullBackup, exportPatternBackup, importBackupFile, parseBackupFile } from '@/storage/backup'
 import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backupReminder'
 import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { APP_VERSION } from '@/version'
@@ -20,6 +23,9 @@ import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
 import { UndoToast } from '@/components/shared/UndoToast'
+
+/** Colors shown as dots on a card; the rest become "+N". */
+const MAX_CARD_COLORS = 4
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -51,6 +57,8 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [librarySort, setLibrarySort] = useState<LibrarySort>('recent')
   const [filter, setFilter] = useState<LibraryFilter>('all')
+  /** Which card's "⋯" options are open. */
+  const [cardMenuId, setCardMenuId] = useState<string | null>(null)
   const setFavorite = usePatternsStore((s) => s.setFavorite)
   const showBackupReminder = !reminderDismissed && shouldShowBackupReminder(order.length)
   // Search/sort only earn their place once the list is long enough to need them.
@@ -377,22 +385,25 @@ export function HomePage() {
           {t.home.searchNoResults}
         </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-2.5">
           {displayedPatterns.map((p) => {
             const id = p.id
-            const bead = getBeadType(p.config.beadTypeId)
-            const colorCount = new Set(Object.values(p.cells)).size
+            const colors = paletteFromCells(p.cells).map((c) => c.hex)
+            const status = statusOf(p)
             const cardSummary = summarizeWeaveProgress(
               p.config,
               weaveProgress[id]?.currentIndex ?? -1,
               p.fringe,
               p.rowShape,
             )
+            const totalBeads = beadCount(p.config.technique, p.config.cols, p.config.rows, p.rowShape) + totalFringeBeadCount(p.fringe) + loopBeadCount(p.loop)
             const isRenaming = id === renamingId
             const cardBody = (
               <>
-                <PatternThumb pattern={p} size={64} />
-                <div className="min-w-0 flex-1">
+                <span className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-2">
+                  <PatternThumb pattern={p} size={72} />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
                   {isRenaming ? (
                     <input
                       autoFocus
@@ -413,65 +424,101 @@ export function HomePage() {
                       className="w-full rounded bg-transparent font-semibold outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                     />
                   ) : (
-                    <p className="truncate font-semibold">{p.name}</p>
+                    <span className="truncate font-semibold">{p.name}</span>
                   )}
-                  <p className="truncate text-sm text-text-muted">
-                    {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
-                  </p>
-                  <p className="text-xs text-text-muted">{colorCount} colores</p>
-                  {statusOf(p) === 'finished' ? (
-                    <p className="mt-1.5">
-                      <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-[11px] font-semibold text-accent-600">
-                        ✓ {t.weave.finishedLabel}
+                  <span className="truncate text-xs text-text-muted">
+                    {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows}
+                  </span>
+                  {colors.length > 0 && (
+                    <span className="flex items-center" aria-label={t.home.colorCount(colors.length)} title={t.home.colorCount(colors.length)}>
+                      {colors.slice(0, MAX_CARD_COLORS).map((hex, i) => (
+                        <span
+                          key={hex}
+                          className={`h-4 w-4 rounded-full border-2 border-surface ${i > 0 ? '-ml-1' : ''}`}
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                      {colors.length > MAX_CARD_COLORS && (
+                        <span className="ml-1 text-[10px] font-semibold text-text-muted">+{colors.length - MAX_CARD_COLORS}</span>
+                      )}
+                    </span>
+                  )}
+                  {status === 'finished' ? (
+                    <span className="mt-0.5 w-fit rounded-full bg-accent-500/15 px-2 py-0.5 text-[11px] font-semibold text-accent-600">
+                      ✓ {t.weave.finishedLabel}
+                    </span>
+                  ) : cardSummary ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-1 max-w-28 flex-1 overflow-hidden rounded-full bg-surface-3">
+                        <span className="block h-full rounded-full bg-accent-500" style={{ width: `${cardSummary.percent}%` }} />
                       </span>
-                    </p>
-                  ) : cardSummary && (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
-                        <div className="h-full rounded-full bg-accent-500" style={{ width: `${cardSummary.percent}%` }} />
-                      </div>
-                      <span className="shrink-0 text-[10px] text-text-muted">{cardSummary.percent}%</span>
-                    </div>
+                      <span className="shrink-0 text-[10px] tabular-nums text-text-muted">{cardSummary.percent}%</span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-text-muted">{t.editor.beadsTotal(totalBeads)}</span>
                   )}
-                </div>
+                </span>
               </>
             )
             return (
               <li
                 key={id}
-                className="flex items-center gap-4 rounded-2xl border border-border bg-surface-2 p-3 hover:border-accent-300"
+                className="relative flex items-center gap-2 rounded-2xl border border-border bg-surface p-2.5 hover:border-accent-300"
               >
                 {isRenaming ? (
-                  <div className="flex min-w-0 flex-1 items-center gap-4 rounded-xl">{cardBody}</div>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">{cardBody}</div>
                 ) : (
                   <button
                     onClick={() => navigate(`/editor/${id}`)}
-                    className="flex min-w-0 flex-1 items-center gap-4 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                   >
                     {cardBody}
                   </button>
                 )}
-                <button
-                  onClick={() => setFavorite(id, !p.favorite)}
-                  aria-pressed={Boolean(p.favorite)}
-                  aria-label={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
-                  title={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-surface-3 ${p.favorite ? 'text-accent-500' : 'text-text-muted'}`}
-                >
-                  <Star size={20} fill={p.favorite ? 'currentColor' : 'none'} />
-                </button>
-                <button
-                  className="shrink-0 rounded-full px-3 py-1 text-xs text-text-muted hover:bg-surface-3"
-                  onClick={() => handleDuplicate(id)}
-                >
-                  {t.common.duplicate}
-                </button>
-                <button
-                  className="shrink-0 rounded-full px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
-                  onClick={() => requestDelete(p)}
-                >
-                  {t.common.delete}
-                </button>
+                <div className="flex shrink-0 flex-col items-center">
+                  <button
+                    onClick={() => setFavorite(id, !p.favorite)}
+                    aria-pressed={Boolean(p.favorite)}
+                    aria-label={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
+                    title={p.favorite ? t.home.unfavorite(p.name) : t.home.favorite(p.name)}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-2 ${p.favorite ? 'text-accent-500' : 'text-text-muted'}`}
+                  >
+                    <Star size={20} fill={p.favorite ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    onClick={() => setCardMenuId((open) => (open === id ? null : id))}
+                    aria-label={t.home.cardOptions(p.name)}
+                    aria-expanded={cardMenuId === id}
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted hover:bg-surface-2"
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+                </div>
+                {cardMenuId === id && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setCardMenuId(null)} />
+                    <div className="absolute right-12 top-12 z-30 flex min-w-40 flex-col rounded-xl border border-border bg-surface p-1 shadow-lg">
+                      <CardMenuItem onClick={() => handleDuplicate(id)} close={() => setCardMenuId(null)}>
+                        {t.common.duplicate}
+                      </CardMenuItem>
+                      <CardMenuItem
+                        onClick={() => {
+                          setRenamingId(id)
+                          setRenameDraft(p.name)
+                        }}
+                        close={() => setCardMenuId(null)}
+                      >
+                        {t.common.rename}
+                      </CardMenuItem>
+                      <CardMenuItem onClick={() => exportPatternBackup(p)} close={() => setCardMenuId(null)}>
+                        {t.home.download}
+                      </CardMenuItem>
+                      <CardMenuItem danger onClick={() => requestDelete(p)} close={() => setCardMenuId(null)}>
+                        {t.common.delete}
+                      </CardMenuItem>
+                    </div>
+                  </>
+                )}
               </li>
             )
           })}
@@ -495,5 +542,29 @@ export function HomePage() {
         />
       )}
     </div>
+  )
+}
+
+function CardMenuItem({
+  children,
+  onClick,
+  close,
+  danger,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  close: () => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      onClick={() => {
+        close()
+        onClick()
+      }}
+      className={`rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2 ${danger ? 'text-red-500' : ''}`}
+    >
+      {children}
+    </button>
   )
 }
