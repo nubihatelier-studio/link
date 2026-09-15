@@ -8,6 +8,12 @@ export interface WeaveProgressRecord {
   currentIndex: number
   /** Which `WEAVE_ORDER_VERSION` (see `engine/weaveOrder.ts`) this index was saved under — absent on records saved before that versioning existed, treated as version 1. */
   orderVersion?: number
+  /**
+   * When the weaver tapped "Terminar" — at the end of the piece or before it
+   * (she may have woven without ticking every step). Absent while the piece is
+   * still in progress; cleared as soon as the progress moves again.
+   */
+  finishedAt?: number
   updatedAt: number
 }
 

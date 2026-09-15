@@ -51,13 +51,15 @@ export class SqliteAdapter implements StorageAdapter {
         pattern_id TEXT PRIMARY KEY,
         current_index INTEGER NOT NULL,
         order_version INTEGER,
+        finished_at INTEGER,
         updated_at INTEGER NOT NULL
       );
     `)
-    // Both tables grew a column after they first shipped — add it for installs upgrading from an
+    // Both tables grew columns after they first shipped — add it for installs upgrading from an
     // older version; on a fresh install the column already exists and the error is ignored.
     for (const statement of [
       'ALTER TABLE weave_progress ADD COLUMN order_version INTEGER',
+      'ALTER TABLE weave_progress ADD COLUMN finished_at INTEGER',
       'ALTER TABLE patterns ADD COLUMN extra_json TEXT',
     ]) {
       try {
@@ -125,9 +127,9 @@ export class SqliteAdapter implements StorageAdapter {
   async setWeaveProgress(record: WeaveProgressRecord): Promise<void> {
     const db = await this.db()
     await db.run(
-      `INSERT INTO weave_progress (pattern_id, current_index, order_version, updated_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(pattern_id) DO UPDATE SET current_index = excluded.current_index, order_version = excluded.order_version, updated_at = excluded.updated_at`,
-      [record.patternId, record.currentIndex, record.orderVersion ?? null, record.updatedAt],
+      `INSERT INTO weave_progress (pattern_id, current_index, order_version, finished_at, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(pattern_id) DO UPDATE SET current_index = excluded.current_index, order_version = excluded.order_version, finished_at = excluded.finished_at, updated_at = excluded.updated_at`,
+      [record.patternId, record.currentIndex, record.orderVersion ?? null, record.finishedAt ?? null, record.updatedAt],
     )
   }
 
@@ -182,6 +184,7 @@ function rowToWeaveProgress(row: Record<string, unknown>): WeaveProgressRecord {
     patternId: row.pattern_id as string,
     currentIndex: row.current_index as number,
     orderVersion: (row.order_version as number | null) ?? undefined,
+    finishedAt: (row.finished_at as number | null) ?? undefined,
     updatedAt: row.updated_at as number,
   }
 }

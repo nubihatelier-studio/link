@@ -57,15 +57,17 @@ export function summarizeWeaveProgress(
 /**
  * Which pattern to feature as "continue weaving" on the home screen: the
  * one with the most recently updated in-progress record. Ignores patterns
- * with no progress at all (`currentIndex` < 0).
+ * with no progress at all (`currentIndex` < 0) and pieces marked finished —
+ * a finished piece at 100% used to stay featured as if it were still on the
+ * needle.
  */
 export function pickMostRecentInProgress(
-  progress: Record<string, { currentIndex: number; updatedAt: number }>,
+  progress: Record<string, { currentIndex: number; updatedAt: number; finishedAt?: number }>,
 ): string | null {
   let bestId: string | null = null
   let bestUpdatedAt = -Infinity
   for (const [patternId, p] of Object.entries(progress)) {
-    if (p.currentIndex < 0) continue
+    if (p.currentIndex < 0 || p.finishedAt) continue
     if (p.updatedAt > bestUpdatedAt) {
       bestId = patternId
       bestUpdatedAt = p.updatedAt

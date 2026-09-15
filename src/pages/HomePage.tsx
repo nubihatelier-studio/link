@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MoreVertical } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
-import { useWeaveStore, parseWeaveProgressKey } from '@/store/weaveStore'
+import { useWeaveStore, parseWeaveProgressKey, weaveProgressKey } from '@/store/weaveStore'
 import { useThemeStore, type ThemePref } from '@/store/themeStore'
 import { getBeadType } from '@/data/beadTypes'
 import type { PatternDoc } from '@/engine/types'
@@ -160,6 +160,11 @@ export function HomePage() {
     }),
   )
   const heroKey = pickMostRecentInProgress(liveProgress)
+  /** A piece marked "Terminado" in weave mode — both earrings, for a pair. */
+  function weaveFinished(id: string, doc: PatternDoc) {
+    const leftDone = Boolean(weaveProgress[weaveProgressKey(id, 'left')]?.finishedAt)
+    return doc.pair ? leftDone && Boolean(weaveProgress[weaveProgressKey(id, 'right')]?.finishedAt) : leftDone
+  }
   const hero = heroKey ? parseWeaveProgressKey(heroKey) : null
   const heroPatternId = hero?.patternId ?? null
   const heroPattern = heroPatternId ? patterns[heroPatternId] : undefined
@@ -387,7 +392,13 @@ export function HomePage() {
                     {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows} · {bead.label}
                   </p>
                   <p className="text-xs text-text-muted">{colorCount} colores</p>
-                  {cardSummary && (
+                  {weaveFinished(id, p) ? (
+                    <p className="mt-1.5">
+                      <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-[11px] font-semibold text-accent-600">
+                        ✓ {t.weave.finishedLabel}
+                      </span>
+                    </p>
+                  ) : cardSummary && (
                     <div className="mt-1.5 flex items-center gap-2">
                       <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
                         <div className="h-full rounded-full bg-accent-500" style={{ width: `${cardSummary.percent}%` }} />

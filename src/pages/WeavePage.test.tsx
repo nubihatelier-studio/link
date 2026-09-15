@@ -534,3 +534,98 @@ describe('WeavePage — todo habla de la próxima mostacilla', () => {
     expect(screen.getByText(new RegExp(t.weave.finished))).toBeInTheDocument()
   })
 })
+
+describe('WeavePage — terminar', () => {
+  /** Un loom de 2 × 2: cuatro mostacillas, dos filas. */
+  const SMALL: PatternDoc = {
+    id: 'p_small',
+    name: 'Mini',
+    config: { technique: 'loom', cols: 2, rows: 2, beadTypeId: 'miyuki-delica-11' },
+    cells: { '0,0': '#1c1c1e', '0,1': '#c9a227', '1,0': '#1c1c1e', '1,1': '#c9a227' },
+    createdAt: 1,
+    updatedAt: 1,
+  }
+
+  beforeEach(() => {
+    fakeAdapter = createFakeAdapter()
+    usePatternsStore.setState({ patterns: { [SMALL.id]: SMALL }, order: [SMALL.id], hydrated: true, migrationResult: null })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  })
+
+  async function renderWeave() {
+    const { WeavePage } = await import('./WeavePage')
+    return render(
+      <MemoryRouter initialEntries={[`/editor/${SMALL.id}/weave`]}>
+        <Routes>
+          <Route path="/editor/:id/weave" element={<WeavePage />} />
+          <Route path="/" element={<p>Biblioteca</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('al llegar al final, "Siguiente" pasa a "Terminar ✓", que marca la pieza terminada y abre el cierre', async () => {
+    const user = userEvent.setup()
+    await renderWeave()
+    await user.click(screen.getByText('Marcar fila hecha'))
+    await user.click(screen.getByText('Marcar fila hecha'))
+
+    expect(screen.queryByText('Siguiente →')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: `${t.weave.finish} ✓` }))
+
+    expect(useWeaveStore.getState().isFinished(SMALL.id)).toBe(true)
+    const sheet = within(screen.getByRole('dialog'))
+    expect(sheet.getByRole('heading', { name: t.weave.finishedSheet.title('Mini') })).toBeInTheDocument()
+    expect(sheet.getByText(t.weave.finishedSheet.beads(4))).toBeInTheDocument()
+    await waitFor(async () => expect((await fakeAdapter.getWeaveProgress(SMALL.id))?.finishedAt).toBeDefined())
+
+    await user.click(sheet.getByRole('button', { name: t.weave.finishedSheet.library }))
+    expect(screen.getByText('Biblioteca')).toBeInTheDocument()
+  })
+
+  it('se puede terminar antes del final; "Seguir tejiendo" lo deshace sin mover el progreso', async () => {
+    const user = userEvent.setup()
+    await renderWeave()
+    await user.click(screen.getByText('Siguiente →'))
+
+    await user.click(screen.getByRole('button', { name: t.weave.finish }))
+    expect(useWeaveStore.getState().isFinished(SMALL.id)).toBe(true)
+    const sheet = within(screen.getByRole('dialog'))
+    expect(sheet.getByText(t.weave.finishedSheet.beadsEarly(1, 4))).toBeInTheDocument()
+
+    await user.click(sheet.getByRole('button', { name: t.weave.finishedSheet.keepWeaving }))
+    expect(useWeaveStore.getState().isFinished(SMALL.id)).toBe(false)
+    expect(useWeaveStore.getState().getIndex(SMALL.id)).toBe(0)
+  })
+
+  it('una pieza terminada muestra "Terminado", y vuelve a quedar en curso apenas avanza', async () => {
+    const user = userEvent.setup()
+    await renderWeave()
+    await user.click(screen.getByText('Siguiente →'))
+    await user.click(screen.getByRole('button', { name: t.weave.finish }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: t.weave.finishedSheet.keepWeaving }))
+    await user.click(screen.getByRole('button', { name: t.weave.finish }))
+    // Tocar fuera del cierre lo cierra y la pieza sigue terminada.
+    await user.click(screen.getByRole('dialog').parentElement!)
+
+    expect(screen.getByText(t.weave.finishedLabel)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t.weave.finish })).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Siguiente →'))
+    expect(useWeaveStore.getState().isFinished(SMALL.id)).toBe(false)
+    expect(screen.queryByText(t.weave.finishedLabel)).not.toBeInTheDocument()
+  })
+
+  it('"Tejerla otra vez" reinicia el progreso, con deshacer', async () => {
+    const user = userEvent.setup()
+    await renderWeave()
+    await user.click(screen.getByText('Marcar fila hecha'))
+    await user.click(screen.getByText('Marcar fila hecha'))
+    await user.click(screen.getByRole('button', { name: `${t.weave.finish} ✓` }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: t.weave.finishedSheet.again }))
+
+    expect(useWeaveStore.getState().getIndex(SMALL.id)).toBe(-1)
+    expect(useWeaveStore.getState().isFinished(SMALL.id)).toBe(false)
+    expect(screen.getByText(t.weave.resetDone)).toBeInTheDocument()
+  })
+})

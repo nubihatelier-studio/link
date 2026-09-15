@@ -53,7 +53,9 @@ export function WeavePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
-  const { getIndex, getOrderVersion, setIndex, reset, loadProgress } = useWeaveStore()
+  const { getIndex, getOrderVersion, setIndex, reset, loadProgress, finish, unfinish, isFinished } = useWeaveStore()
+  /** The closing sheet "Terminar" opens. */
+  const [finishSheetOpen, setFinishSheetOpen] = useState(false)
   const { tapAnywhereToAdvance, setTapAnywhereToAdvance } = useWeavePrefsStore()
   const touchStartX = useRef<number | null>(null)
   // Captured index to restore if "Reiniciar" gets undone within the toast window.
@@ -192,7 +194,23 @@ export function WeavePage() {
     )
   }
 
+  const markedFinished = isFinished(progressKey)
+
+  function finishWeaving() {
+    finish(progressKey!)
+    setFinishSheetOpen(true)
+  }
+  function keepWeaving() {
+    unfinish(progressKey!)
+    setFinishSheetOpen(false)
+  }
+  function weaveAgain() {
+    setFinishSheetOpen(false)
+    requestReset()
+  }
+
   function chooseSide(next: EarringSide) {
+    setFinishSheetOpen(false)
     // A pending "Reiniciar" undo belongs to the earring it was made on.
     setPendingReset(null)
     setProgressInvalidated(false)
@@ -315,6 +333,11 @@ export function WeavePage() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-bold">{pattern.name}</p>
           <p className="text-xs text-text-muted">
+            {markedFinished && (
+              <span className="mr-1.5 rounded-full bg-accent-500/15 px-1.5 py-0.5 font-semibold text-accent-600">
+                {t.weave.finishedLabel}
+              </span>
+            )}
             {currentRowLabel}
             {directionArrow && (
               <span className="ml-1" role="img" aria-label={directionLabel} title={directionLabel}>
@@ -332,9 +355,19 @@ export function WeavePage() {
         >
           <WakeLockIcon size={16} className={!wakeLock.isSupported ? '' : wakeLock.isActive ? '' : 'animate-spin'} />
         </span>
-        <button onClick={requestReset} className="rounded-full px-3 py-1.5 text-xs text-text-muted hover:bg-surface-2">
+        <button onClick={requestReset} className="rounded-full px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2">
           {t.weave.reset}
         </button>
+        {/* Terminar antes del final: discreto, junto a Reiniciar, para no tocarlo sin querer. Al final está grande abajo. */}
+        {!markedFinished && !finished && (
+          <button
+            onClick={finishWeaving}
+            title={t.weave.finishEarlyHint}
+            className="rounded-full px-2.5 py-1.5 text-xs text-text-muted hover:bg-surface-2"
+          >
+            {t.weave.finish}
+          </button>
+        )}
       </header>
 
       {pair && (
@@ -431,11 +464,62 @@ export function WeavePage() {
           >
             ← {t.weave.back}
           </Button>
-          <Button fullWidth onClick={advance} disabled={!canAdvance}>
-            {t.weave.next} →
-          </Button>
+          {finished ? (
+            <Button fullWidth onClick={finishWeaving}>
+              {t.weave.finish} ✓
+            </Button>
+          ) : (
+            <Button fullWidth onClick={advance} disabled={!canAdvance}>
+              {t.weave.next} →
+            </Button>
+          )}
         </div>
       </footer>
+
+      {finishSheetOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 md:items-center md:justify-center" onClick={() => setFinishSheetOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="finish-sheet-title"
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full flex-col gap-4 rounded-t-2xl bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:max-w-sm md:rounded-2xl md:pb-5"
+          >
+            <div className="flex flex-col gap-1 text-center">
+              <p className="text-3xl" aria-hidden="true">
+                ✓
+              </p>
+              <h2 id="finish-sheet-title" className="text-lg font-bold">
+                {t.weave.finishedSheet.title(pattern.name)}
+                {pair && <span className="font-normal text-text-muted"> · {side === 'right' ? t.weave.rightEarring : t.weave.leftEarring}</span>}
+              </h2>
+              <p className="text-sm text-text-muted">
+                {finished
+                  ? t.weave.finishedSheet.beads(totalBeads)
+                  : t.weave.finishedSheet.beadsEarly(Math.max(0, beadsWoven), totalBeads)}
+              </p>
+              {!finished && <p className="text-xs text-text-muted">{t.weave.finishedSheet.earlyHint}</p>}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button fullWidth onClick={() => navigate('/')}>
+                {t.weave.finishedSheet.library}
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => navigate(`/editor/${id}`)}>
+                {t.weave.finishedSheet.editor}
+              </Button>
+              <Button variant="secondary" fullWidth onClick={weaveAgain}>
+                {t.weave.finishedSheet.again}
+              </Button>
+              <button
+                onClick={finished ? () => setFinishSheetOpen(false) : keepWeaving}
+                className="py-2 text-sm font-semibold text-text-muted hover:text-text"
+              >
+                {finished ? t.weave.finishedSheet.close : t.weave.finishedSheet.keepWeaving}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendingReset !== null && (
         <UndoToast message={t.weave.resetDone} onUndo={undoReset} onExpire={() => setPendingReset(null)} />

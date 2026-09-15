@@ -107,6 +107,16 @@ describe('pickMostRecentInProgress', () => {
     expect(pickMostRecentInProgress({})).toBeNull()
   })
 
+  it('una pieza marcada como terminada ya no aparece en "Continuar tejiendo"', () => {
+    expect(
+      pickMostRecentInProgress({
+        terminada: { currentIndex: 40, updatedAt: 9, finishedAt: 9 },
+        enCurso: { currentIndex: 3, updatedAt: 5 },
+      }),
+    ).toBe('enCurso')
+    expect(pickMostRecentInProgress({ terminada: { currentIndex: 40, updatedAt: 9, finishedAt: 9 } })).toBeNull()
+  })
+
   it('ignores patterns that have not been started', () => {
     expect(pickMostRecentInProgress({ p1: { currentIndex: -1, updatedAt: 100 } })).toBeNull()
   })

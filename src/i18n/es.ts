@@ -396,6 +396,22 @@ export const t = {
     /** En peyote, junto a "Pasada N": en qué fila del gráfico (la regla del costado) está esa pasada. */
     chartRow: (n: number) => `fila ${n} del gráfico`,
     finished: '¡Patrón terminado!',
+    /** "Terminar": en la barra de abajo al llegar al final, y discreto arriba para terminar antes. */
+    finish: 'Terminar',
+    finishEarlyHint: 'Marcar la pieza como terminada, aunque no hayas llegado al final en la app',
+    /** Junto al nombre, en una pieza ya marcada como terminada. */
+    finishedLabel: 'Terminado',
+    finishedSheet: {
+      title: (name: string) => `Terminaste ${name}`,
+      beads: (total: number) => `${total} ${total === 1 ? 'mostacilla' : 'mostacillas'}`,
+      beadsEarly: (woven: number, total: number) => `${woven} de ${total} mostacillas marcadas en la app`,
+      earlyHint: 'Quedó marcada como terminada aunque no llegaste al final. Si sigues tejiendo, vuelve a quedar en curso.',
+      library: 'Volver a la biblioteca',
+      editor: 'Ir al editor',
+      again: 'Tejerla otra vez',
+      keepWeaving: 'Seguir tejiendo',
+      close: 'Cerrar',
+    },
     /** Par de aros: cada aro se teje por separado y guarda su propio progreso. */
     earring: 'Aro',
     leftEarring: 'Aro izquierdo',
