@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ChevronRight, ImagePlus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronRight, ImagePlus, Pipette } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternLetters } from '@/hooks/usePatternLetters'
 import { useRecentColors } from '@/hooks/useRecentColors'
@@ -42,7 +42,13 @@ function ChooserSheet({ slot, mode }: { slot: number; mode: 'fill' | 'recolor' }
   const current = slots[slot] ?? null
   const [draft, setDraft] = useState<string | null>(mode === 'recolor' ? current : null)
   const [exactOpen, setExactOpen] = useState(false)
+  const exactRef = useRef<HTMLDivElement>(null)
   const letter = current ? (letters.find((l) => l.hex.toLowerCase() === current.toLowerCase())?.letter ?? '') : ''
+
+  // The picker opens below the fold of a phone sheet — bring it into view.
+  useEffect(() => {
+    if (exactOpen) exactRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' })
+  }, [exactOpen])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -141,13 +147,15 @@ function ChooserSheet({ slot, mode }: { slot: number; mode: 'fill' | 'recolor' }
             <button
               onClick={() => setExactOpen((v) => !v)}
               aria-expanded={exactOpen}
-              className="flex w-full items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-text-muted hover:text-text"
+              className={`flex h-11 w-full items-center justify-center gap-2 rounded-full border-2 text-sm font-semibold transition-colors
+                ${exactOpen ? 'border-accent-500 bg-accent-500/10 text-text' : 'border-accent-500 bg-accent-500 text-accent-ink hover:bg-accent-600'}`}
             >
+              <Pipette size={16} />
               {t.editor.chooser.exact}
-              <ChevronRight size={14} className={`transition-transform ${exactOpen ? 'rotate-90' : ''}`} />
+              <ChevronRight size={16} className={`transition-transform ${exactOpen ? 'rotate-90' : ''}`} />
             </button>
             {exactOpen && (
-              <div className="mt-2">
+              <div ref={exactRef} className="mt-3">
                 <ColorPicker value={draft ?? EXACT_START} onChange={setDraft} />
               </div>
             )}
