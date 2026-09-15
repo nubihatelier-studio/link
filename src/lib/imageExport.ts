@@ -1,4 +1,5 @@
 import type { BeadTypeDef, ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
+import { loadImage, WORDMARK_SRC } from './loadImage'
 import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm, type StaggerPhase } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
@@ -200,25 +201,6 @@ export function renderPatternCanvas(
 export const INSTAGRAM_CARD_WIDTH = 1080
 export const INSTAGRAM_CARD_HEIGHT = 1350
 
-const LOGO_LOAD_TIMEOUT_MS = 3000
-
-/** Bounded by a timeout — a stuck/slow fetch (offline, blocked) shouldn't hang the whole export. */
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const timer = setTimeout(() => reject(new Error(`Tiempo agotado cargando ${src}`)), LOGO_LOAD_TIMEOUT_MS)
-    img.onload = () => {
-      clearTimeout(timer)
-      resolve(img)
-    }
-    img.onerror = () => {
-      clearTimeout(timer)
-      reject(new Error(`No se pudo cargar ${src}`))
-    }
-    img.src = src
-  })
-}
-
 /**
  * Composes the branded, shareable "Instagram card": title + spec line, the
  * pattern centered in a white panel, brand footer. Deliberately one fixed
@@ -285,35 +267,21 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   const drawH = patternCanvas.height * fitScale
   ctx.drawImage(patternCanvas, panelMargin + (panelW - drawW) / 2, panelTop + (panelH - drawH) / 2, drawW, drawH)
 
-  // Footer: circular logo + wordmark, centered as one group. Logo fetch can
-  // fail (offline, blocked) without breaking the export — it's a nice-to-have.
-  const wordmark = 'Nubih Creator'
+  // Footer: the brand wordmark, centered — the drawing for a dark ground, since
+  // this card is always the dark teal one. The fetch can fail (offline, blocked)
+  // without breaking the export: the name is then written instead.
   const footerY = INSTAGRAM_CARD_HEIGHT - 82
-  const logoSize = 44
-  const gap = 16
-  ctx.font = '700 34px system-ui, sans-serif'
-  const wordmarkWidth = ctx.measureText(wordmark).width
-  const groupWidth = logoSize + gap + wordmarkWidth
-  const groupStartX = INSTAGRAM_CARD_WIDTH / 2 - groupWidth / 2
-
   try {
-    const logo = await loadImage('/logo.png')
-    const logoCx = groupStartX + logoSize / 2
-    const logoCy = footerY - logoSize * 0.32
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(logoCx, logoCy, logoSize / 2, 0, Math.PI * 2)
-    ctx.clip()
-    ctx.drawImage(logo, logoCx - logoSize / 2, logoCy - logoSize / 2, logoSize, logoSize)
-    ctx.restore()
+    const logo = await loadImage(WORDMARK_SRC.dark)
+    const height = 84
+    const width = (logo.naturalWidth / logo.naturalHeight) * height
+    ctx.drawImage(logo, INSTAGRAM_CARD_WIDTH / 2 - width / 2, footerY - height * 0.78, width, height)
   } catch {
-    // Nice-to-have — proceed without the logo.
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#c9a227'
+    ctx.font = '700 34px system-ui, sans-serif'
+    ctx.fillText('Nubih Creator', INSTAGRAM_CARD_WIDTH / 2, footerY)
   }
-
-  ctx.textAlign = 'left'
-  ctx.fillStyle = '#c9a227'
-  ctx.font = '700 34px system-ui, sans-serif'
-  ctx.fillText(wordmark, groupStartX + logoSize + gap, footerY)
 
   return card
 }
