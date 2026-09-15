@@ -10,7 +10,7 @@ import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, normalizeRowShape, recenterRowShape } from '@/engine/shape'
 import { mirroredCell, reflectRegion, type MirrorMode } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
-import { paletteFromCells, replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
+import { replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { clampZoom } from '@/lib/zoomScale'
 import { activeAfterEmptying, fillSlot, loadColor, slotOf, TRAY_SIZE, trayFor, withoutUnpainted, type Tray } from '@/engine/tray'
 import { usePatternsStore } from './patternsStore'
@@ -310,12 +310,12 @@ interface EditorState {
   floodFill: (row: number, col: number, hex: string | null) => void
   /**
    * Fills the current selection (or every paintable cell — body and fringe
-   * alike — if nothing is selected) with a gradient between `startHex` and
-   * `endHex`, quantized to the pattern's existing palette plus those two
-   * endpoints, with soft dithering at the color-band boundaries. One undo
-   * step, like `mergeColors`/`floodFill`.
+   * alike — if nothing is selected) with a gradient through `stops`, in
+   * order, one band per color, with soft dithering where bands meet (see
+   * `engine/gradient.ts#computeGradientCells`). One undo step, like
+   * `mergeColors`/`floodFill`.
    */
-  applyGradient: (startHex: string, endHex: string, direction: GradientDirection) => void
+  applyGradient: (stops: string[], direction: GradientDirection) => void
 
   /** Stroke = one drag gesture (pencil/eraser) collapsed into a single undo step. */
   strokeBase: ColorMap | null
@@ -1023,7 +1023,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     get().commit(floodFillCells(cells, cols, rows, row, col, hex, fringe, rowShape))
   },
 
-  applyGradient: (startHex, endHex, direction) => {
+  applyGradient: (stops, direction) => {
     const { cells, cols, rows, fringe, rowShape, technique, selection, colorSelectionMask, staggerPhase } = get()
     const targets: { row: number; col: number }[] = []
     if (selection) {
@@ -1044,10 +1044,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         }
       }
     }
-    if (targets.length === 0) return
+    if (targets.length === 0 || stops.length === 0) return
 
-    const palette = paletteFromCells(cells).map((p) => p.hex)
-    const gradientColors = computeGradientCells(targets, technique, rows, startHex, endHex, direction, palette, 0.2, staggerPhase)
+    const gradientColors = computeGradientCells(targets, technique, rows, stops, direction, 0.6, staggerPhase)
     get().commit({ ...cells, ...gradientColors })
   },
 

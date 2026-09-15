@@ -467,14 +467,19 @@ export const t = {
   gradient: {
     title: 'Degradado',
     hint: 'Se aplica a la selección actual, o a todo el patrón (cuerpo y fleco) si no hay nada seleccionado.',
-    start: 'Color inicio',
-    end: 'Color fin',
+    /** Los colores por los que pasa el degradado, en orden — ver engine/gradient.ts. */
+    stops: 'Colores, en orden',
+    stopsHint: 'Una franja por color, de arriba hacia abajo. Toca un color para quitarlo.',
+    add: 'Agregar',
+    reverse: 'Invertir',
+    removeStop: (color: string, n: number) => `Quitar ${color} (${n}.º) del degradado`,
+    addStop: (color: string) => `Agregar ${color} al final del degradado`,
     direction: 'Dirección',
     directionVertical: 'Vertical',
     directionDiagonalDR: 'Diagonal ↘',
     directionDiagonalDL: 'Diagonal ↙',
     apply: 'Aplicar degradado',
-    needsTwoColors: 'Necesitas al menos 2 colores en la paleta para armar un degradado.',
+    needsTwoColors: 'Elige al menos 2 colores para armar un degradado.',
   },
   common: {
     save: 'Guardar',

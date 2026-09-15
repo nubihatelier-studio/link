@@ -4,6 +4,7 @@ import {
   ArrowDownLeft,
   ArrowDownRight,
   ArrowRight,
+  ArrowUpDown,
   ChevronRight,
   FlipHorizontal2,
   FlipVertical2,
@@ -35,8 +36,8 @@ export function ColorPanel({
     reflectSelection,
     applyGradient,
   } = useEditorStore()
-  const [gradientStart, setGradientStart] = useState<string | null>(null)
-  const [gradientEnd, setGradientEnd] = useState<string | null>(null)
+  /** The gradient's colors in order, once the weaver has changed them; null follows the pattern's colors in letter order. */
+  const [gradientStops, setGradientStops] = useState<string[] | null>(null)
   const [gradientDirection, setGradientDirection] = useState<GradientDirection>('vertical')
 
   const palette = usePatternLetters()
@@ -55,6 +56,18 @@ export function ColorPanel({
     () => Object.fromEntries(palette.map((p) => [p.hex, p.letter])),
     [palette],
   )
+  /**
+   * Colors a gradient can use: the pattern's, in letter order, then the ones
+   * loaded in the tray and not painted yet.
+   */
+  const gradientChoices = useMemo(() => {
+    const painted = palette.map((p) => p.hex)
+    const loaded = slots.filter((hex): hex is string => Boolean(hex) && !painted.includes(hex!))
+    return [...painted, ...loaded]
+  }, [palette, slots])
+  // A color taken out of the pattern and the tray since drops out of a customized order.
+  const stops = (gradientStops ?? palette.map((p) => p.hex)).filter((hex) => gradientChoices.includes(hex))
+
   const cloneWidth = selection ? selection.c1 - selection.c0 + 1 : 0
   const cloneHeight = selection ? selection.r1 - selection.r0 + 1 : 0
 
@@ -165,41 +178,41 @@ export function ColorPanel({
         </ul>
       </section>
 
-      {palette.length >= 2 && (
+      {gradientChoices.length >= 2 && (
         <GradientSection
-          palette={palette}
+          choices={gradientChoices}
+          stops={stops}
           colorLetters={colorLetters}
-          start={gradientStart ?? palette[0].hex}
-          end={gradientEnd ?? palette[1].hex}
           direction={gradientDirection}
-          onSetStart={setGradientStart}
-          onSetEnd={setGradientEnd}
+          onSetStops={setGradientStops}
           onSetDirection={setGradientDirection}
-          onApply={() => applyGradient(gradientStart ?? palette[0].hex, gradientEnd ?? palette[1].hex, gradientDirection)}
+          onApply={() => applyGradient(stops, gradientDirection)}
         />
       )}
     </div>
   )
 }
 
+/**
+ * The gradient runs through the chosen colors in order, one band each. It
+ * starts with every color of the pattern in letter order: tapping a chosen
+ * color takes it out, tapping one below adds it at the end, and "Invertir"
+ * flips the order.
+ */
 function GradientSection({
-  palette,
+  choices,
+  stops,
   colorLetters,
-  start,
-  end,
   direction,
-  onSetStart,
-  onSetEnd,
+  onSetStops,
   onSetDirection,
   onApply,
 }: {
-  palette: { hex: string; count: number }[]
+  choices: string[]
+  stops: string[]
   colorLetters: Record<string, string>
-  start: string
-  end: string
   direction: GradientDirection
-  onSetStart: (hex: string) => void
-  onSetEnd: (hex: string) => void
+  onSetStops: (stops: string[]) => void
   onSetDirection: (direction: GradientDirection) => void
   onApply: () => void
 }) {
@@ -208,24 +221,25 @@ function GradientSection({
     { value: 'diagonalDR', icon: ArrowDownRight, label: t.gradient.directionDiagonalDR },
     { value: 'diagonalDL', icon: ArrowDownLeft, label: t.gradient.directionDiagonalDL },
   ]
+  const remaining = choices.filter((hex) => !stops.includes(hex))
 
-  function swatchRow(selected: string, onSelect: (hex: string) => void) {
+  function chip(hex: string, onClick: () => void, label: string, order?: number) {
     return (
-      <div className="flex flex-wrap gap-1.5">
-        {palette.map((p) => (
-          <button
-            key={p.hex}
-            title={p.hex}
-            onClick={() => onSelect(p.hex)}
-            aria-pressed={selected === p.hex}
-            className={`flex h-7 w-7 items-center justify-center rounded-md border-2 text-[10px] font-bold
-              ${selected === p.hex ? 'border-accent-500' : 'border-border'}`}
-            style={{ backgroundColor: p.hex, color: contrastTextColor(p.hex) }}
-          >
-            {colorLetters[p.hex] ?? ''}
-          </button>
-        ))}
-      </div>
+      <button
+        key={hex}
+        onClick={onClick}
+        aria-label={label}
+        title={label}
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border text-[11px] font-bold"
+        style={{ backgroundColor: hex, color: contrastTextColor(hex) }}
+      >
+        {colorLetters[hex] ?? ''}
+        {order !== undefined && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[9px] font-bold text-accent-ink">
+            {order}
+          </span>
+        )}
+      </button>
     )
   }
 
@@ -234,11 +248,32 @@ function GradientSection({
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.gradient.title}</h3>
       <p className="mb-3 text-xs text-text-muted">{t.gradient.hint}</p>
 
-      <p className="mb-1.5 text-[11px] font-semibold text-text-muted">{t.gradient.start}</p>
-      {swatchRow(start, onSetStart)}
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-text-muted">{t.gradient.stops}</p>
+        <button
+          onClick={() => onSetStops([...stops].reverse())}
+          disabled={stops.length < 2}
+          className="flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-text-muted hover:text-text disabled:opacity-40"
+        >
+          <ArrowUpDown size={12} />
+          {t.gradient.reverse}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2 pt-1.5">
+        {stops.map((hex, i) =>
+          chip(hex, () => onSetStops(stops.filter((h) => h !== hex)), t.gradient.removeStop(colorLetters[hex] ?? describeColor(hex), i + 1), i + 1),
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-text-muted">{t.gradient.stopsHint}</p>
 
-      <p className="mb-1.5 mt-3 text-[11px] font-semibold text-text-muted">{t.gradient.end}</p>
-      {swatchRow(end, onSetEnd)}
+      {remaining.length > 0 && (
+        <>
+          <p className="mb-1.5 mt-3 text-[11px] font-semibold text-text-muted">{t.gradient.add}</p>
+          <div className="flex flex-wrap gap-2">
+            {remaining.map((hex) => chip(hex, () => onSetStops([...stops, hex]), t.gradient.addStop(colorLetters[hex] ?? describeColor(hex))))}
+          </div>
+        </>
+      )}
 
       <p className="mb-1.5 mt-3 text-[11px] font-semibold text-text-muted">{t.gradient.direction}</p>
       <div className="grid grid-cols-3 gap-2">
@@ -247,6 +282,8 @@ function GradientSection({
             key={value}
             onClick={() => onSetDirection(value)}
             title={label}
+            aria-label={label}
+            aria-pressed={direction === value}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium transition-colors
               ${direction === value ? 'border-accent-500 bg-accent-500 text-accent-ink' : 'border-border bg-surface-2 text-text-muted hover:bg-surface-3 hover:text-text'}`}
           >
@@ -257,10 +294,12 @@ function GradientSection({
 
       <button
         onClick={onApply}
-        className="mt-3 w-full rounded-full bg-accent-500 py-2 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-400"
+        disabled={stops.length < 2}
+        className="mt-3 w-full rounded-full bg-accent-500 py-2 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-400 disabled:opacity-40"
       >
         {t.gradient.apply}
       </button>
+      {stops.length < 2 && <p className="mt-2 text-center text-xs text-text-muted">{t.gradient.needsTwoColors}</p>}
     </section>
   )
 }

@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useEditorStore } from '@/store/editorStore'
+import { t } from '@/i18n/es'
 import { ColorCard } from './ColorCard'
 import { ColorChooser } from './ColorChooser'
 import { ColorPanel } from './ColorPanel'
@@ -131,5 +132,65 @@ describe('La ficha del color', () => {
     expect(card().queryByRole('button', { name: 'Intercambiar con otro color' })).not.toBeInTheDocument()
     await user.click(card().getByRole('button', { name: /Vaciar la casilla/ }))
     expect(editor().slots).toEqual([NEGRO, GRIS, null, null, null, null])
+  })
+})
+
+describe('Degradado con todos los colores elegidos', () => {
+  const COLORES = ['#111111', '#1f2f6b', '#4a2a6b', '#3ab0c8', '#d77aa8']
+
+  beforeEach(() => {
+    const cells: Record<string, string> = {}
+    COLORES.forEach((hex, i) => (cells[`0,${i}`] = hex))
+    useEditorStore.setState({
+      technique: 'loom',
+      cols: 5,
+      rows: 20,
+      fringe: { lengths: [0, 0, 0, 0, 0], turnBeads: [false, false, false, false, false] },
+      rowShape: Array.from({ length: 20 }, () => ({ offset: 0, length: 5 })),
+      cells,
+      slots: [...COLORES, null],
+      activeSlot: 0,
+      history: [],
+      future: [],
+      selection: null,
+      colorSelectionMask: null,
+    })
+  })
+
+  it('parte con todos los colores del patrón en orden, y el degradado los usa todos', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+    for (const [i, letter] of ['A', 'B', 'C', 'D', 'E'].entries()) {
+      expect(screen.getByRole('button', { name: t.gradient.removeStop(letter, i + 1) })).toBeInTheDocument()
+    }
+    await user.click(screen.getByRole('button', { name: t.gradient.apply }))
+    expect(new Set(Object.values(editor().cells))).toEqual(new Set(COLORES))
+  })
+
+  it('se puede quitar un color, volver a agregarlo al final e invertir el orden', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+
+    await user.click(screen.getByRole('button', { name: t.gradient.removeStop('B', 2) }))
+    expect(screen.getByRole('button', { name: t.gradient.removeStop('C', 2) })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t.gradient.addStop('B') }))
+    expect(screen.getByRole('button', { name: t.gradient.removeStop('B', 5) })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.gradient.reverse }))
+    expect(screen.getByRole('button', { name: t.gradient.removeStop('B', 1) })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: t.gradient.apply }))
+    // El primer color de la lista queda arriba.
+    expect(editor().cells['0,0']).toBe('#1f2f6b')
+  })
+
+  it('con menos de dos colores no se puede aplicar', async () => {
+    const user = userEvent.setup()
+    render(<ColorPanel />)
+    for (const letter of ['A', 'B', 'C', 'D']) {
+      await user.click(screen.getByRole('button', { name: new RegExp(`^Quitar ${letter} `) }))
+    }
+    expect(screen.getByRole('button', { name: t.gradient.apply })).toBeDisabled()
+    expect(screen.getByText(t.gradient.needsTwoColors)).toBeInTheDocument()
   })
 })

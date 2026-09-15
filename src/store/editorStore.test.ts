@@ -145,7 +145,7 @@ describe('editorStore — applyGradient', () => {
   })
 
   it('sin selección, pinta todo el patrón — cuerpo Y fleco — en un solo commit', () => {
-    useEditorStore.getState().applyGradient('#ffffff', '#000000', 'vertical')
+    useEditorStore.getState().applyGradient(['#ffffff', '#000000'], 'vertical')
     const { cells, history } = useEditorStore.getState()
     expect(cells['0,0']).toBeDefined() // body
     expect(cells['12,0']).toBeDefined() // last fringe bead of column 0 (length 3, bodyRows 10)
@@ -154,7 +154,7 @@ describe('editorStore — applyGradient', () => {
   })
 
   it('el degradado en el cuerpo continúa sin salto hacia el fleco de la misma columna (fila 9 y fleco depth 0 quedan lado a lado)', () => {
-    useEditorStore.getState().applyGradient('#ffffff', '#000000', 'vertical')
+    useEditorStore.getState().applyGradient(['#ffffff', '#000000'], 'vertical')
     const { cells } = useEditorStore.getState()
     // The darkest end of the gradient should land at the deepest fringe row, not back at the body's top.
     expect(cells['0,0']).toBe('#ffffff')
@@ -163,18 +163,19 @@ describe('editorStore — applyGradient', () => {
 
   it('con una selección activa, solo pinta las celdas dentro del rectángulo', () => {
     useEditorStore.getState().setSelection({ r0: 0, c0: 0, r1: 2, c1: 1 })
-    useEditorStore.getState().applyGradient('#ffffff', '#000000', 'vertical')
+    useEditorStore.getState().applyGradient(['#ffffff', '#000000'], 'vertical')
     const { cells } = useEditorStore.getState()
     expect(cells['0,0']).toBeDefined()
     expect(cells['2,1']).toBeDefined()
     expect(cells['5,0']).toBeUndefined() // outside the selection rect
   })
 
-  it('cuantiza siempre a colores de la paleta existente + los dos extremos elegidos, nunca a un hex arbitrario interpolado', () => {
-    useEditorStore.setState({ cells: { '0,0': '#c9a227' } }) // one existing palette color
-    useEditorStore.getState().applyGradient('#ffffff', '#000000', 'vertical')
+  it('pinta sólo con los colores elegidos para el degradado, todos ellos, nunca con un hex mezclado', () => {
+    useEditorStore.setState({ cells: { '0,0': '#c9a227' } })
+    useEditorStore.getState().applyGradient(['#ffffff', '#c9a227', '#000000'], 'vertical')
     const { cells } = useEditorStore.getState()
     const allowed = new Set(['#ffffff', '#000000', '#c9a227'])
+    expect(new Set(Object.values(cells))).toEqual(allowed)
     for (const hex of Object.values(cells)) {
       if (!hex) continue
       expect(allowed.has(hex)).toBe(true)
@@ -183,7 +184,7 @@ describe('editorStore — applyGradient', () => {
 
   it('no hace nada si la selección no tiene celdas pintables (fuera del fleco de esa columna)', () => {
     useEditorStore.getState().setSelection({ r0: 13, c0: 0, r1: 15, c1: 0 }) // beyond column 0's fringe length
-    useEditorStore.getState().applyGradient('#ffffff', '#000000', 'vertical')
+    useEditorStore.getState().applyGradient(['#ffffff', '#000000'], 'vertical')
     expect(useEditorStore.getState().history).toHaveLength(0)
   })
 })
