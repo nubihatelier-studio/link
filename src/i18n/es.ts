@@ -239,6 +239,23 @@ export const t = {
       back: 'Volver',
       close: 'Cerrar',
     },
+    /** "Paleta desde una foto" — ver lib/photoPalette.ts. */
+    photoPalette: {
+      open: 'Paleta desde una foto',
+      title: 'Paleta desde una foto',
+      pick: 'Elegir una foto',
+      dropHint: 'o arrástrala aquí',
+      privacy: 'La foto no sale de tu dispositivo.',
+      reading: 'Leyendo los colores…',
+      error: 'No se pudo leer esa imagen. Prueba con otra.',
+      another: 'Otra foto',
+      count: 'Cantidad de colores',
+      hint: 'Toca los colores que no quieres, como el fondo. Los demás se suman a tu bandeja, sin reemplazar ninguno.',
+      share: (percent: number) => `${percent}%`,
+      toggle: (name: string, included: boolean) => `${name}: ${included ? 'se carga' : 'descartado'}`,
+      load: (n: number) => (n === 1 ? 'Cargar 1 color' : `Cargar ${n} colores`),
+      cancel: 'Cancelar',
+    },
     /** El selector que se abre al llenar o cambiar una casilla. */
     chooser: {
       fillTitle: (n: number) => `Casilla ${n}`,

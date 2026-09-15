@@ -8,6 +8,7 @@ import {
   ChevronRight,
   FlipHorizontal2,
   FlipVertical2,
+  ImagePlus,
 } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -44,6 +45,7 @@ export function ColorPanel({
   const slots = useEditorStore((st) => st.slots)
   const chooseColor = useEditorStore((st) => st.chooseColor)
   const openColorCard = useEditorStore((st) => st.openColorCard)
+  const setPhotoPaletteOpen = useEditorStore((st) => st.setPhotoPaletteOpen)
 
   /** A painted color no slot holds (an undo brought it back) is loaded first, so its card has a slot to act on. */
   function openCardFor(hex: string) {
@@ -133,6 +135,13 @@ export function ColorPanel({
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.tray.label}</h3>
         <ColorTray layout="wrap" onChosen={onColorChosen} />
+        <button
+          onClick={() => setPhotoPaletteOpen(true)}
+          className="mt-3 flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-text-muted hover:text-text"
+        >
+          <ImagePlus size={14} />
+          {t.editor.photoPalette.open}
+        </button>
       </section>
 
       <section>

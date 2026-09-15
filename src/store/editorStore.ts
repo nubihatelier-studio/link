@@ -232,6 +232,16 @@ interface EditorState {
    * to stay.
    */
   chooseColor: (hex: string) => void
+  /**
+   * Loads several colors at once — "Paleta desde una foto": each goes into the
+   * next empty slot (adding slots when there are none), colors already in the
+   * tray are skipped, and nothing loaded or painted is replaced. The first new
+   * color becomes the one to paint with.
+   */
+  loadColors: (hexes: string[]) => void
+  /** Whether the "Paleta desde una foto" dialog is open — rendered once by the editor page. */
+  photoPaletteOpen: boolean
+  setPhotoPaletteOpen: (open: boolean) => void
   /** Puts `hex` in `slot` and paints with it (or with the slot already holding it). */
   fillSlot: (slot: SlotId, hex: string) => void
   /** Empties a slot — only one whose color isn't painted anywhere. */
@@ -797,6 +807,19 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     setTray(get, set, [...get().slots, null], get().activeSlot)
     set({ colorChooser: { slot, mode: 'fill' } })
   },
+  loadColors: (hexes) => {
+    let tray = get().slots
+    let firstNew = -1
+    for (const hex of hexes) {
+      if (slotOf(tray, hex) >= 0) continue
+      const next = loadColor(tray, hex)
+      tray = next.tray
+      if (firstNew < 0) firstNew = next.active
+    }
+    if (firstNew >= 0) setTray(get, set, tray, firstNew)
+  },
+  photoPaletteOpen: false,
+  setPhotoPaletteOpen: (open) => set({ photoPaletteOpen: open, ...(open ? { colorChooser: null } : {}) }),
   fillSlot: (slot, hex) => {
     const next = fillSlot(get().slots, slot, hex)
     setTray(get, set, next.tray, next.active)
@@ -924,6 +947,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       activeSlot: slots.findIndex(Boolean),
       colorChooser: null,
       colorCard: null,
+      photoPaletteOpen: false,
     })
   },
 

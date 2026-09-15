@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ImagePlus } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternLetters } from '@/hooks/usePatternLetters'
 import { useRecentColors } from '@/hooks/useRecentColors'
@@ -36,6 +36,7 @@ function ChooserSheet({ slot, mode }: { slot: number; mode: 'fill' | 'recolor' }
   const fillSlot = useEditorStore((s) => s.fillSlot)
   const recolorSlot = useEditorStore((s) => s.recolorSlot)
   const close = useEditorStore((s) => s.closeColorChooser)
+  const setPhotoPaletteOpen = useEditorStore((s) => s.setPhotoPaletteOpen)
   const letters = usePatternLetters()
   const recent = useRecentColors(patternId, slots)
   const current = slots[slot] ?? null
@@ -99,6 +100,20 @@ function ChooserSheet({ slot, mode }: { slot: number; mode: 'fill' | 'recolor' }
               <p className="text-xs text-text-muted">{t.editor.chooser.previewHint}</p>
             </div>
           </div>
+
+          {mode === 'fill' && (
+            <button
+              onClick={() => {
+                close()
+                setPhotoPaletteOpen(true)
+              }}
+              className="flex items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-left text-sm font-semibold hover:bg-surface-2"
+            >
+              <ImagePlus size={18} className="text-text-muted" />
+              {t.editor.photoPalette.open}
+              <ChevronRight size={14} className="ml-auto text-text-soft" />
+            </button>
+          )}
 
           {recent.length > 0 && (
             <section>

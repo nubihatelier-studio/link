@@ -29,6 +29,7 @@ import { PairBar } from '@/components/editor/PairBar'
 import { ZoomBar } from '@/components/editor/ZoomBar'
 import { ColorChooser } from '@/components/editor/ColorChooser'
 import { ColorCard } from '@/components/editor/ColorCard'
+import { PhotoPaletteDialog } from '@/components/editor/PhotoPaletteDialog'
 import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
@@ -707,6 +708,7 @@ export function EditorPage() {
 
       {/* Encima de todo, también de la hoja de colores del celular: se abre desde la bandeja y desde el lienzo. */}
       <ColorChooser />
+      <PhotoPaletteDialog />
       {/* Seleccionar las mostacillas de un color cierra la hoja del celular: la selección tiene que verse. */}
       <ColorCard onSelected={() => setColorDrawerOpen(false)} />
 
