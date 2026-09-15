@@ -19,6 +19,10 @@ describe('describeColor — un nombre común, sin códigos de marca', () => {
     ['#f2e6cf', 'Beige'],
     ['#8e5bb5', 'Morado'],
     ['#e58fb0', 'Rosado claro'],
+    // Un rojo así de claro es rosado, como lo diría cualquiera.
+    ['#f2c4c4', 'Rosado muy claro'],
+    ['#eb9a9a', 'Rosado claro'],
+    ['#e07070', 'Rojo claro'],
   ])('%s se llama "%s"', (hex, name) => {
     expect(describeColor(hex)).toBe(name)
   })

@@ -23,8 +23,14 @@ export function describeColor(hex: string): string {
   if (h >= 25 && h < 60 && l > 0.78 && s < 0.6) return 'Beige'
 
   const family = HUE_FAMILIES.find(([from, to]) => (from <= to ? h >= from && h < to : h >= from || h < to))
-  return withShade(family ? family[2] : 'Rojo', l)
+  const name = family ? family[2] : 'Rojo'
+  // A red that light is what everyone calls pink: "Rosado claro", not "Rojo muy claro".
+  if (name === 'Rojo' && l >= LIGHT_RED_IS_PINK) return withShade('Rosado', l)
+  return withShade(name, l)
 }
+
+/** From this lightness on, a red hue reads as pink. */
+const LIGHT_RED_IS_PINK = 0.7
 
 /** A saturation below this has no hue worth naming — it's a gray. */
 const NEUTRAL_SATURATION = 0.1
