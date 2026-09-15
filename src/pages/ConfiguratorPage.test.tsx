@@ -550,3 +550,24 @@ describe('ConfiguratorPage — Plantillas Nubih', () => {
     expect(createFromTemplate).toHaveBeenCalledWith('nubih_pulsera_azur', 'full')
   })
 })
+
+describe('ConfiguratorPage — volver', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], templates: {}, hydrated: true, migrationResult: null })
+  })
+
+  it('tiene un botón para volver a la pantalla principal', async () => {
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    const { Routes, Route } = await import('react-router-dom')
+    render(
+      <MemoryRouter initialEntries={['/new']}>
+        <Routes>
+          <Route path="/new" element={<ConfiguratorPage />} />
+          <Route path="/" element={<p>Pantalla principal</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await userEvent.setup().click(screen.getByRole('button', { name: t.common.goHome }))
+    expect(screen.getByText('Pantalla principal')).toBeInTheDocument()
+  })
+})

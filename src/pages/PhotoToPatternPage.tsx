@@ -156,7 +156,13 @@ export function PhotoToPatternPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
-      <h1 className="mb-6 text-2xl font-bold">{t.photo.title}</h1>
+      <div className="mb-6 flex items-center gap-2">
+        {/* Se llega desde "Crear patrón": volver es volver ahí. */}
+        <button onClick={() => navigate('/new')} aria-label={t.configurator.title} title={t.configurator.title} className="-ml-2 rounded-full p-2 text-lg hover:bg-surface-2">
+          ←
+        </button>
+        <h1 className="text-2xl font-bold">{t.photo.title}</h1>
+      </div>
 
       <input
         ref={fileInputRef}

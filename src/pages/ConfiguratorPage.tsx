@@ -320,7 +320,12 @@ export function ConfiguratorPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
-      <h1 className="mb-6 text-2xl font-bold">{t.configurator.title}</h1>
+      <div className="mb-6 flex items-center gap-2">
+        <button onClick={() => navigate('/')} aria-label={t.common.goHome} title={t.common.goHome} className="-ml-2 rounded-full p-2 text-lg hover:bg-surface-2">
+          ←
+        </button>
+        <h1 className="text-2xl font-bold">{t.configurator.title}</h1>
+      </div>
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.templates.title}</h2>
