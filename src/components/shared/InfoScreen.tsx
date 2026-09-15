@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button } from './Button'
+import { Wordmark } from './Wordmark'
 
 interface InfoScreenProps {
   title: string
@@ -18,7 +19,9 @@ interface InfoScreenProps {
 export function InfoScreen({ title, message, action, secondaryAction }: InfoScreenProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas px-6 text-center">
-      <img src="/logo.png" alt="" className="h-12 w-12 rounded-full opacity-60" />
+      <div className="mb-2 flex max-w-[70vw] opacity-80">
+        <Wordmark decorative className="h-12" />
+      </div>
       <h1 className="text-lg font-bold text-text">{title}</h1>
       {message && <p className="max-w-sm text-sm text-text-muted">{message}</p>}
       <div className="flex items-center gap-3">

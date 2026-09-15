@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Wordmark } from '@/components/shared/Wordmark'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MoreHorizontal, MoreVertical, Star } from 'lucide-react'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -206,9 +207,7 @@ export function HomePage() {
       <header className="mb-6 flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
         {/* On a phone the wordmark gets its own row: squeezed beside the theme switch it was too small to read. */}
         <h1 className="w-full min-w-0 sm:w-auto">
-          {/* The brand's own wordmark, drawn for a light and a dark ground; only one shows, so only one is read — see index.css. */}
-          <img src="/logo-wordmark.png" alt={t.app.name} className="nb-logo-light h-14 w-auto max-w-full sm:h-12" />
-          <img src="/logo-wordmark-dark.png" alt={t.app.name} className="nb-logo-dark h-14 w-auto max-w-full sm:h-12" />
+          <Wordmark className="h-14 sm:h-12" />
         </h1>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <SegmentedControl<ThemePref>

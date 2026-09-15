@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Wordmark } from '@/components/shared/Wordmark'
 import { MoreHorizontal } from 'lucide-react'
 import type { PatternDoc } from '@/engine/types'
 import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
@@ -26,7 +27,10 @@ export function TemplatesPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
-      <h1 className="mb-6 text-2xl font-bold">{t.nav.templates}</h1>
+      <header className="mb-6 flex flex-col gap-3">
+        <Wordmark decorative className="h-12 self-start" />
+        <h1 className="text-2xl font-bold">{t.nav.templates}</h1>
+      </header>
 
       <section className="mb-8">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.configurator.nubihTemplatesTitle}</h2>

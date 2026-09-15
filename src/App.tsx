@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Wordmark } from '@/components/shared/Wordmark'
 import { Route, Routes } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useAppUpdate } from '@/hooks/useAppUpdate'
@@ -29,7 +30,9 @@ function App() {
   if (!hydrated) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-canvas">
-        <img src="/logo.png" alt="" className="h-12 w-12 animate-pulse rounded-full" />
+        <div className="flex max-w-[70vw] animate-pulse">
+          <Wordmark decorative className="h-16" />
+        </div>
       </div>
     )
   }
