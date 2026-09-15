@@ -71,6 +71,8 @@ export const t = {
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },
+    /** Plantillas que vienen con la app — ver data/nubihTemplates.ts. */
+    nubihTemplatesTitle: 'Plantillas Nubih',
     /** Plantillas guardadas por quien teje desde el editor — ver engine/template.ts. */
     userTemplates: {
       title: 'Tus plantillas',

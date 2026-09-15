@@ -57,7 +57,7 @@ describe('ConfiguratorPage — plantillas (Corrección 2)', () => {
         <ConfiguratorPage />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('button', { name: new RegExp(t.configurator.templates.pulsera) })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.configurator.templates.pulsera })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: new RegExp(t.configurator.templates.aroFlecos) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: new RegExp(t.configurator.templates.personalizado) })).toBeInTheDocument()
     expect(screen.queryByText('Marcapáginas')).not.toBeInTheDocument()
@@ -344,7 +344,7 @@ describe('ConfiguratorPage — plantilla "Pulsera" calibrada (Tarea 4)', () => {
       </MemoryRouter>,
     )
 
-    await user.click(screen.getByRole('button', { name: new RegExp(t.configurator.templates.pulsera) }))
+    await user.click(screen.getByRole('button', { name: t.configurator.templates.pulsera }))
 
     const { technique, beadTypeId, cols, rows } = CALIBRATION_SAMPLE
     const bead = getBeadType(beadTypeId)
@@ -521,5 +521,32 @@ describe('ConfiguratorPage — tus plantillas', () => {
     await user.clear(input)
     await user.type(input, 'Anillo flor{Enter}')
     expect(usePatternsStore.getState().templates[TEMPLATE.id]?.name).toBe('Anillo flor')
+  })
+})
+
+describe('ConfiguratorPage — Plantillas Nubih', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: {}, order: [], templates: {}, hydrated: true, migrationResult: null })
+  })
+
+  it('vienen con la app, sin opciones de renombrar o eliminar, y se crea desde ellas igual que desde una propia', async () => {
+    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
+    usePatternsStore.setState({ createFromTemplate })
+    const { ConfiguratorPage } = await import('./ConfiguratorPage')
+    render(
+      <MemoryRouter>
+        <ConfiguratorPage />
+      </MemoryRouter>,
+    )
+    const user = userEvent.setup()
+
+    expect(screen.getByText(t.configurator.nubihTemplatesTitle)).toBeInTheDocument()
+    expect(screen.queryByText(t.configurator.userTemplates.title)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t.configurator.userTemplates.options('Pulsera Azur') })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Pulsera Azur' }))
+    expect(screen.getByText(/Loom · 9 × 61/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: t.configurator.createButton }))
+    expect(createFromTemplate).toHaveBeenCalledWith('nubih_pulsera_azur', 'full')
   })
 })

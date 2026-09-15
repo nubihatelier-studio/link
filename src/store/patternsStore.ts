@@ -8,6 +8,7 @@ import { requestPersistentStorageOnce } from '@/storage/persistence'
 import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
 import { buildSamplePattern } from '@/data/samplePattern'
 import { patternFromTemplate, templateFromPattern, uniqueName, type TemplateMode } from '@/engine/template'
+import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
 
 function makeId(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -32,7 +33,7 @@ interface PatternsState {
   /** Removes a template; returns it so a "Deshacer" can put it back with `restoreTemplate`. */
   deleteTemplate: (id: string) => PatternDoc | null
   restoreTemplate: (doc: PatternDoc) => void
-  /** A new pattern in the library from a template — the whole design or just its shape. */
+  /** A new pattern in the library from a template — saved by the weaver or one of `NUBIH_TEMPLATES` — the whole design or just its shape. */
   createFromTemplate: (templateId: string, mode: TemplateMode) => string | null
   /** False until `hydrate()` has loaded patterns from the storage adapter. */
   hydrated: boolean
@@ -316,7 +317,7 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
   },
 
   createFromTemplate: (templateId, mode) => {
-    const template = get().templates[templateId]
+    const template = get().templates[templateId] ?? NUBIH_TEMPLATES.find((tpl) => tpl.id === templateId)
     if (!template) return null
     const id = makeId()
     const name = uniqueName(template.name, Object.values(get().patterns).map((p) => p.name))

@@ -211,3 +211,21 @@ describe('patternsStore — plantillas', () => {
     expect(s.getState().templates[id].name).toBe('Flower Ring')
   })
 })
+
+describe('patternsStore — crear desde una plantilla Nubih', () => {
+  beforeEach(() => {
+    adapterError = null
+    fakeAdapter = createFakeAdapter([])
+    vi.resetModules()
+  })
+
+  it('crea un patrón en la biblioteca desde una plantilla que viene con la app', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    const { NUBIH_TEMPLATES } = await import('@/data/nubihTemplates')
+    const id = usePatternsStore.getState().createFromTemplate('nubih_flower_ring', 'full')!
+    const doc = usePatternsStore.getState().patterns[id]
+    expect(doc.name).toBe('Flower Ring 39 x 10')
+    expect(doc.cells).toEqual(NUBIH_TEMPLATES[0].cells)
+    expect(usePatternsStore.getState().order).toContain(id)
+  })
+})

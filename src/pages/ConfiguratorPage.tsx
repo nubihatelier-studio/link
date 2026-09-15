@@ -35,6 +35,7 @@ import { NameDialog } from '@/components/shared/NameDialog'
 import { UndoToast } from '@/components/shared/UndoToast'
 import type { PatternDoc } from '@/engine/types'
 import type { TemplateMode } from '@/engine/template'
+import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
 
 const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
 type SizeMode = 'count' | 'finalSize'
@@ -171,7 +172,10 @@ export function ConfiguratorPage() {
   const [templateMenuId, setTemplateMenuId] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const [deletedTemplate, setDeletedTemplate] = useState<PatternDoc | null>(null)
-  const userTemplate = userTemplateId ? templatesById[userTemplateId] : undefined
+  /** The chosen template — one that ships with the app, or one the weaver saved. */
+  const userTemplate = userTemplateId
+    ? (templatesById[userTemplateId] ?? NUBIH_TEMPLATES.find((tpl) => tpl.id === userTemplateId))
+    : undefined
 
   const [technique, setTechnique] = useState<Technique>('loom')
   const [cols, setCols] = useState(16)
@@ -339,27 +343,37 @@ export function ConfiguratorPage() {
         </div>
       </section>
 
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.nubihTemplatesTitle}</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {NUBIH_TEMPLATES.map((tpl) => (
+            <TemplateCard
+              key={tpl.id}
+              template={tpl}
+              selected={userTemplateId === tpl.id}
+              onSelect={() => {
+                setUserTemplateId(tpl.id)
+                setSelectedTemplate(null)
+              }}
+            />
+          ))}
+        </div>
+      </section>
+
       {templates.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.userTemplates.title}</h2>
           <div className="grid grid-cols-3 gap-3">
             {templates.map((tpl) => (
               <div key={tpl.id} className="relative">
-                <SelectableCard
+                <TemplateCard
+                  template={tpl}
                   selected={userTemplateId === tpl.id}
-                  onClick={() => {
+                  onSelect={() => {
                     setUserTemplateId(tpl.id)
                     setSelectedTemplate(null)
                   }}
-                  className="flex h-full w-full flex-col items-center gap-2 px-2 py-4 text-center"
-                >
-                  <span className="pointer-events-none">
-                    <PatternThumb pattern={tpl} size={56} />
-                  </span>
-                  <p lang="es" className="w-full hyphens-auto break-words text-sm font-semibold">
-                    {tpl.name}
-                  </p>
-                </SelectableCard>
+                />
                 <button
                   onClick={() => setTemplateMenuId((open) => (open === tpl.id ? null : tpl.id))}
                   aria-label={t.configurator.userTemplates.options(tpl.name)}
@@ -706,5 +720,23 @@ export function ConfiguratorPage() {
         </Button>
       </div>
     </div>
+  )
+}
+
+/** A template to start from — a thumbnail of its design and its name. */
+function TemplateCard({ template, selected, onSelect }: { template: PatternDoc; selected: boolean; onSelect: () => void }) {
+  return (
+    <SelectableCard
+      selected={selected}
+      onClick={onSelect}
+      className="flex h-full w-full flex-col items-center gap-2 px-2 py-4 text-center"
+    >
+      <span className="pointer-events-none">
+        <PatternThumb pattern={template} size={56} />
+      </span>
+      <p lang="es" className="w-full hyphens-auto break-words text-sm font-semibold">
+        {template.name}
+      </p>
+    </SelectableCard>
   )
 }
