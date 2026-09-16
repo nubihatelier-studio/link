@@ -410,6 +410,20 @@ export const t = {
     name: (drop: number) => `${drop}-drop`,
     perStitch: (drop: number) => (drop === 1 ? '1 por puntada' : `${drop} por puntada`),
   },
+  /** "Compartir la app" — el link, y cómo instalarla en el teléfono. */
+  share: {
+    title: 'Compartir la app',
+    intro: 'Cualquiera puede usarla desde este link, sin instalar nada y sin crear cuenta.',
+    copy: 'Copiar el link',
+    copied: '¡Link copiado!',
+    send: 'Compartir',
+    installTitle: 'Para tenerla como app en el teléfono',
+    iosTitle: 'iPhone y iPad (Safari)',
+    iosSteps: ['Abre el link en Safari.', 'Toca el botón Compartir (el cuadrado con la flecha).', 'Elige "Agregar a inicio".'],
+    androidTitle: 'Android (Chrome)',
+    androidSteps: ['Abre el link en Chrome.', 'Toca el menú "⋮".', 'Elige "Instalar aplicación" o "Agregar a pantalla principal".'],
+    dataNote: 'Cada persona guarda sus patrones en su propio teléfono: no se comparten ni se suben a internet.',
+  },
   /** "Contar un problema o una idea" — ver lib/feedback.ts. */
   feedback: {
     title: 'Contar un problema o una idea',

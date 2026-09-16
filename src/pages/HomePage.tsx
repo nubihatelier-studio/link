@@ -21,6 +21,7 @@ import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { APP_VERSION } from '@/version'
 import { MainNav } from '@/components/shared/MainNav'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
+import { ShareAppDialog } from '@/components/shared/ShareAppDialog'
 import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -49,6 +50,8 @@ export function HomePage() {
   // only actually deleted once the toast expires without being undone.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; doc: PatternDoc } | null>(null)
   const [reminderDismissed, setReminderDismissed] = useState(false)
+  /** "Compartir la app": el link para quien todavía no la tiene — ver ShareAppDialog. */
+  const [shareOpen, setShareOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   // Right after duplicating, the new card's name field is focused and
   // pre-selected instead of leaving it as "X (copia)" for someone to notice
@@ -254,6 +257,17 @@ export function HomePage() {
                     >
                       {t.backup.import}
                     </button>
+                    <div className="my-1 h-px bg-border" />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setShareOpen(true)
+                      }}
+                      className="rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
+                    >
+                      {t.share.title}
+                    </button>
+
                     <div className="my-1 h-px bg-border" />
                     <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
                       {t.feedback.title}
@@ -540,6 +554,7 @@ export function HomePage() {
         {t.privacy.version(APP_VERSION)}
       </p>
 
+      {shareOpen && <ShareAppDialog onClose={() => setShareOpen(false)} />}
       <MainNav />
 
       {pendingDelete && (
