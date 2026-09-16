@@ -8,7 +8,6 @@ import { normalizeLoop } from '@/engine/loop'
 import { dropOf, effectiveStaggerPhase, flipStagger, isShiftedRow, staggerOf, stitchRowOf, type StaggerPhase } from '@/engine/geometry'
 import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, createShapedRowShape, detectPreset, minTaperWidth, normalizeRowShape, recenterRowShape } from '@/engine/shape'
-import { reflectRegion } from '@/engine/mirror'
 import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
 import { replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { clampZoom } from '@/lib/zoomScale'
@@ -303,9 +302,15 @@ interface EditorState {
   setCloneDirection: (dir: CloneDirection) => void
   cloneSelection: (direction: CloneDirection, times: number) => void
 
-  /** Symmetry-assisted drawing: every stroked cell also paints its mirror counterpart (see engine/mirror.ts). */
-  /** Flips the current selection's contents in place — the one-shot counterpart to live mirror-mode drawing. */
-  reflectSelection: (axis: 'horizontal' | 'vertical') => void
+  /**
+   * Takes a mirrored copy of the selection and arms the paste with it: the
+   * marked beads stay exactly as they are, and the reflection travels with
+   * the pointer — previewed cell by cell — until it's dropped where the
+   * weaver wants it (see `CanvasGrid`'s paste ghost). Mirroring a selection
+   * *in place* is what this used to do, and it was the wrong half of the
+   * job: a symmetric piece needs the original AND its reflection.
+   */
+  mirrorSelectionToPaste: (axis: 'horizontal' | 'vertical') => void
 
   loadPattern: (doc: PatternDoc) => void
   /**
@@ -958,10 +963,13 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   cloneDirection: 'horizontal',
   setCloneDirection: (dir) => set({ cloneDirection: dir }),
 
-  reflectSelection: (axis) => {
-    const { selection, cells } = get()
+  mirrorSelectionToPaste: (axis) => {
+    if (isReadOnlySide(get())) return
+    const { selection } = get()
     if (!selection) return
-    get().commit(reflectRegion(cells, selection, axis))
+    get().copySelection()
+    if (!get().clipboard) return
+    set({ pasteArmed: true, pasteFlipH: axis === 'horizontal', pasteFlipV: axis === 'vertical' })
   },
 
   saveAsTemplate: (name, replaceId) => {

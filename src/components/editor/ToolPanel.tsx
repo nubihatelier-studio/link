@@ -54,16 +54,15 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
     toggleFlipH,
     toggleFlipV,
     eraseSelection,
-    reflectSelection,
+    mirrorSelectionToPaste,
   } = useEditorStore()
 
   /**
-   * Un solo par de botones para las dos formas de reflejar que tiene el
-   * editor, según lo que se esté haciendo: mientras se pega, voltean lo que
-   * está por pegarse; el resto del tiempo reflejan la selección ahí mismo.
-   * Antes eran tres pares con el mismo ícono repartidos por la pantalla (el
-   * "pincel espejo" de esta barra, el volteo al pegar, y un "Reflejar"
-   * escondido en el panel de Paleta), y no se entendía cuál hacía qué.
+   * Un solo par de botones para reflejar, que hace lo mismo en dos momentos:
+   * con algo marcado, toma una copia reflejada de la selección y la deja
+   * lista para pegar (lo marcado no se toca, el reflejo se ve mientras se
+   * mueve y recién se fija al soltarlo); mientras se pega, cambian el eje
+   * del reflejo antes de soltar.
    */
   const flipping = pasteArmed
   const mirrorButtons = (['horizontal', 'vertical'] as const).map((axis) => {
@@ -76,7 +75,7 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
         : isH ? t.editor.mirror.horizontal : t.editor.mirror.vertical,
       active: flipping && (isH ? pasteFlipH : pasteFlipV),
       disabled: !flipping && !selection,
-      onClick: () => (flipping ? (isH ? toggleFlipH() : toggleFlipV()) : reflectSelection(axis)),
+      onClick: () => (flipping ? (isH ? toggleFlipH() : toggleFlipV()) : mirrorSelectionToPaste(axis)),
     }
   })
 
