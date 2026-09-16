@@ -304,6 +304,9 @@ export const t = {
     cloneHorizontal: 'Una copia al lado de la otra',
     cloneSize: (w: number, h: number) => `${w} × ${h} mostacillas`,
     eraseSelection: 'Borrar selección',
+    move: 'Mover lo marcado',
+    pasteHint: 'Toca una celda para pegar · H/V voltear · Esc cancelar',
+    moveHint: 'Toca dónde dejarlo · H/V voltear · Esc cancelar',
     pasteFlipH: 'Reflejar de lado antes de pegar',
     pasteFlipV: 'Reflejar hacia abajo antes de pegar',
     /** Los dos botones de la barra: copia reflejada de lo marcado, para pegarla — ver ToolPanel.tsx. */

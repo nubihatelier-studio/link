@@ -96,6 +96,7 @@ export function CanvasGrid() {
     colorSelectionMask,
     clipboard,
     pasteArmed,
+    moveSource,
     pasteFlipH,
     pasteFlipV,
     toggleFlipH,
@@ -206,6 +207,44 @@ export function CanvasGrid() {
   function inBounds(row: number, col: number) {
     return isPaintableCell(row, col, cols, rows, fringe, rowShape)
   }
+
+  /**
+   * Marking is not painting: a selection is a rectangle over the chart, so it
+   * may perfectly well cross a hollow of a shaped body (the empty corners of
+   * a rhombus or a triangle) or the gaps between fringe strands. Only what's
+   * actually there gets copied, moved or erased afterwards. Dragging used to
+   * stop dead at the first cell the silhouette doesn't reach, which made it
+   * impossible to mark, say, the top half of a rhombus to mirror it below.
+   */
+  function inGrid(row: number, col: number) {
+    return row >= 0 && row < rows + maxFringeLength(fringe) && col >= 0 && col < cols
+  }
+
+  /** The nearest cell inside the chart — so a drag that wanders out of the grid keeps marking, instead of freezing. */
+  function clampToGrid(cell: { row: number; col: number }) {
+    return {
+      row: Math.max(0, Math.min(rows + maxFringeLength(fringe) - 1, cell.row)),
+      col: Math.max(0, Math.min(cols - 1, cell.col)),
+    }
+  }
+
+  /** Marking tools work over the whole chart; the ones that put color on a bead don't. */
+  function isMarkingTool() {
+    return tool === 'select' || tool === 'rectErase'
+  }
+
+  /**
+   * A touch screen has no pointer hovering over the chart, so after arming a
+   * copy, a mirrored copy or a move there was nothing to see until the first
+   * tap — which already dropped it. The ghost starts on the marked block's
+   * own corner instead: on a phone or tablet the reflection appears right
+   * over what it came from, and the first tap is a choice of where to leave
+   * it, not a leap in the dark.
+   */
+  useEffect(() => {
+    if (!pasteArmed || !clipboard) return
+    setHoverCell((current) => current ?? (selection ? { row: selection.r0, col: selection.c0 } : null))
+  }, [pasteArmed, clipboard, selection])
 
   // ---- rendering ----
   useEffect(() => {
@@ -633,8 +672,12 @@ export function CanvasGrid() {
       return
     }
 
-    const cell = cellFromEvent(e)
-    if (!inBounds(cell.row, cell.col)) return
+    const raw = cellFromEvent(e)
+    const cell = isMarkingTool() ? clampToGrid(raw) : raw
+    // A paste can legitimately start on a hollow of a shaped body — only the
+    // beads that land inside the silhouette are kept (see `pasteClipboardAt`).
+    const reachable = isMarkingTool() || (pasteArmed && clipboard ? inGrid(raw.row, raw.col) : inBounds(cell.row, cell.col))
+    if (!reachable) return
     try {
       ;(e.target as Element).setPointerCapture(e.pointerId)
     } catch {
@@ -740,14 +783,18 @@ export function CanvasGrid() {
     }
 
     if (!isPointerDown.current) return
+
+    if (isMarkingTool()) {
+      const to = clampToGrid(cell)
+      setSelection({ r0: selection?.r0 ?? to.row, c0: selection?.c0 ?? to.col, r1: to.row, c1: to.col })
+      return
+    }
     if (!inBounds(cell.row, cell.col)) return
 
     if (tool === 'pencil' || tool === 'eraser') {
       if (lastCell.current && lastCell.current.row === cell.row && lastCell.current.col === cell.col) return
       strokeCell(cell.row, cell.col, tool === 'pencil' ? activeColor : null)
       lastCell.current = cell
-    } else if (tool === 'select' || tool === 'rectErase') {
-      setSelection({ r0: selection?.r0 ?? cell.row, c0: selection?.c0 ?? cell.col, r1: cell.row, c1: cell.col })
     }
   }
 
@@ -876,7 +923,7 @@ export function CanvasGrid() {
       )}
       {!readOnlyMirror && pasteArmed && clipboard && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-2/90 px-4 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-          Toca una celda para pegar · H/V voltear · Esc cancelar
+          {moveSource ? t.editor.moveHint : t.editor.pasteHint}
         </div>
       )}
       {/* Un patrón recién creado no tiene colores cargados: dice por dónde empezar. */}

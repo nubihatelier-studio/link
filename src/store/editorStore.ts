@@ -295,6 +295,15 @@ interface EditorState {
   pasteFlipV: boolean
   armPaste: () => void
   disarmPaste: () => void
+  /**
+   * Lifts what's marked and lets it travel with the pointer, previewed like a
+   * paste, until it's dropped somewhere else — where it was left is cleared
+   * in the same step, so it's a move, not a copy. Nothing changes until the
+   * drop: cancelling (Esc) leaves the pattern exactly as it was.
+   */
+  armMoveSelection: () => void
+  /** Where a move was lifted from — those cells are cleared when it lands. Null for an ordinary paste. */
+  moveSource: SelectionRect | null
   toggleFlipH: () => void
   toggleFlipV: () => void
 
@@ -955,8 +964,17 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   pasteArmed: false,
   pasteFlipH: false,
   pasteFlipV: false,
-  armPaste: () => set({ pasteArmed: true, pasteFlipH: false, pasteFlipV: false }),
-  disarmPaste: () => set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false }),
+  armPaste: () => set({ pasteArmed: true, pasteFlipH: false, pasteFlipV: false, moveSource: null }),
+  disarmPaste: () => set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false, moveSource: null }),
+  moveSource: null,
+  armMoveSelection: () => {
+    if (isReadOnlySide(get())) return
+    const { selection } = get()
+    if (!selection) return
+    get().copySelection()
+    if (!get().clipboard) return
+    set({ pasteArmed: true, pasteFlipH: false, pasteFlipV: false, moveSource: selection })
+  },
   toggleFlipH: () => set((s) => ({ pasteFlipH: !s.pasteFlipH })),
   toggleFlipV: () => set((s) => ({ pasteFlipV: !s.pasteFlipV })),
 
@@ -1006,6 +1024,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       pasteArmed: false,
       pasteFlipH: false,
       pasteFlipV: false,
+      moveSource: null,
       slots,
       activeSlot: slots.findIndex(Boolean),
       colorChooser: null,
@@ -1231,9 +1250,14 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   pasteClipboardAt: (row, col, opts) => {
-    const { clipboard, cells, cols, rows, fringe, rowShape } = get()
+    const { clipboard, cells, cols, rows, fringe, rowShape, moveSource } = get()
     if (!clipboard) return
     const next = { ...cells }
+    // A move empties its old place, but only where the bead actually landed:
+    // part of a block can fall outside a shaped body (the hollow of a rhombus,
+    // past the last row), and clearing those too would quietly destroy beads
+    // that never made it across.
+    const landed: string[] = []
     for (const [key, hex] of Object.entries(clipboard.cells)) {
       if (!hex) continue
       const { row: rr, col: rc } = parseCellKey(key)
@@ -1242,9 +1266,21 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const targetRow = row + fr
       const targetCol = col + fc
       if (!isPaintableCell(targetRow, targetCol, cols, rows, fringe, rowShape)) continue
+      if (moveSource) landed.push(cellKey(moveSource.r0 + rr, moveSource.c0 + rc))
       next[cellKey(targetRow, targetCol)] = hex
     }
-    set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false })
+    // Emptied after painting, and only the cells the block left behind — a
+    // block dropped overlapping itself keeps what it just put down.
+    if (moveSource) {
+      const painted = new Set(Object.keys(clipboard.cells).map((key) => {
+        const { row: rr, col: rc } = parseCellKey(key)
+        const fr = opts?.flipV ? clipboard.height - 1 - rr : rr
+        const fc = opts?.flipH ? clipboard.width - 1 - rc : rc
+        return cellKey(row + fr, col + fc)
+      }))
+      for (const key of landed) if (!painted.has(key)) delete next[key]
+    }
+    set({ pasteArmed: false, pasteFlipH: false, pasteFlipV: false, moveSource: null, selection: moveSource ? null : get().selection })
     get().commit(next)
   },
 

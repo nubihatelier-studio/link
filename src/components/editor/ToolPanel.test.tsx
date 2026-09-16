@@ -129,3 +129,83 @@ describe('ToolPanel — clonar lo marcado', () => {
     expect(editor().cells['1,0']).toBeUndefined()
   })
 })
+
+describe('ToolPanel — mover lo marcado', () => {
+  it('sin selección el botón está apagado', () => {
+    render(<ToolPanel />)
+    expect(screen.getByRole('button', { name: t.editor.move })).toBeDisabled()
+  })
+
+  it('levanta lo marcado sin borrarlo todavía, y al soltarlo lo deja en el lugar nuevo', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ selection: { r0: 0, c0: 0, r1: 0, c1: 1 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.move }))
+
+    // Todavía no se movió nada: se ve dónde va a quedar antes de soltarlo.
+    expect(editor().cells['0,0']).toBe(A)
+    expect(editor().pasteArmed).toBe(true)
+    expect(editor().moveSource).toEqual({ r0: 0, c0: 0, r1: 0, c1: 1 })
+
+    editor().pasteClipboardAt(2, 0)
+    expect(editor().cells['2,0']).toBe(A)
+    expect(editor().cells['2,1']).toBe(B)
+    expect(editor().cells['0,0']).toBeUndefined() // el lugar viejo queda vacío
+    expect(editor().cells['0,1']).toBeUndefined()
+    expect(editor().moveSource).toBeNull()
+  })
+
+  it('cancelar no cambia nada', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ selection: { r0: 0, c0: 0, r1: 0, c1: 1 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.move }))
+    editor().disarmPaste()
+    expect(editor().cells['0,0']).toBe(A)
+    expect(editor().moveSource).toBeNull()
+  })
+
+  it('moverlo encima de sí mismo no se come lo que acaba de dejar', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ selection: { r0: 0, c0: 0, r1: 0, c1: 1 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.move }))
+    editor().pasteClipboardAt(0, 1) // corrido una columna: se superpone con el original
+    expect(editor().cells['0,1']).toBe(A)
+    expect(editor().cells['0,2']).toBe(B)
+    expect(editor().cells['0,0']).toBeUndefined()
+  })
+
+  it('lo que no cabe en la figura no se borra del lugar viejo', async () => {
+    const user = userEvent.setup()
+    // Una fila de solo 2 mostacillas de ancho: la segunda columna del bloque cae fuera.
+    useEditorStore.setState({
+      rowShape: [
+        { offset: 0, length: 4 },
+        { offset: 0, length: 4 },
+        { offset: 0, length: 1 },
+        { offset: 0, length: 1 },
+      ],
+      cells: { '0,0': A, '0,1': B },
+      selection: { r0: 0, c0: 0, r1: 0, c1: 1 },
+    })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.move }))
+    editor().pasteClipboardAt(2, 0)
+
+    expect(editor().cells['2,0']).toBe(A) // la que cabía se movió
+    expect(editor().cells['0,0']).toBeUndefined()
+    expect(editor().cells['0,1']).toBe(B) // la que no cabía se queda donde estaba
+  })
+
+  it('se puede deshacer de una vez', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ selection: { r0: 0, c0: 0, r1: 0, c1: 1 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.move }))
+    editor().pasteClipboardAt(2, 0)
+    editor().undo()
+    expect(editor().cells['0,0']).toBe(A)
+    expect(editor().cells['2,0']).toBeUndefined()
+  })
+})

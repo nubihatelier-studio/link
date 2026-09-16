@@ -9,6 +9,7 @@ import {
   Copy,
   FlipHorizontal2,
   FlipVertical2,
+  Move,
   Trash2,
   Undo2,
   Redo2,
@@ -56,6 +57,7 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
     toggleFlipV,
     eraseSelection,
     mirrorSelectionToPaste,
+    armMoveSelection,
   } = useEditorStore()
 
   /**
@@ -110,6 +112,13 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
       </IconButton>
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
         <PasteIcon size={18} />
+      </IconButton>
+      <IconButton
+        label={t.editor.move}
+        disabled={!selection || pasteArmed}
+        onClick={armMoveSelection}
+      >
+        <Move size={18} />
       </IconButton>
       <CloneButton orientation={orientation} />
       {mirrorButtons.map(({ axis, Icon, label, active, disabled, onClick }) => (
