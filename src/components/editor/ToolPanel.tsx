@@ -16,6 +16,7 @@ import {
 import { useEditorStore, type Tool } from '@/store/editorStore'
 import { EraseAreaIcon } from '@/components/icons/EraseAreaIcon'
 import { PasteIcon } from '@/components/icons/PasteIcon'
+import { CloneButton } from './CloneButton'
 import { IconButton } from '@/components/shared/IconButton'
 import { t } from '@/i18n/es'
 
@@ -110,6 +111,7 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
       <IconButton label={t.editor.tools.paste} active={pasteArmed} disabled={!clipboard} onClick={armPaste}>
         <PasteIcon size={18} />
       </IconButton>
+      <CloneButton orientation={orientation} />
       {mirrorButtons.map(({ axis, Icon, label, active, disabled, onClick }) => (
         <IconButton key={axis} label={label} active={active} disabled={disabled} onClick={onClick}>
           <Icon size={18} />

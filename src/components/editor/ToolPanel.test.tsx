@@ -93,3 +93,39 @@ describe('ToolPanel — los dos botones de reflejar', () => {
     expect(editor().cells['0,0']).toBe(A) // nada se pinta hasta soltar
   })
 })
+
+describe('ToolPanel — clonar lo marcado', () => {
+  it('sin selección el botón está apagado', () => {
+    render(<ToolPanel />)
+    expect(screen.getByRole('button', { name: t.editor.clone })).toBeDisabled()
+  })
+
+  it('repite la selección al lado, tantas veces como se pida', async () => {
+    const user = userEvent.setup()
+    // 8 columnas: las tres copias caben enteras dentro de la grilla.
+    useEditorStore.setState({ cols: 8, rowShape: createRectangleRowShape(8, 4), fringe: createEmptyFringe(8), selection: { r0: 0, c0: 0, r1: 0, c1: 1 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.clone }))
+    await user.click(screen.getByRole('button', { name: t.editor.cloneHorizontal }))
+    await user.click(screen.getByRole('button', { name: '×3' }))
+
+    expect(editor().cells['0,2']).toBe(A)
+    expect(editor().cells['0,3']).toBe(B)
+    expect(editor().cells['0,4']).toBe(A)
+    expect(editor().cells['0,5']).toBe(B)
+    // El panelito se cierra solo al clonar.
+    expect(screen.queryByRole('button', { name: '×3' })).toBeNull()
+  })
+
+  it('también clona hacia abajo, y se puede deshacer', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ cells: { '0,0': A }, selection: { r0: 0, c0: 0, r1: 0, c1: 0 } })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.clone }))
+    await user.click(screen.getByRole('button', { name: t.editor.cloneVertical }))
+    await user.click(screen.getByRole('button', { name: '×2' }))
+    expect(editor().cells['1,0']).toBe(A)
+    editor().undo()
+    expect(editor().cells['1,0']).toBeUndefined()
+  })
+})

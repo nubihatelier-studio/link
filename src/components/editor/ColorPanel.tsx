@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowDownLeft,
   ArrowDownRight,
-  ArrowRight,
   ArrowUpDown,
   ChevronRight,
   ImagePlus,
@@ -18,8 +17,6 @@ import { usePatternLetters } from '@/hooks/usePatternLetters'
 import { slotOf } from '@/engine/tray'
 import { t } from '@/i18n/es'
 
-const CLONE_REPEATS = [2, 3, 5]
-
 export function ColorPanel({
   onColorChosen,
 }: {
@@ -28,10 +25,6 @@ export function ColorPanel({
 } = {}) {
   const {
     patternId,
-    selection,
-    cloneDirection,
-    setCloneDirection,
-    cloneSelection,
     applyGradient,
   } = useEditorStore()
   /** The gradient's colors in order, once the weaver has changed them; null follows the pattern's colors in letter order. */
@@ -67,49 +60,8 @@ export function ColorPanel({
   // A color taken out of the pattern and the tray since drops out of a customized order.
   const stops = (gradientStops ?? palette.map((p) => p.hex)).filter((hex) => gradientChoices.includes(hex))
 
-  const cloneWidth = selection ? selection.c1 - selection.c0 + 1 : 0
-  const cloneHeight = selection ? selection.r1 - selection.r0 + 1 : 0
-
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-      {selection && (
-        <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.clone}</h3>
-          <p className="mb-3 text-sm text-text-muted">
-            {cloneWidth} × {cloneHeight}
-          </p>
-
-          <div className="flex flex-col gap-2">
-            <CloneDirectionButton
-              icon={ArrowDown}
-              label={t.editor.cloneVertical}
-              active={cloneDirection === 'vertical'}
-              onClick={() => setCloneDirection('vertical')}
-            />
-            <CloneDirectionButton
-              icon={ArrowRight}
-              label={t.editor.cloneHorizontal}
-              active={cloneDirection === 'horizontal'}
-              onClick={() => setCloneDirection('horizontal')}
-            />
-          </div>
-
-          <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.repeat}</h3>
-          <div className="grid grid-cols-3 gap-2">
-            {CLONE_REPEATS.map((n) => (
-              <button
-                key={n}
-                onClick={() => cloneSelection(cloneDirection, n)}
-                className="rounded-xl border border-border bg-surface-2 py-2 text-sm font-semibold text-text transition-colors hover:bg-surface-3"
-              >
-                ×{n}
-              </button>
-            ))}
-          </div>
-
-        </section>
-      )}
-
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.editor.tray.label}</h3>
         <ColorTray layout="wrap" onChosen={onColorChosen} />
@@ -288,28 +240,5 @@ function GradientSection({
       </button>
       {stops.length < 2 && <p className="mt-2 text-center text-xs text-text-muted">{t.gradient.needsTwoColors}</p>}
     </section>
-  )
-}
-
-function CloneDirectionButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: typeof ArrowDown
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors
-        ${active ? 'border-accent-500 bg-accent-500 text-accent-ink' : 'border-border bg-surface-2 text-text-muted hover:bg-surface-3 hover:text-text'}`}
-    >
-      <Icon size={16} />
-      {label}
-    </button>
   )
 }
