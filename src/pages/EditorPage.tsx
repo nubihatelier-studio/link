@@ -34,6 +34,7 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
 import { NameDialog } from '@/components/shared/NameDialog'
 import { BottomSheet } from '@/components/shared/BottomSheet'
 import { templateNamed } from '@/engine/template'
@@ -490,6 +491,13 @@ export function EditorPage() {
                 <MenuItem danger onClick={handleDeletePattern} close={() => setMoreMenuOpen(false)}>
                   {t.editor.deletePattern}
                 </MenuItem>
+
+                <div className="my-1 h-px bg-border" />
+                <MenuHeading>{t.feedback.title}</MenuHeading>
+                <FeedbackMenuItems
+                  context={{ technique, cols, rows }}
+                  onDone={() => setMoreMenuOpen(false)}
+                />
               </div>
             </>
           )}

@@ -20,6 +20,7 @@ import { dismissBackupReminder, shouldShowBackupReminder } from '@/storage/backu
 import { useStorageStatus } from '@/hooks/useStorageStatus'
 import { APP_VERSION } from '@/version'
 import { MainNav } from '@/components/shared/MainNav'
+import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
 import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -253,6 +254,11 @@ export function HomePage() {
                     >
                       {t.backup.import}
                     </button>
+                    <div className="my-1 h-px bg-border" />
+                    <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                      {t.feedback.title}
+                    </p>
+                    <FeedbackMenuItems onDone={() => setMenuOpen(false)} />
                   </div>
                   {importMessage && <p className="mt-2 px-3 text-xs text-text-muted">{importMessage}</p>}
                   {persisted !== null && (

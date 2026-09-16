@@ -410,6 +410,19 @@ export const t = {
     name: (drop: number) => `${drop}-drop`,
     perStitch: (drop: number) => (drop === 1 ? '1 por puntada' : `${drop} por puntada`),
   },
+  /** "Contar un problema o una idea" — ver lib/feedback.ts. */
+  feedback: {
+    title: 'Contar un problema o una idea',
+    hint: 'Se abre un mensaje ya escrito; tú decides si lo envías.',
+    whatsapp: 'Escribir por WhatsApp',
+    email: 'Escribir por correo',
+    greeting: 'Hola Nubih 👋 Quiero contarte algo de la app:',
+    dataHeading: '— Datos de la app (para poder ubicar el problema) —',
+    appLine: (version: string) => `Nubih Creator ${version}`,
+    patternLine: (technique: string, cols: number, rows: number) => `Patrón abierto: ${technique} · ${cols} × ${rows}`,
+    deviceLine: (agent: string) => `Dispositivo: ${agent}`,
+    mailSubject: 'Nubih Creator — problema o idea',
+  },
   weave: {
     title: 'Modo tejido',
     row: 'Fila',
