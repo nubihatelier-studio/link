@@ -7,7 +7,7 @@ import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migrati
 import { requestPersistentStorageOnce } from '@/storage/persistence'
 import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
 import { buildSamplePattern } from '@/data/samplePattern'
-import { patternFromTemplate, templateFromPattern, uniqueName, type TemplateMode } from '@/engine/template'
+import { patternFromTemplate, templateFromPattern, uniqueName, withMeta, type TemplateMeta, type TemplateMode } from '@/engine/template'
 import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
 import { withStagger, type StaggerPhase } from '@/engine/geometry'
 
@@ -29,7 +29,9 @@ interface PatternsState {
    * `replaceId` if given. Returns the template and the one it replaced, for
    * an undo.
    */
-  saveTemplate: (sourceId: string, name: string, replaceId?: string) => { id: string; replaced: PatternDoc | null } | null
+  saveTemplate: (sourceId: string, name: string, replaceId?: string, meta?: TemplateMeta) => { id: string; replaced: PatternDoc | null } | null
+  /** Changes a saved template's card (what it makes, how hard, its photo) without touching the design. */
+  setTemplateMeta: (id: string, meta: TemplateMeta) => void
   renameTemplate: (id: string, name: string) => void
   /** Removes a template; returns it so a "Deshacer" can put it back with `restoreTemplate`. */
   deleteTemplate: (id: string) => PatternDoc | null
@@ -289,18 +291,26 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     return newId
   },
 
-  saveTemplate: (sourceId, name, replaceId) => {
+  saveTemplate: (sourceId, name, replaceId, meta) => {
     const source = get().patterns[sourceId]
     if (!source) return null
     const replaced = replaceId ? (get().templates[replaceId] ?? null) : null
     const now = Date.now()
     const id = replaced ? replaced.id : makeId()
-    const doc = templateFromPattern(source, name.trim(), id, now)
+    const doc = templateFromPattern(source, name.trim(), id, now, meta)
     // A replaced template keeps the date it was first saved.
     const saved = replaced ? { ...doc, createdAt: replaced.createdAt } : doc
     set((s) => ({ templates: { ...s.templates, [id]: saved } }))
     persistPattern(saved)
     return { id, replaced }
+  },
+
+  setTemplateMeta: (id, meta) => {
+    const doc = get().templates[id]
+    if (!doc) return
+    const updated = { ...withMeta(doc, meta), updatedAt: Date.now() }
+    set((s) => ({ templates: { ...s.templates, [id]: updated } }))
+    persistPattern(updated)
   },
 
   renameTemplate: (id, name) => {

@@ -163,8 +163,30 @@ export interface PatternDoc {
   isTemplate?: true
   /** Marked with the star in the library — "Favoritos". Absent means not a favorite. */
   favorite?: true
+  /**
+   * What the finished piece is (pulsera, aro, collar…) — see `PieceKind`.
+   * Asked for when a template is saved, since that's where it helps: a
+   * shelf of templates reads by what they make, not by their size. Absent on
+   * patterns and on templates saved before this existed.
+   */
+  kind?: PieceKind
+  /** How hard it is to weave — see `engine/difficulty.ts`. Absent means nobody said, and the app proposes one from the piece itself. */
+  difficulty?: Difficulty
+  /**
+   * A photo of the finished piece, as a small JPEG data URL (see
+   * `lib/photoFile.ts`) — the cover of a template's card. Kept inside the
+   * pattern so it travels with backups and never leaves the device, like
+   * everything else here.
+   */
+  photo?: string
   createdAt: number
   updatedAt: number
 }
+
+/** What a piece is, for sorting a shelf of templates by what they make. */
+export type PieceKind = 'pulsera' | 'aro' | 'anillo' | 'collar' | 'tobillera' | 'llavero' | 'otro'
+
+/** How hard a piece is to weave — proposed by `engine/difficulty.ts`, always changeable by hand. */
+export type Difficulty = 'facil' | 'intermedio' | 'avanzado'
 
 export type MeasurementUnit = 'mm' | 'cm' | 'in'

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { TemplateMeta } from '@/engine/template'
 import type { BrickDrop, ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
@@ -326,7 +327,7 @@ interface EditorState {
    * Saves the open pattern as a template — after writing any edit still
    * waiting in the autosave, so the template is the pattern as it looks now.
    */
-  saveAsTemplate: (name: string, replaceId?: string) => ReturnType<ReturnType<typeof usePatternsStore.getState>['saveTemplate']>
+  saveAsTemplate: (name: string, replaceId?: string, meta?: TemplateMeta) => ReturnType<ReturnType<typeof usePatternsStore.getState>['saveTemplate']>
   setTool: (tool: Tool) => void
   setActiveSlot: (slot: SlotId) => void
   setZoom: (zoom: number) => void
@@ -990,11 +991,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     set({ pasteArmed: true, pasteFlipH: axis === 'horizontal', pasteFlipV: axis === 'vertical' })
   },
 
-  saveAsTemplate: (name, replaceId) => {
+  saveAsTemplate: (name, replaceId, meta) => {
     const { patternId } = get()
     if (!patternId) return null
     flushAutosave()
-    return usePatternsStore.getState().saveTemplate(patternId, name, replaceId)
+    return usePatternsStore.getState().saveTemplate(patternId, name, replaceId, meta)
   },
 
   loadPattern: (doc) => {

@@ -141,6 +141,22 @@ export const t = {
       rhombus: 'Rombo',
     },
   },
+  /** Tipos de pieza — ver engine/types.ts#PieceKind. */
+  pieceKind: {
+    pulsera: 'Pulsera',
+    aro: 'Aro',
+    anillo: 'Anillo',
+    collar: 'Collar',
+    tobillera: 'Tobillera',
+    llavero: 'Llavero',
+    otro: 'Otro',
+  },
+  /** Dificultad — ver engine/difficulty.ts. */
+  difficulty: {
+    facil: 'Fácil',
+    intermedio: 'Intermedio',
+    avanzado: 'Avanzado',
+  },
   photo: {
     title: 'Foto a patrón',
     upload: 'Subir imagen',
@@ -183,6 +199,21 @@ export const t = {
     clearPatternHint: 'Borra todo lo pintado y deja la pieza vacía. Se puede deshacer.',
     deletePattern: 'Eliminar el patrón',
     /** "Guardar como plantilla", en el menú "⋯" del editor. */
+    /** Ficha de una plantilla: qué pieza es, cuánto cuesta tejerla y una foto — ver engine/difficulty.ts. */
+    templateMeta: {
+      kindLabel: '¿Qué es?',
+      difficultyLabel: 'Dificultad',
+      difficultyHint: 'Te proponemos una según el tamaño, los colores y la técnica. Cámbiala si no calza.',
+      photoLabel: 'Foto de la pieza terminada',
+      photoAdd: '+ Agregar foto',
+      photoChange: 'Cambiar foto',
+      photoRemove: 'Quitar foto',
+      photoHint: 'Se guarda chica y dentro de la app, en tu dispositivo.',
+      photoWeight: (kb: number) => `${kb} KB`,
+      photoError: 'No se pudo leer la imagen.',
+      editMeta: 'Editar la ficha',
+      suggested: 'propuesta',
+    },
     saveTemplate: {
       menu: 'Guardar como plantilla',
       menuHint: 'Aparece en "Crear patrón" para empezar otros desde este.',

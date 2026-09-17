@@ -34,8 +34,10 @@ import { Button } from '@/components/shared/Button'
 import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
+import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
+import { suggestDifficulty } from '@/engine/difficulty'
+import type { TemplateMeta } from '@/engine/template'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
-import { NameDialog } from '@/components/shared/NameDialog'
 import { BottomSheet } from '@/components/shared/BottomSheet'
 import { templateNamed } from '@/engine/template'
 import type { PatternDoc } from '@/engine/types'
@@ -119,14 +121,17 @@ export function EditorPage() {
   /** After saving a template: what to say, and how to undo it (drop the new one, or put back the one it replaced). */
   const [templateSaved, setTemplateSaved] = useState<{ message: string; undo: () => void } | null>(null)
   const templates = usePatternsStore((s) => s.templates)
+  /** The pattern as saved — what the template is made from, and what its difficulty is proposed from. */
+  const templateSource = usePatternsStore((s) => (patternId ? s.patterns[patternId] : undefined))
   const templateClash = templateName !== null ? templateNamed(Object.values(templates), templateName) : undefined
 
-  function confirmSaveTemplate() {
-    if (templateName === null || !templateName.trim()) return
-    const result = useEditorStore.getState().saveAsTemplate(templateName, templateClash?.id)
+  function confirmSaveTemplate(draft: { name: string; meta: TemplateMeta }) {
+    if (!draft.name.trim()) return
+    const clash = templateNamed(Object.values(templates), draft.name)
+    const result = useEditorStore.getState().saveAsTemplate(draft.name, clash?.id, draft.meta)
     setTemplateName(null)
     if (!result) return
-    const name = templateName.trim()
+    const name = draft.name.trim()
     const replaced: PatternDoc | null = result.replaced
     setTemplateSaved({
       message: replaced ? t.editor.saveTemplate.replaced(name) : t.editor.saveTemplate.saved(name),
@@ -689,15 +694,15 @@ export function EditorPage() {
         </div>
       )}
 
-      {templateName !== null && (
-        <NameDialog
+      {templateName !== null && templateSource && (
+        <TemplateCardDialog
           title={t.editor.saveTemplate.title}
-          label={t.editor.saveTemplate.nameLabel}
-          value={templateName}
-          onChange={setTemplateName}
+          name={templateName}
+          meta={{ kind: templateSource.kind, difficulty: templateSource.difficulty, photo: templateSource.photo }}
+          suggestedDifficulty={suggestDifficulty(templateSource)}
+          onNameChange={setTemplateName}
           notice={templateClash ? t.editor.saveTemplate.exists(templateClash.name) : undefined}
           confirmLabel={templateClash ? t.editor.saveTemplate.replace : t.editor.saveTemplate.save}
-          cancelLabel={t.editor.saveTemplate.cancel}
           onConfirm={confirmSaveTemplate}
           onCancel={() => setTemplateName(null)}
         />
