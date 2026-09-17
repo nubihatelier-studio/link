@@ -222,6 +222,9 @@ export const t = {
       rectErase: 'Borrar área',
       eyedropper: 'Pipeta',
       select: 'Seleccionar',
+      /** Volver a tocar la herramienta activa la cancela y deja el lápiz — ver ToolPanel.tsx. */
+      selectOff: 'Dejar de seleccionar',
+      rectEraseOff: 'Dejar de borrar área',
       copy: 'Copiar',
       paste: 'Pegar',
       undo: 'Deshacer',

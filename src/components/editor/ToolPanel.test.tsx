@@ -209,3 +209,38 @@ describe('ToolPanel — mover lo marcado', () => {
     expect(editor().cells['2,0']).toBeUndefined()
   })
 })
+
+describe('ToolPanel — arrepentirse de "Seleccionar"', () => {
+  it('volver a tocarlo vuelve al lápiz y borra la marca', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ tool: 'pencil', selection: null })
+    render(<ToolPanel />)
+
+    await user.click(screen.getByRole('button', { name: t.editor.tools.select }))
+    expect(editor().tool).toBe('select')
+    useEditorStore.setState({ selection: { r0: 0, c0: 0, r1: 1, c1: 1 } })
+
+    // Ya activo, el botón dice cómo salir.
+    await user.click(screen.getByRole('button', { name: t.editor.tools.selectOff }))
+    expect(editor().tool).toBe('pencil')
+    expect(editor().selection).toBeNull()
+  })
+
+  it('"Borrar área" también se cancela tocándolo de nuevo', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ tool: 'pencil', selection: null })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.tools.rectErase }))
+    expect(editor().tool).toBe('rectErase')
+    await user.click(screen.getByRole('button', { name: t.editor.tools.rectEraseOff }))
+    expect(editor().tool).toBe('pencil')
+  })
+
+  it('las demás herramientas no se apagan solas: el lápiz sigue siendo el lápiz', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ tool: 'pencil' })
+    render(<ToolPanel />)
+    await user.click(screen.getByRole('button', { name: t.editor.tools.pencil }))
+    expect(editor().tool).toBe('pencil')
+  })
+})

@@ -67,6 +67,21 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
    * mueve y recién se fija al soltarlo); mientras se pega, cambian el eje
    * del reflejo antes de soltar.
    */
+  /**
+   * Marcar y borrar área se cancelan tocándolas de nuevo: vuelven al lápiz y
+   * con eso se va la selección (ver `setTool`). Antes, una vez elegido
+   * "Seleccionar" no había cómo arrepentirse — la marca quedaba ahí y la
+   * única salida era irse a otra herramienta.
+   *
+   * Las que pintan o borran mostacilla por mostacilla NO se apagan así: si el
+   * borrador volviera al lápiz de un toque de más, el toque siguiente pintaría
+   * en vez de borrar, y eso sí cuesta caro.
+   */
+  function toggleTool(id: Tool) {
+    const cancelable = id === 'select' || id === 'rectErase'
+    setTool(cancelable && tool === id ? 'pencil' : id)
+  }
+
   const flipping = pasteArmed
   const mirrorButtons = (['horizontal', 'vertical'] as const).map((axis) => {
     const isH = axis === 'horizontal'
@@ -89,9 +104,9 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
         return (
           <IconButton
             key={tl.id}
-            label={t.editor.tools[tl.labelKey]}
+            label={tool === tl.id && tl.id === 'rectErase' ? t.editor.tools.rectEraseOff : t.editor.tools[tl.labelKey]}
             active={tool === tl.id}
-            onClick={() => setTool(tl.id)}
+            onClick={() => toggleTool(tl.id)}
           >
             <Icon size={18} />
           </IconButton>
@@ -104,7 +119,11 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
           juntos en su propio grupo, en ese orden, para que se lean como uno.
           Voltear y borrar la selección aparecen dentro del grupo cuando
           tienen sentido, no fuera de él. */}
-      <IconButton label={t.editor.tools.select} active={tool === 'select'} onClick={() => setTool('select')}>
+      <IconButton
+        label={tool === 'select' ? t.editor.tools.selectOff : t.editor.tools.select}
+        active={tool === 'select'}
+        onClick={() => toggleTool('select')}
+      >
         <SquareDashedMousePointer size={18} />
       </IconButton>
       <IconButton label={t.editor.tools.copy} disabled={!selection} onClick={copySelection}>
