@@ -80,3 +80,45 @@ describe('Pestaña Plantillas', () => {
     expect(screen.getByText('Crear patrón')).toBeInTheDocument()
   })
 })
+
+describe('Plantillas — filtrar por tipo', () => {
+  beforeEach(() => {
+    usePatternsStore.setState({ templates: { [MIA.id]: { ...MIA, kind: 'anillo' } } })
+  })
+
+  const filters = () => within(screen.getByRole('group', { name: t.templates.filterLabel }))
+
+  it('ofrece "Todas" y solo los tipos que existen, con cuántas hay', () => {
+    renderPage()
+    const nombres = filters()
+      .getAllByRole('button')
+      .map((b) => b.textContent)
+    expect(nombres[0]).toMatch(new RegExp(`^${t.templates.all}`))
+    expect(nombres.some((n) => n?.startsWith(t.pieceKindPlural.pulsera))).toBe(true)
+    // Nadie es tobillera todavía: no hay chip que mostraría nada.
+    expect(nombres.some((n) => n?.startsWith(t.pieceKindPlural.tobillera))).toBe(false)
+  })
+
+  it('al elegir un tipo quedan solo esas, de Nubih y propias', async () => {
+    const user = renderPage()
+    await user.click(filters().getByRole('button', { name: new RegExp(`^${t.pieceKindPlural.anillo}`) }))
+    expect(screen.getByText('Flower Ring 39 x 10')).toBeInTheDocument() // de Nubih
+    expect(screen.getByText('Anillo flor')).toBeInTheDocument() // la propia
+    expect(screen.queryByText('Pulsera Azur')).toBeNull()
+  })
+
+  it('si ninguna propia es de ese tipo lo dice, y las de Nubih siguen', async () => {
+    const user = renderPage()
+    await user.click(filters().getByRole('button', { name: new RegExp(`^${t.pieceKindPlural.pulsera}`) }))
+    expect(screen.getByText('Pulsera Azur')).toBeInTheDocument()
+    expect(screen.getByText(t.templates.noneOfKind)).toBeInTheDocument()
+  })
+
+  it('"Todas" vuelve a mostrar todo', async () => {
+    const user = renderPage()
+    await user.click(filters().getByRole('button', { name: new RegExp(`^${t.pieceKindPlural.aro}`) }))
+    await user.click(filters().getByRole('button', { name: new RegExp(`^${t.templates.all}`) }))
+    expect(screen.getByText('Pulsera Azur')).toBeInTheDocument()
+    expect(screen.getByText('Anillo flor')).toBeInTheDocument()
+  })
+})

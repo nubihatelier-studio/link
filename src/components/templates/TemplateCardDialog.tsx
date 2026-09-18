@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Trash2 } from 'lucide-react'
 import type { Difficulty, PieceKind } from '@/engine/types'
 import type { TemplateMeta } from '@/engine/template'
+import { PIECE_KINDS } from '@/engine/pieceKind'
 import { dataUrlSizeKb, readPhotoAsDataUrl } from '@/lib/photoFile'
 import { t } from '@/i18n/es'
 
-const KINDS: PieceKind[] = ['pulsera', 'aro', 'anillo', 'collar', 'tobillera', 'llavero', 'otro']
 const DIFFICULTIES: Difficulty[] = ['facil', 'intermedio', 'avanzado']
 
 /**
@@ -115,7 +115,7 @@ export function TemplateCardDialog({
               {t.editor.templateMeta.kindLabel}
             </h3>
             <div className="flex flex-wrap gap-2">
-              {KINDS.map((k) => (
+              {PIECE_KINDS.map((k) => (
                 <Chip key={k} label={t.pieceKind[k]} selected={kind === k} onClick={() => setKind(kind === k ? undefined : k)} />
               ))}
             </div>

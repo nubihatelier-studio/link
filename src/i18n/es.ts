@@ -48,6 +48,9 @@ export const t = {
   },
   templates: {
     emptySaved: 'Todavía no guardas plantillas. En el editor: "⋯" → Guardar como plantilla.',
+    filterLabel: 'Filtrar plantillas por tipo',
+    all: 'Todas',
+    noneOfKind: 'Ninguna de tus plantillas es de este tipo.',
   },
   backup: {
     exportAll: 'Descargar respaldo completo',
@@ -150,6 +153,16 @@ export const t = {
     tobillera: 'Tobillera',
     llavero: 'Llavero',
     otro: 'Otro',
+  },
+  /** Los mismos tipos en plural, para los filtros: "Pulseras 9". */
+  pieceKindPlural: {
+    pulsera: 'Pulseras',
+    aro: 'Aros',
+    anillo: 'Anillos',
+    collar: 'Collares',
+    tobillera: 'Tobilleras',
+    llavero: 'Llaveros',
+    otro: 'Otros',
   },
   /** Dificultad — ver engine/difficulty.ts. */
   difficulty: {

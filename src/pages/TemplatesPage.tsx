@@ -10,6 +10,7 @@ import { MainNav } from '@/components/shared/MainNav'
 import { TemplateUseDialog } from '@/components/templates/TemplateUseDialog'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { suggestDifficulty } from '@/engine/difficulty'
+import { kindFiltersFor, matchesKind, type KindFilter } from '@/engine/pieceKind'
 import { templateSummary } from '@/components/templates/templateSummary'
 import { t } from '@/i18n/es'
 
@@ -26,6 +27,15 @@ export function TemplatesPage() {
   /** The template whose card (name, kind, difficulty, photo) is open for editing. */
   const [editing, setEditing] = useState<PatternDoc | null>(null)
   const [deleted, setDeleted] = useState<PatternDoc | null>(null)
+  /** Which kind of piece is showing — offered only for kinds some template actually is. */
+  const [filter, setFilter] = useState<KindFilter>('all')
+  const everything = useMemo(() => [...NUBIH_TEMPLATES, ...saved], [saved])
+  const filters = useMemo(() => kindFiltersFor(everything), [everything])
+  // A kind that stopped existing (its last template deleted) drops back to "all".
+  const active: KindFilter = filters.includes(filter) ? filter : 'all'
+  const nubihShown = NUBIH_TEMPLATES.filter((tpl) => matchesKind(tpl, active))
+  const savedShown = saved.filter((tpl) => matchesKind(tpl, active))
+  const countFor = (f: KindFilter) => everything.filter((tpl) => matchesKind(tpl, f)).length
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -34,24 +44,45 @@ export function TemplatesPage() {
         <h1 className="text-2xl font-bold">{t.nav.templates}</h1>
       </header>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.configurator.nubihTemplatesTitle}</h2>
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {NUBIH_TEMPLATES.map((tpl) => (
-            <li key={tpl.id}>
-              <TemplateTile template={tpl} onOpen={() => setUsing(tpl)} />
-            </li>
+      {filters.length > 2 && (
+        <div role="group" aria-label={t.templates.filterLabel} className="no-scrollbar -mx-4 mb-6 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          {filters.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              aria-pressed={active === f}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors
+                ${active === f ? 'bg-accent-500 text-accent-ink' : 'bg-surface-2 text-text hover:bg-surface-3'}`}
+            >
+              {f === 'all' ? t.templates.all : t.pieceKindPlural[f]}{' '}
+              <span className={`text-xs tabular-nums ${active === f ? 'opacity-70' : 'text-text-muted'}`}>{countFor(f)}</span>
+            </button>
           ))}
-        </ul>
-      </section>
+        </div>
+      )}
+
+      {nubihShown.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.configurator.nubihTemplatesTitle}</h2>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {nubihShown.map((tpl) => (
+              <li key={tpl.id}>
+                <TemplateTile template={tpl} onOpen={() => setUsing(tpl)} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.configurator.userTemplates.title}</h2>
         {saved.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-text-muted">{t.templates.emptySaved}</p>
+        ) : savedShown.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-text-muted">{t.templates.noneOfKind}</p>
         ) : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {saved.map((tpl) => (
+            {savedShown.map((tpl) => (
               <li key={tpl.id} className="relative">
                 <TemplateTile template={tpl} onOpen={() => setUsing(tpl)} />
                 <button
