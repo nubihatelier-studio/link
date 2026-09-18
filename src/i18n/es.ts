@@ -13,7 +13,7 @@ export const t = {
     createNew: '+ Crear nuevo',
     continueWeaving: 'Continuar tejiendo',
     onboardingMessage:
-      '¡Bienvenida a Nubih Creator! Te dejamos un aro con flecos de muestra para que explores — tócalo para editarlo, o crea el tuyo con el botón "+".',
+      '¡Bienvenida a Nubih Creator! Te dejamos un diseño de las Plantillas Nubih para que explores — tócalo para editarlo, o crea el tuyo con el botón "+". Hay más en Plantillas.',
     searchPlaceholder: 'Buscar por nombre…',
     searchNoResults: 'Ningún patrón coincide con la búsqueda',
     sortRecent: 'Reciente',

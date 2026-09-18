@@ -112,11 +112,17 @@ describe('patternsStore.hydrate — first-launch onboarding', () => {
     vi.resetModules()
   })
 
-  it('seeds a sample pattern and flags justOnboarded when the device has never seen onboarding', async () => {
-    const { usePatternsStore } = await import('./patternsStore')
+  it('seeds a Plantilla Nubih (not a made-up sample) and flags justOnboarded when the device has never seen onboarding', async () => {
+    const { usePatternsStore, WELCOME_TEMPLATE_ID } = await import('./patternsStore')
+    const { NUBIH_TEMPLATES } = await import('@/data/nubihTemplates')
     await usePatternsStore.getState().hydrate()
     const state = usePatternsStore.getState()
     expect(state.order).toHaveLength(1)
+    const doc = state.patterns[state.order[0]]
+    const template = NUBIH_TEMPLATES.find((tpl) => tpl.id === WELCOME_TEMPLATE_ID)!
+    expect(doc.name).toBe(template.name)
+    expect(doc.cells).toEqual(template.cells)
+    expect(doc.isTemplate).toBeUndefined() // a pattern of her own to play with, not the template
     expect(state.justOnboarded).toBe(true)
     expect(localStorage.getItem('nubih-onboarding-seen')).toBe('1')
   })

@@ -6,7 +6,6 @@ import { getStorageAdapter } from '@/storage'
 import { migrateFromLocalStorage, type MigrationResult } from '@/storage/migration'
 import { requestPersistentStorageOnce } from '@/storage/persistence'
 import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
-import { buildSamplePattern } from '@/data/samplePattern'
 import { patternFromTemplate, templateFromPattern, uniqueName, withMeta, type TemplateMeta, type TemplateMode } from '@/engine/template'
 import { withStagger, type StaggerPhase } from '@/engine/geometry'
 
@@ -156,6 +155,23 @@ function splitDocs(docs: PatternDoc[]) {
   return { patterns, templates, order }
 }
 
+/** The Plantilla Nubih a brand-new device opens with — see `hydrate`. */
+export const WELCOME_TEMPLATE_ID = 'nubih_flower_ring'
+
+/**
+ * The welcome template, read from its own chunk (templates load apart from
+ * the app, see `App.tsx`). Null if it can't be had: a fresh install then
+ * simply opens on an empty library, which is a fine first screen too.
+ */
+async function loadWelcomeTemplate(): Promise<PatternDoc | null> {
+  try {
+    const { NUBIH_TEMPLATES } = await import('@/data/nubihTemplates')
+    return NUBIH_TEMPLATES.find((tpl) => tpl.id === WELCOME_TEMPLATE_ID) ?? null
+  } catch {
+    return null
+  }
+}
+
 export const usePatternsStore = create<PatternsState>()((set, get) => ({
   patterns: {},
   order: [],
@@ -175,23 +191,20 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       let justOnboarded = false
 
       // First launch ever, on a device with no patterns at all (fresh
-      // install, or every pattern deleted before onboarding ran): seed one
-      // ready-made sample instead of a blank empty state, showing off this
-      // sprint's fringe feature right away. Never runs again after this.
+      // install, or every pattern deleted before onboarding ran): one of the
+      // Plantillas Nubih lands in the library, so there's a real design to
+      // open and explore instead of a blank empty state. It used to be a
+      // made-up "aro de muestra"; a piece Nubih actually designed says far
+      // more about what the app is for. Never runs again after this.
       if (docs.every((d) => d.isTemplate) && !hasSeenOnboarding()) {
-        const sample = buildSamplePattern()
-        const doc: PatternDoc = {
-          id: makeId(),
-          name: sample.name,
-          config: sample.config,
-          cells: sample.cells,
-          fringe: sample.fringe,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+        const welcome = await loadWelcomeTemplate()
+        if (welcome) {
+          const now = Date.now()
+          const doc = patternFromTemplate(welcome, 'full', makeId(), welcome.name, now)
+          await adapter.savePattern(doc)
+          docs = [...docs, doc]
+          justOnboarded = true
         }
-        await adapter.savePattern(doc)
-        docs = [...docs, doc]
-        justOnboarded = true
         markOnboardingSeen()
       }
 
