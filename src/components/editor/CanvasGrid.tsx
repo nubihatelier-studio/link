@@ -945,7 +945,11 @@ export function CanvasGrid() {
         aria-label={t.editor.canvasLabel}
         onKeyDown={handleKeyDown}
       >
-        <div className="flex min-h-full min-w-full items-center justify-center">
+        {/* Centred while it fits, and as wide as the chart once it doesn't: a
+            plain flex centre let a zoomed-in chart spill past the LEFT edge,
+            where no scroll can reach — the first columns were simply out of
+            reach on a big pattern. */}
+        <div className="flex h-max min-h-full w-max min-w-full items-center justify-center">
           <canvas
             ref={canvasRef}
             onPointerDown={handlePointerDown}
