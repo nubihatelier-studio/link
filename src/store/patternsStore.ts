@@ -172,6 +172,9 @@ async function loadWelcomeTemplate(): Promise<PatternDoc | null> {
   }
 }
 
+/** The hydrate in flight, if any — see `hydrate`. */
+let hydrating: Promise<void> | null = null
+
 export const usePatternsStore = create<PatternsState>()((set, get) => ({
   patterns: {},
   order: [],
@@ -184,34 +187,46 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
 
   hydrate: async () => {
     if (get().hydrated) return
-    try {
-      const adapter = await getStorageAdapter()
-      const migrationResult = await migrateFromLocalStorage(adapter)
-      let docs = await adapter.listPatterns()
-      let justOnboarded = false
+    // Called twice at once (React's development double-mount does exactly
+    // that), both runs used to find an empty device and each seed its own
+    // welcome pattern — two identical patterns on a first launch. The second
+    // call now waits for the first instead of starting over.
+    if (hydrating) return hydrating
+    hydrating = (async () => {
+      try {
+        const adapter = await getStorageAdapter()
+        const migrationResult = await migrateFromLocalStorage(adapter)
+        let docs = await adapter.listPatterns()
+        let justOnboarded = false
 
-      // First launch ever, on a device with no patterns at all (fresh
-      // install, or every pattern deleted before onboarding ran): one of the
-      // Plantillas Nubih lands in the library, so there's a real design to
-      // open and explore instead of a blank empty state. It used to be a
-      // made-up "aro de muestra"; a piece Nubih actually designed says far
-      // more about what the app is for. Never runs again after this.
-      if (docs.every((d) => d.isTemplate) && !hasSeenOnboarding()) {
-        const welcome = await loadWelcomeTemplate()
-        if (welcome) {
-          const now = Date.now()
-          const doc = patternFromTemplate(welcome, 'full', makeId(), welcome.name, now)
-          await adapter.savePattern(doc)
-          docs = [...docs, doc]
-          justOnboarded = true
+        // First launch ever, on a device with no patterns at all (fresh
+        // install, or every pattern deleted before onboarding ran): one of the
+        // Plantillas Nubih lands in the library, so there's a real design to
+        // open and explore instead of a blank empty state. It used to be a
+        // made-up "aro de muestra"; a piece Nubih actually designed says far
+        // more about what the app is for. Never runs again after this.
+        if (docs.every((d) => d.isTemplate) && !hasSeenOnboarding()) {
+          const welcome = await loadWelcomeTemplate()
+          if (welcome) {
+            const now = Date.now()
+            const doc = patternFromTemplate(welcome, 'full', makeId(), welcome.name, now)
+            await adapter.savePattern(doc)
+            docs = [...docs, doc]
+            justOnboarded = true
+          }
+          markOnboardingSeen()
         }
-        markOnboardingSeen()
-      }
 
-      set({ ...splitDocs(docs), hydrated: true, migrationResult, justOnboarded })
-    } catch (err) {
-      console.error('No se pudo abrir el almacenamiento local', err)
-      set({ hydrationError: (err as Error).message || 'unknown' })
+        set({ ...splitDocs(docs), hydrated: true, migrationResult, justOnboarded })
+      } catch (err) {
+        console.error('No se pudo abrir el almacenamiento local', err)
+        set({ hydrationError: (err as Error).message || 'unknown' })
+      }
+    })()
+    try {
+      await hydrating
+    } finally {
+      hydrating = null
     }
   },
 

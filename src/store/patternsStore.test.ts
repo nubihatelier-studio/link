@@ -127,6 +127,12 @@ describe('patternsStore.hydrate — first-launch onboarding', () => {
     expect(localStorage.getItem('nubih-onboarding-seen')).toBe('1')
   })
 
+  it('two hydrates at once (React dev double-mount) seed the welcome pattern only once', async () => {
+    const { usePatternsStore } = await import('./patternsStore')
+    await Promise.all([usePatternsStore.getState().hydrate(), usePatternsStore.getState().hydrate()])
+    expect(usePatternsStore.getState().order).toHaveLength(1)
+  })
+
   it('does not seed a sample pattern once onboarding has already been seen', async () => {
     localStorage.setItem('nubih-onboarding-seen', '1')
     const { usePatternsStore } = await import('./patternsStore')
