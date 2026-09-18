@@ -8,7 +8,6 @@ import { requestPersistentStorageOnce } from '@/storage/persistence'
 import { hasSeenOnboarding, markOnboardingSeen } from '@/storage/onboarding'
 import { buildSamplePattern } from '@/data/samplePattern'
 import { patternFromTemplate, templateFromPattern, uniqueName, withMeta, type TemplateMeta, type TemplateMode } from '@/engine/template'
-import { NUBIH_TEMPLATES } from '@/data/nubihTemplates'
 import { withStagger, type StaggerPhase } from '@/engine/geometry'
 
 function makeId(): string {
@@ -36,8 +35,14 @@ interface PatternsState {
   /** Removes a template; returns it so a "Deshacer" can put it back with `restoreTemplate`. */
   deleteTemplate: (id: string) => PatternDoc | null
   restoreTemplate: (doc: PatternDoc) => void
-  /** A new pattern in the library from a template — saved by the weaver or one of `NUBIH_TEMPLATES` — the whole design or just its shape. */
-  createFromTemplate: (templateId: string, mode: TemplateMode) => string | null
+  /**
+   * A new pattern in the library from a template, the whole design or just
+   * its shape. Takes a saved template's id, or the template itself — which is
+   * how the ones that ship with the app come in: they live in their own chunk
+   * (`data/nubihTemplates.ts`, loaded with the Plantillas screen), so the
+   * store doesn't pull every bundled design into the app's first load.
+   */
+  createFromTemplate: (template: string | PatternDoc, mode: TemplateMode) => string | null
   /** False until `hydrate()` has loaded patterns from the storage adapter. */
   hydrated: boolean
   /** Set instead of `hydrated: true` if opening storage itself failed (no IndexedDB, quota/permissions denied, etc.) — App.tsx shows a dedicated screen instead of hanging on the loading spinner forever. */
@@ -338,8 +343,8 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
     persistPattern(doc)
   },
 
-  createFromTemplate: (templateId, mode) => {
-    const template = get().templates[templateId] ?? NUBIH_TEMPLATES.find((tpl) => tpl.id === templateId)
+  createFromTemplate: (templateOrId, mode) => {
+    const template = typeof templateOrId === 'string' ? get().templates[templateOrId] : templateOrId
     if (!template) return null
     const id = makeId()
     const name = uniqueName(template.name, Object.values(get().patterns).map((p) => p.name))

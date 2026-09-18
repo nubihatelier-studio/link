@@ -27,7 +27,7 @@ export function TemplateUseDialog({ template, onClose }: { template: PatternDoc;
   }, [onClose])
 
   function create() {
-    const id = usePatternsStore.getState().createFromTemplate(template.id, mode)
+    const id = usePatternsStore.getState().createFromTemplate(template, mode)
     if (id) navigate(`/editor/${id}`)
   }
 

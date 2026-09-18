@@ -1,17 +1,24 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Wordmark } from '@/components/shared/Wordmark'
 import { Route, Routes } from 'react-router-dom'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useAppUpdate } from '@/hooks/useAppUpdate'
 import { HomePage } from '@/pages/HomePage'
 import { ConfiguratorPage } from '@/pages/ConfiguratorPage'
-import { TemplatesPage } from '@/pages/TemplatesPage'
 import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { UpdateToast } from '@/components/shared/UpdateToast'
 import { StorageErrorScreen } from '@/components/shared/StorageErrorScreen'
+
+/**
+ * Loaded when first opened: it carries every template that ships with the app
+ * (`data/nubihTemplates.ts`), a list that keeps growing — no reason to make
+ * the editor wait for it on every launch. Still available offline: the PWA
+ * precaches every chunk.
+ */
+const TemplatesPage = lazy(() => import('@/pages/TemplatesPage').then((m) => ({ default: m.TemplatesPage })))
 
 function App() {
   const hydrated = usePatternsStore((s) => s.hydrated)
@@ -41,7 +48,14 @@ function App() {
     <main className="min-h-dvh bg-canvas text-text">
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/plantillas" element={<TemplatesPage />} />
+        <Route
+          path="/plantillas"
+          element={
+            <Suspense fallback={null}>
+              <TemplatesPage />
+            </Suspense>
+          }
+        />
         <Route path="/new" element={<ConfiguratorPage />} />
         <Route path="/new/photo" element={<PhotoToPatternPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />

@@ -482,7 +482,7 @@ describe('ConfiguratorPage — tus plantillas', () => {
   }
 
   it('una plantilla guardada aparece en "Tus plantillas"; elegirla muestra qué trae y crea desde ella', async () => {
-    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
+    const createFromTemplate = vi.fn((_template: string | PatternDoc, _mode: 'full' | 'shape') => 'p_nuevo')
     usePatternsStore.setState({ createFromTemplate })
     const user = await renderPage()
 
@@ -496,7 +496,7 @@ describe('ConfiguratorPage — tus plantillas', () => {
   })
 
   it('por defecto trae los colores y el dibujo', async () => {
-    const createFromTemplate = vi.fn((_id: string, _mode: 'full' | 'shape') => 'p_nuevo')
+    const createFromTemplate = vi.fn((_template: string | PatternDoc, _mode: 'full' | 'shape') => 'p_nuevo')
     usePatternsStore.setState({ createFromTemplate })
     const user = await renderPage()
     await user.click(screen.getByRole('button', { name: 'Flower Ring' }))
