@@ -75,7 +75,17 @@ interface PatternsState {
   /** Persists a row-count change (add/remove row) in one write — rows, rowShape, cells and fringe all shift together, so they must land in the same save, not four separate ones. */
   setShapeStructure: (
     id: string,
-    changes: { rows: number; rowShape: RowShape[]; cells: ColorMap; fringe: FringeData; staggerPhase: StaggerPhase },
+    changes: {
+      rows: number
+      rowShape: RowShape[]
+      cells: ColorMap
+      fringe: FringeData
+      staggerPhase: StaggerPhase
+      /** Only a resize changes these; left out, the pattern keeps its own. */
+      cols?: number
+      pair?: PairData
+      hasPairChange?: true
+    },
   ) => void
   setNote: (id: string, note: string) => void
   /**
@@ -447,12 +457,15 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       if (!doc) return s
       updated = {
         ...doc,
-        config: withStagger({ ...doc.config, rows: changes.rows }, changes.staggerPhase),
+        config: withStagger({ ...doc.config, rows: changes.rows, cols: changes.cols ?? doc.config.cols }, changes.staggerPhase),
         rowShape: changes.rowShape,
         cells: changes.cells,
         fringe: changes.fringe,
+        ...(changes.hasPairChange ? { pair: changes.pair } : {}),
         updatedAt: Date.now(),
       }
+      // A resize that leaves no pair behind must actually drop it, not keep the old one.
+      if (changes.hasPairChange && !changes.pair) delete updated.pair
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

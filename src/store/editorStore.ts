@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TemplateMeta } from '@/engine/template'
+import { resizePiece, type ResizePlan } from '@/engine/resize'
 import type { BrickDrop, ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
@@ -64,6 +65,12 @@ interface EditorSnapshot {
    * without the slot left the old color painted with no slot to pick it from.
    */
   trayChange?: TrayChange
+  /**
+   * Set on the step a resize made (and on its redo/undo counterpart): the
+   * columns and the pair as they were. Every other step leaves them alone, so
+   * only this one needs to carry them back — see `resizePattern`.
+   */
+  resize?: { cols: number; pair: PairData | undefined }
 }
 
 interface TrayChange {
@@ -165,6 +172,13 @@ interface EditorState {
    * index. A single `undo` entry, like any other commit.
    */
   addRowAtTop: () => void
+  /**
+   * The pattern at a new size — columns added or taken away on either side,
+   * rows at the top or the bottom (see `engine/resize.ts`). One undo step;
+   * the weave progress resets, since every bead's place in the order changes.
+   * Returns how many painted beads were left out.
+   */
+  resizePattern: (plan: ResizePlan) => number
   /** Removes the topmost row — a no-op if only 1 row remains (a pattern always keeps at least 1 row). Single undo entry, same as `addRowAtTop`. */
   removeRowAtTop: () => void
   /**
@@ -780,6 +794,45 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     get().commitShapeChange({ rows: rows - drop, rowShape: nextRowShape, cells: nextCells, staggerPhase: nextStaggerPhase })
   },
 
+  resizePattern: (plan) => {
+    // The right earring's shape follows the left, mirrored — it's resized there.
+    if (get().side === 'right') return 0
+    const { technique, cols, rows, cells, fringe, rowShape, staggerPhase, pair, loop, history, patternId } = get()
+    const r = resizePiece({ technique, cols, rows, cells, fringe, rowShape, staggerPhase, pair }, plan)
+    set({
+      cols: r.cols,
+      rows: r.rows,
+      cells: r.cells,
+      fringe: r.fringe,
+      rowShape: r.rowShape,
+      staggerPhase: r.staggerPhase,
+      pair: r.pair,
+      selection: null,
+      colorSelectionMask: null,
+      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop, resize: { cols, pair } }].slice(-100),
+      future: [],
+    })
+    if (!patternId) return r.lost
+    usePatternsStore.getState().setShapeStructure(patternId, {
+      rows: r.rows,
+      rowShape: r.rowShape,
+      cells: r.cells,
+      fringe: r.fringe,
+      staggerPhase: r.staggerPhase,
+      cols: r.cols,
+      pair: r.pair,
+      hasPairChange: true,
+    })
+    // Every bead's place in the weave order changed: never leave old progress silently wrong.
+    const weave = useWeaveStore.getState()
+    const oldIndex = weave.getIndex(patternId)
+    if (oldIndex > -1) {
+      weave.reset(patternId)
+      set({ weaveResetPending: oldIndex })
+    }
+    return r.lost
+  },
+
   setBrickDrop: (drop) => {
     // The right earring's shape follows the left, mirrored — it's edited there.
     if (get().side === 'right') return
@@ -1310,7 +1363,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   undo: () => {
-    const { history, cells, rows, rowShape, fringe, staggerPhase, loop, future } = get()
+    const { history, cells, rows, rowShape, fringe, staggerPhase, loop, future, cols, pair } = get()
     if (history.length === 0) return
     const prev = history[history.length - 1]
     set({
@@ -1320,8 +1373,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       fringe: prev.fringe,
       staggerPhase: prev.staggerPhase,
       loop: prev.loop,
+      ...(prev.resize ? { cols: prev.resize.cols, pair: prev.resize.pair } : {}),
       history: history.slice(0, -1),
-      future: [{ cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: prev.trayChange }, ...future].slice(0, 100),
+      future: [
+        { cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: prev.trayChange, ...(prev.resize ? { resize: { cols, pair } } : {}) },
+        ...future,
+      ].slice(0, 100),
     })
     if (prev.trayChange) applyTrayChange(get, set, prev.trayChange.slot, prev.trayChange.after, prev.trayChange.before)
     const id = get().patternId
@@ -1330,7 +1387,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       set({ pair: { mode: 'independent', rightCells: prev.cells } })
       persistCells(id, prev.cells, 'right')
     } else if (id) {
-      usePatternsStore.getState().setShapeStructure(id, prev)
+      usePatternsStore
+        .getState()
+        .setShapeStructure(id, prev.resize ? { ...prev, cols: prev.resize.cols, pair: prev.resize.pair, hasPairChange: true } : prev)
       // Not folded into setShapeStructure (that call predates the loop and only
       // covers rows/rowShape/cells/fringe) — undoing a `setLoop` change needs its
       // own persist, same reasoning as any other field this restores.
@@ -1339,7 +1398,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   redo: () => {
-    const { future, cells, rows, rowShape, fringe, staggerPhase, loop, history } = get()
+    const { future, cells, rows, rowShape, fringe, staggerPhase, loop, history, cols, pair } = get()
     if (future.length === 0) return
     const next = future[0]
     set({
@@ -1349,8 +1408,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       fringe: next.fringe,
       staggerPhase: next.staggerPhase,
       loop: next.loop,
+      ...(next.resize ? { cols: next.resize.cols, pair: next.resize.pair } : {}),
       future: future.slice(1),
-      history: [...history, { cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: next.trayChange }].slice(-100),
+      history: [
+        ...history,
+        { cells, rows, rowShape, fringe, staggerPhase, loop, trayChange: next.trayChange, ...(next.resize ? { resize: { cols, pair } } : {}) },
+      ].slice(-100),
     })
     if (next.trayChange) applyTrayChange(get, set, next.trayChange.slot, next.trayChange.before, next.trayChange.after)
     const id = get().patternId
@@ -1358,7 +1421,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       set({ pair: { mode: 'independent', rightCells: next.cells } })
       persistCells(id, next.cells, 'right')
     } else if (id) {
-      usePatternsStore.getState().setShapeStructure(id, next)
+      usePatternsStore
+        .getState()
+        .setShapeStructure(id, next.resize ? { ...next, cols: next.resize.cols, pair: next.resize.pair, hasPairChange: true } : next)
       usePatternsStore.getState().setLoop(id, next.loop)
     }
   },

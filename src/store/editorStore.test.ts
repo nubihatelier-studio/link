@@ -889,3 +889,79 @@ describe('editorStore — brick 1-drop / 2-drop / 3-drop', () => {
     expect(rowShape[1].length).toBe(2)
   })
 })
+
+describe('editorStore — cambiar tamaño', () => {
+  const patternId = 'p_test_resize'
+
+  function setup(extra: Partial<PatternDoc> = {}) {
+    resetStore({ patternId, cells: { '0,0': '#111111', '0,3': '#222222' }, fringe: createEmptyFringe(4), rowShape: createRectangleRowShape(4, 3) })
+    useEditorStore.setState({ technique: 'loom', cols: 4, rows: 3, pair: extra.pair, side: 'left' })
+    const doc: PatternDoc = {
+      id: patternId,
+      name: 'Test',
+      config: { technique: 'loom', cols: 4, rows: 3, beadTypeId: 'miyuki-delica-11' },
+      cells: { '0,0': '#111111', '0,3': '#222222' },
+      createdAt: 0,
+      updatedAt: 0,
+      ...extra,
+    }
+    usePatternsStore.setState({ patterns: { [patternId]: doc }, order: [patternId] })
+    useWeaveStore.setState({ progress: {}, loaded: {} })
+  }
+
+  it('cambia columnas y filas, mueve el diseño, y lo guarda', () => {
+    setup()
+    const lost = useEditorStore.getState().resizePattern({ cols: 6, rows: 5, colSide: 'left', rowSide: 'bottom' })
+    const s = useEditorStore.getState()
+    expect(lost).toBe(0)
+    expect([s.cols, s.rows]).toEqual([6, 5])
+    expect(s.cells).toEqual({ '0,2': '#111111', '0,5': '#222222' })
+    const saved = usePatternsStore.getState().patterns[patternId]
+    expect(saved.config).toMatchObject({ cols: 6, rows: 5 })
+    expect(saved.cells).toEqual(s.cells)
+  })
+
+  it('devuelve cuántas mostacillas pintadas quedaron fuera', () => {
+    setup()
+    expect(useEditorStore.getState().resizePattern({ cols: 2, rows: 3, colSide: 'right', rowSide: 'bottom' })).toBe(1)
+  })
+
+  it('se deshace de una vez, columnas incluidas, y se puede rehacer', () => {
+    setup()
+    useEditorStore.getState().resizePattern({ cols: 6, rows: 5, colSide: 'left', rowSide: 'bottom' })
+    useEditorStore.getState().undo()
+    let s = useEditorStore.getState()
+    expect([s.cols, s.rows]).toEqual([4, 3])
+    expect(s.cells).toEqual({ '0,0': '#111111', '0,3': '#222222' })
+    expect(usePatternsStore.getState().patterns[patternId].config).toMatchObject({ cols: 4, rows: 3 })
+
+    useEditorStore.getState().redo()
+    s = useEditorStore.getState()
+    expect([s.cols, s.rows]).toEqual([6, 5])
+    expect(usePatternsStore.getState().patterns[patternId].config).toMatchObject({ cols: 6, rows: 5 })
+  })
+
+  it('reinicia el progreso de tejido guardado y ofrece recuperarlo', () => {
+    setup()
+    useWeaveStore.getState().setIndex(patternId, 9, 1)
+    useEditorStore.getState().resizePattern({ cols: 5, rows: 3, colSide: 'right', rowSide: 'bottom' })
+    expect(useWeaveStore.getState().getIndex(patternId)).toBe(-1)
+    expect(useEditorStore.getState().weaveResetPending).toBe(9)
+  })
+
+  it('en un par separado, deshacer también devuelve los colores del aro derecho', () => {
+    const pair = { mode: 'independent' as const, rightCells: { '0,0': '#333333' } }
+    setup({ pair })
+    useEditorStore.getState().resizePattern({ cols: 6, rows: 3, colSide: 'right', rowSide: 'bottom' })
+    expect(useEditorStore.getState().pair).toEqual({ mode: 'independent', rightCells: { '0,2': '#333333' } })
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().pair).toEqual(pair)
+  })
+
+  it('desde el aro derecho no se cambia el tamaño (se hace en el izquierdo)', () => {
+    setup()
+    useEditorStore.setState({ side: 'right' })
+    useEditorStore.getState().resizePattern({ cols: 8, rows: 3, colSide: 'right', rowSide: 'bottom' })
+    expect(useEditorStore.getState().cols).toBe(4)
+  })
+})

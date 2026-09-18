@@ -212,6 +212,30 @@ export const t = {
     clearPatternHint: 'Borra todo lo pintado y deja la pieza vacía. Se puede deshacer.',
     deletePattern: 'Eliminar el patrón',
     /** "Guardar como plantilla", en el menú "⋯" del editor. */
+    /** "Cambiar tamaño" — ver engine/resize.ts. */
+    resize: {
+      menu: 'Cambiar tamaño',
+      menuHint: 'Agregar o quitar columnas y filas.',
+      title: 'Cambiar tamaño',
+      colSideLabel: 'Agregar o quitar columnas por',
+      rowSideLabel: 'Agregar o quitar filas por',
+      left: 'Izquierda',
+      both: 'Ambos lados',
+      right: 'Derecha',
+      top: 'Arriba',
+      bottom: 'Abajo',
+      now: 'Ahora',
+      after: 'Así queda',
+      lost: (n: number) =>
+        n === 1
+          ? 'Se va a perder 1 mostacilla pintada que queda fuera.'
+          : `Se van a perder ${n} mostacillas pintadas que quedan fuera.`,
+      noLoss: 'No se pierde nada de lo pintado.',
+      notes: 'Se puede deshacer. Si ya empezaste a tejerlo, el avance se reinicia.',
+      apply: 'Cambiar tamaño',
+      cancel: 'Cancelar',
+      rightSide: 'El tamaño se cambia desde el aro izquierdo.',
+    },
     /** Ficha de una plantilla: qué pieza es, cuánto cuesta tejerla y una foto — ver engine/difficulty.ts. */
     templateMeta: {
       kindLabel: '¿Qué es?',

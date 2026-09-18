@@ -35,6 +35,7 @@ import { IconButton } from '@/components/shared/IconButton'
 import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
+import { ResizeDialog } from '@/components/editor/ResizeDialog'
 import { suggestDifficulty } from '@/engine/difficulty'
 import type { TemplateMeta } from '@/engine/template'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
@@ -116,6 +117,8 @@ export function EditorPage() {
   const showLetters = letterVisibility !== 'never'
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  /** "Cambiar tamaño" — see ResizeDialog. */
+  const [resizeOpen, setResizeOpen] = useState(false)
   /** The "Guardar como plantilla" dialog's name draft, or null while it's closed. */
   const [templateName, setTemplateName] = useState<string | null>(null)
   /** After saving a template: what to say, and how to undo it (drop the new one, or put back the one it replaced). */
@@ -479,6 +482,14 @@ export function EditorPage() {
                 <div className="my-1 h-px bg-border" />
                 <MenuHeading>{t.editor.menuPattern}</MenuHeading>
                 <MenuItem
+                  disabled={side === 'right'}
+                  hint={side === 'right' ? t.editor.resize.rightSide : t.editor.resize.menuHint}
+                  onClick={() => setResizeOpen(true)}
+                  close={() => setMoreMenuOpen(false)}
+                >
+                  {t.editor.resize.menu}
+                </MenuItem>
+                <MenuItem
                   disabled={paintedCells === 0}
                   hint={t.editor.clearPatternHint}
                   onClick={clearAllCells}
@@ -759,6 +770,7 @@ export function EditorPage() {
       {exportError && (
         <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
+      {resizeOpen && <ResizeDialog onClose={() => setResizeOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
   )

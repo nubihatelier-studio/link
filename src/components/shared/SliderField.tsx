@@ -11,6 +11,8 @@ interface SliderFieldProps {
   onChange: (value: number) => void
   /** Native range input accent-color class. Defaults to the gold brand accent. */
   trackAccentClassName?: string
+  /** How much −/+ and the slider move by — 2 or 3 for rows of a brick 2-drop/3-drop, whose rows go in stacks. */
+  step?: number
 }
 
 /**
@@ -30,6 +32,7 @@ export function SliderField({
   suffix,
   onChange,
   trackAccentClassName = 'accent-accent-500',
+  step: stepSize = 1,
 }: SliderFieldProps) {
   /** What's typed while it's being typed; null when the field just shows `value`. */
   const [typing, setTyping] = useState<string | null>(null)
@@ -51,6 +54,7 @@ export function SliderField({
           aria-label={label}
           min={min}
           max={max}
+          step={stepSize}
           value={value}
           onChange={(e) => {
             setTyping(null)
@@ -58,7 +62,7 @@ export function SliderField({
           }}
           className={`h-2 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500 ${trackAccentClassName}`}
         />
-        <StepButton label={`${label} −`} disabled={value <= min} onClick={() => step(-1)}>
+        <StepButton label={`${label} −`} disabled={value <= min} onClick={() => step(-stepSize)}>
           <Minus size={16} />
         </StepButton>
         <div className="flex items-center gap-1 rounded-xl bg-surface-3 px-2 py-2 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-500">
@@ -82,7 +86,7 @@ export function SliderField({
           />
           {suffix && <span className="whitespace-nowrap text-xs text-text-muted">{suffix}</span>}
         </div>
-        <StepButton label={`${label} +`} disabled={value >= max} onClick={() => step(1)}>
+        <StepButton label={`${label} +`} disabled={value >= max} onClick={() => step(stepSize)}>
           <Plus size={16} />
         </StepButton>
       </div>
