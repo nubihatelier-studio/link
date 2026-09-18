@@ -62,6 +62,36 @@ export function CanvasGrid() {
   const drawnCellPx = useRef<number | null>(null)
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const pinch = useRef<{ startDist: number; startZoom: number; midX: number; midY: number } | null>(null)
+  /**
+   * The spot a zoom should keep still — under the fingers of a pinch, or the
+   * pointer of a trackpad pinch / ctrl+wheel — as a share of the scrollable
+   * size plus where on screen it sat. Without it a pinch grew the chart from
+   * one corner and whatever was between the fingers slid away, so zooming
+   * "went wherever it wanted". Consumed by the next redraw.
+   */
+  const zoomFocus = useRef<{ bx: number; by: number; toX: number; toY: number } | null>(null)
+
+  /**
+   * Remembers the chart point now at client (fromX, fromY) so that after the
+   * coming zoom it sits at (toX, toY) — the same spot for a trackpad, and
+   * where the fingers have moved to for a pinch, so zooming and panning with
+   * two fingers work together the way they do in any photo viewer.
+   */
+  function focusZoomAt(fromX: number, fromY: number, toX = fromX, toY = fromY) {
+    const canvas = canvasRef.current
+    const cell = drawnCellPx.current
+    if (!canvas || !cell) return
+    const rect = canvas.getBoundingClientRect()
+    // Measured in beads, past the ruler margin — the one part of the canvas
+    // that doesn't grow with the zoom. A share of the whole width drifted by
+    // that margin on every step.
+    zoomFocus.current = {
+      bx: (fromX - rect.left - MARGIN) / cell,
+      by: (fromY - rect.top - MARGIN) / cell,
+      toX,
+      toY,
+    }
+  }
   /** When the current pencil/eraser stroke began — see `PINCH_GRACE_MS`. */
   const strokeStartedAt = useRef(0)
   /**
@@ -168,6 +198,29 @@ export function CanvasGrid() {
   }, [patternId, bounds.width, bounds.height, setZoom])
   const activeColor = activeSlot >= 0 ? (slots[activeSlot] ?? null) : null
 
+  /**
+   * A trackpad pinch (which the browser reports as a wheel with ctrl held) or
+   * ctrl/⌘ + mouse wheel zooms the chart around the pointer, instead of
+   * zooming the whole page. A plain wheel keeps scrolling as it always did.
+   * Registered by hand because React's wheel listener can't stop the page
+   * zoom (it's passive).
+   */
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const factor = Math.min(1.25, Math.max(0.8, Math.exp(-e.deltaY * 0.01)))
+      const next = clampZoom(Math.round(zoom * factor))
+      if (next === zoom) return
+      focusZoomAt(e.clientX, e.clientY)
+      setZoom(next)
+    }
+    container.addEventListener('wheel', onWheel, { passive: false })
+    return () => container.removeEventListener('wheel', onWheel)
+  }, [zoom, setZoom])
+
   // Leaving the line tool (or switching patterns) abandons any pending
   // click-to-start line so it doesn't linger and surprise a later click.
   useEffect(() => {
@@ -253,20 +306,18 @@ export function CanvasGrid() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // A zoom from the bar or the keyboard keeps the middle of the view in the
-    // middle. Without it the canvas grew from its top-left corner and the part
-    // being looked at slid off screen with every step — no use for landing on
-    // a precise zoom. Measured as a share of the scrollable size, before and
-    // after the resize.
+    // A zoom keeps one point still: the one a pinch or the pointer asked for
+    // (see `focusZoomAt`), or else — for the bar and the keyboard — the middle
+    // of the view. Without it the canvas grew from its top-left corner and the
+    // part being looked at slid off screen with every step.
     const container = containerRef.current
     const zoomChanged = drawnCellPx.current !== null && drawnCellPx.current !== cellPx
-    const anchor =
-      container && zoomChanged && !skipZoomAnchor.current && container.scrollWidth > 0 && container.scrollHeight > 0
-        ? {
-            x: (container.scrollLeft + container.clientWidth / 2) / container.scrollWidth,
-            y: (container.scrollTop + container.clientHeight / 2) / container.scrollHeight,
-          }
-        : null
+    if (zoomChanged && !zoomFocus.current && !skipZoomAnchor.current && container) {
+      const c = container.getBoundingClientRect()
+      focusZoomAt(c.left + c.width / 2, c.top + c.height / 2)
+    }
+    const anchor = zoomChanged ? zoomFocus.current : null
+    zoomFocus.current = null
     if (drawnCellPx.current !== cellPx) skipZoomAnchor.current = false
     drawnCellPx.current = cellPx
 
@@ -276,8 +327,11 @@ export function CanvasGrid() {
     canvas.style.width = `${canvasWidth}px`
     canvas.style.height = `${canvasHeight}px`
     if (container && anchor) {
-      container.scrollLeft = anchor.x * container.scrollWidth - container.clientWidth / 2
-      container.scrollTop = anchor.y * container.scrollHeight - container.clientHeight / 2
+      // Where that bead landed at the new size, and how far to scroll so it
+      // sits back under the fingers / the pointer / the middle.
+      const rect = canvas.getBoundingClientRect()
+      container.scrollLeft += rect.left + MARGIN + anchor.bx * cellPx - anchor.toX
+      container.scrollTop += rect.top + MARGIN + anchor.by * cellPx - anchor.toY
     }
     ctx.scale(dpr, dpr)
 
@@ -749,12 +803,13 @@ export function CanvasGrid() {
       const mid = midpoint(p1, p2)
       const scale = newDist / pinch.current.startDist
       const next = clampZoom(Math.round(pinch.current.startZoom * scale))
-      if (next !== zoom) {
-        skipZoomAnchor.current = true
-        setZoom(next)
-      }
       const container = containerRef.current
-      if (container) {
+      if (next !== zoom) {
+        // Zoom and pan in one go: the redraw puts the point that was under
+        // the fingers where the fingers are now.
+        focusZoomAt(pinch.current.midX, pinch.current.midY, mid.x, mid.y)
+        setZoom(next)
+      } else if (container) {
         container.scrollLeft -= mid.x - pinch.current.midX
         container.scrollTop -= mid.y - pinch.current.midY
       }
