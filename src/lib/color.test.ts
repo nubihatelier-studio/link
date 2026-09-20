@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MiyukiColor } from '@/data/colorTypes'
-import { contrastTextColor, deltaE2000, hexToRgb, nearestCatalogColor, rgbToHex } from './color'
+import { contrastTextColor, deltaE2000, hexToRgb, nearestCatalogColor,
+  nearestCatalogColors, rgbToHex } from './color'
 
 describe('hexToRgb / rgbToHex', () => {
   it('round-trips a 6-digit hex', () => {
@@ -66,9 +67,9 @@ describe('deltaE2000', () => {
 })
 
 const FAKE_CATALOG: MiyukiColor[] = [
-  { code: 'DB-01', hex: '#000000', name: 'Negro', sampled: true },
-  { code: 'DB-02', hex: '#ffffff', name: 'Blanco', sampled: true },
-  { code: 'DB-03', hex: '#c9a227', name: 'Dorado', sampled: true },
+  { code: 'DB-01', hex: '#000000' },
+  { code: 'DB-02', hex: '#ffffff' },
+  { code: 'DB-03', hex: '#c9a227' },
 ]
 
 describe('nearestCatalogColor', () => {
@@ -76,5 +77,21 @@ describe('nearestCatalogColor', () => {
     // Near-white should match white, not the numerically "closer in one channel" gold.
     expect(nearestCatalogColor('#fafafa', FAKE_CATALOG).code).toBe('DB-02')
     expect(nearestCatalogColor('#0a0a0a', FAKE_CATALOG).code).toBe('DB-01')
+  })
+})
+
+describe('nearestCatalogColors — varios candidatos, nunca uno solo como "el" código', () => {
+  it('los devuelve del más parecido al menos', () => {
+    const cerca = nearestCatalogColors('#fafafa', 3, FAKE_CATALOG, 100)
+    expect(cerca.map((c) => c.code)).toEqual(['DB-02', 'DB-03', 'DB-01'])
+  })
+
+  it('no propone nada cuando ninguna mostacilla se le acerca', () => {
+    // Un verde saturado, que este catálogo de prueba no tiene ni parecido.
+    expect(nearestCatalogColors('#00ff00', 3, FAKE_CATALOG)).toEqual([])
+  })
+
+  it('pide como máximo los que se le piden', () => {
+    expect(nearestCatalogColors('#fafafa', 1, FAKE_CATALOG, 100)).toHaveLength(1)
   })
 })

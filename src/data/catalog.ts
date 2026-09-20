@@ -20,11 +20,3 @@ const byCode = new Map(ALL_CATALOGS.map((c) => [c.code.toUpperCase(), c]))
 export function findColorByCode(code: string): MiyukiColor | undefined {
   return byCode.get(code.toUpperCase())
 }
-
-export function searchColors(query: string): MiyukiColor[] {
-  const q = query.trim().toLowerCase()
-  if (!q) return ALL_CATALOGS
-  return ALL_CATALOGS.filter(
-    (c) => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q),
-  )
-}

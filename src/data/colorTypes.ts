@@ -5,12 +5,8 @@
  * future milestones) behind one lookup API.
  */
 export interface MiyukiColor {
-  /** Manufacturer code, e.g. "DB-10", "DBC-1", "DBL-27". */
+  /** Código del fabricante, por ejemplo "DB-10". */
   code: string
-  /** Hex color used for rendering, exports, and swatches. */
+  /** El color leído de la cartilla — aproximado, ver `miyukiDelica11.ts`. */
   hex: string
-  /** Short descriptive label (finish/hue), not an official product name. */
-  name: string
-  /** Whether `hex` was extracted from the official sample card scan vs. visually approximated. */
-  sampled: boolean
 }
