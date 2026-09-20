@@ -360,6 +360,10 @@ export const t = {
       emptyBlocked: 'está pintado',
       back: 'Volver',
       close: 'Cerrar',
+      /** Códigos Miyuki parecidos — para comprar, nunca para elegir el color. Ver lib/color.ts#nearestCatalogColors. */
+      similar: 'Se parece a',
+      similarHint: 'Para buscar en la tienda. Son parecidos, no iguales: el acabado de la mostacilla (transparente, mate, brillante) cambia cómo se ve tejida.',
+      similarNone: 'Ninguna mostacilla de la cartilla se le acerca.',
     },
     /** "Paleta desde una foto" — ver lib/photoPalette.ts. */
     photoPalette: {

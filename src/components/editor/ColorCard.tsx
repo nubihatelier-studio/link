@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeftRight, Merge, Palette, SquareDashedMousePointer, CircleDashed, type LucideIcon } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternLetters } from '@/hooks/usePatternLetters'
-import { contrastTextColor } from '@/lib/color'
+import { contrastTextColor, nearestCatalogColors } from '@/lib/color'
 import { describeColor } from '@/lib/colorName'
 import { t } from '@/i18n/es'
 
@@ -80,6 +80,8 @@ function Card({ slot, onSelected }: { slot: number; onSelected?: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+          {!picking && <Similares hex={hex} />}
+
           {picking ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-text-muted">{picking === 'swap' ? t.editor.card.swapPick : t.editor.card.mergePick}</p>
@@ -168,5 +170,35 @@ function Action({
       <span className={`flex-1 text-sm ${disabled ? 'text-text-soft' : ''}`}>{label}</span>
       {hint && <span className="text-xs text-text-soft">{hint}</span>}
     </button>
+  )
+}
+
+/**
+ * Los códigos Miyuki que más se parecen al color elegido, para buscarlos en
+ * la tienda. El color se elige libre, como siempre: esto aparece después y
+ * no manda. Por eso son varios y se dicen como "se parece a" — ver
+ * `lib/color.ts#nearestCatalogColors` y `data/miyukiDelica11.ts`.
+ */
+function Similares({ hex }: { hex: string }) {
+  const codigos = nearestCatalogColors(hex)
+  return (
+    <section className="mb-3 flex flex-col gap-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{t.editor.card.similar}</span>
+      {codigos.length === 0 ? (
+        <p className="text-xs text-text-muted">{t.editor.card.similarNone}</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {codigos.map((c) => (
+              <span key={c.code} className="flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-1.5 pr-3 text-xs font-semibold">
+                <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
+                {c.code}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-text-muted">{t.editor.card.similarHint}</p>
+        </>
+      )}
+    </section>
   )
 }

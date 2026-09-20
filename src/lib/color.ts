@@ -267,6 +267,35 @@ function labFor(color: MiyukiColor): Lab {
   return lab
 }
 
+/**
+ * Los códigos de catálogo que más se parecen a un color, del más parecido al
+ * menos, por distancia perceptual (Lab). Varios y no uno: el color guardado
+ * en la cartilla es una aproximación —es un impreso escaneado— y el acabado
+ * (transparente, mate, AB, forrado) no cabe en un color plano, así que dos
+ * mostacillas del mismo tono se ven distintas tejidas. Ofrecer tres y decir
+ * "se parece a" es honesto; ofrecer uno solo la haría comprar mal.
+ *
+ * `maxDelta` deja fuera lo que ya no se parece: si eligió un color que
+ * ninguna mostacilla de la cartilla tiene cerca, es mejor no proponer nada
+ * que proponer cualquier cosa. Calibrado en 20 contra los colores que usa de
+ * verdad: un morado o un petróleo encuentran candidatos, y un verde o un
+ * magenta fosforescente —que en mostacilla no existen— no encuentran nada.
+ */
+export function nearestCatalogColors(
+  hex: string,
+  count = 3,
+  catalog: MiyukiColor[] = ALL_CATALOGS,
+  maxDelta = 20,
+): MiyukiColor[] {
+  const target = hexToLab(hex)
+  return catalog
+    .map((color) => ({ color, dist: deltaE(target, labFor(color)) }))
+    .filter((c) => c.dist <= maxDelta)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, count)
+    .map((c) => c.color)
+}
+
 /** Finds the closest catalog color to an arbitrary RGB/hex, using perceptual (Lab) distance. */
 export function nearestCatalogColor(hex: string, catalog: MiyukiColor[] = ALL_CATALOGS): MiyukiColor {
   const target = hexToLab(hex)
