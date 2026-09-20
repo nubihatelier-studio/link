@@ -37,6 +37,7 @@ import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { ResizeDialog } from '@/components/editor/ResizeDialog'
 import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
+import { EditorPanelTabs } from '@/components/editor/EditorPanelTabs'
 import { suggestDifficulty } from '@/engine/difficulty'
 import type { TemplateMeta } from '@/engine/template'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
@@ -552,25 +553,9 @@ export function EditorPage() {
           </div>
         </div>
 
+        {/* Una pestaña a la vez, con toda la altura para ella — ver EditorPanelTabs. */}
         <aside className="hidden w-80 shrink-0 flex-col border-l border-border md:flex">
-          {shapeCapable && (
-            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
-              <ShapePanel />
-            </div>
-          )}
-          {fringeCapable && (
-            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
-              <FringePanel />
-            </div>
-          )}
-          {!onRightEarring && (
-            <div className="max-h-64 shrink-0 overflow-y-auto border-b border-border">
-              <LoopPanel />
-            </div>
-          )}
-          <div className="min-h-0 flex-1">
-            <ColorPanel />
-          </div>
+          <EditorPanelTabs shapeCapable={shapeCapable} fringeCapable={fringeCapable} loopCapable={!onRightEarring} />
         </aside>
       </div>
 
@@ -644,7 +629,7 @@ export function EditorPage() {
           }
           onClose={() => setFringeDrawerOpen(false)}
         >
-          <FringePanel inSheet />
+          <FringePanel embedded />
         </BottomSheet>
       )}
 
@@ -658,7 +643,7 @@ export function EditorPage() {
           }
           onClose={() => setShapeDrawerOpen(false)}
         >
-          <ShapePanel inSheet />
+          <ShapePanel embedded />
         </BottomSheet>
       )}
 
@@ -672,7 +657,7 @@ export function EditorPage() {
           }
           onClose={() => setLoopDrawerOpen(false)}
         >
-          <LoopPanel inSheet />
+          <LoopPanel embedded />
         </BottomSheet>
       )}
 

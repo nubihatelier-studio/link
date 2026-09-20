@@ -332,6 +332,8 @@ export const t = {
     reletter: 'Reordenar letras',
     reletterHint: 'Vuelve a numerar los colores A, B, C… en el orden en que se tejen. Las letras no cambian solas al editar.',
     colorsTitle: 'Colores',
+    /** La fila de pestañas del panel lateral en pantallas grandes — ver EditorPanelTabs.tsx. */
+    panelsLabel: 'Paneles del patrón',
     colorsDone: 'Listo',
     moreColors: 'Paleta',
     /** La bandeja de colores del editor — ver engine/tray.ts. */

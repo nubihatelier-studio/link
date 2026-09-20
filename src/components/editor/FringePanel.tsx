@@ -15,8 +15,8 @@ const QUICK_SHAPES: { shape: FringeSculptShape; label: string }[] = [
 
 const BLOCK_ADJUST_STEPS = [5, 10]
 
-/** `inSheet`: shown in the phone's bottom sheet, which already carries the title and does the scrolling. */
-export function FringePanel({ inSheet = false }: { inSheet?: boolean } = {}) {
+/** `embedded`: sits inside something that already carries the title and does the scrolling — the phone's bottom sheet, or the desktop sidebar's tab. */
+export function FringePanel({ embedded = false }: { embedded?: boolean } = {}) {
   const {
     cols,
     fringe,
@@ -49,9 +49,9 @@ export function FringePanel({ inSheet = false }: { inSheet?: boolean } = {}) {
   }
 
   return (
-    <div className={`flex flex-col gap-3 p-4 ${inSheet ? '' : 'h-full overflow-y-auto'}`}>
-      <div className={`flex items-center gap-2 ${inSheet ? 'justify-end' : 'justify-between'}`}>
-        {!inSheet && (
+    <div className={`flex flex-col gap-3 p-4 ${embedded ? '' : 'h-full overflow-y-auto'}`}>
+      <div className={`flex items-center gap-2 ${embedded ? 'justify-end' : 'justify-between'}`}>
+        {!embedded && (
           <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
             <FringeIcon />
             {t.editor.fringe.title}

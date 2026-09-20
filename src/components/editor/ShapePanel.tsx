@@ -5,16 +5,16 @@ import { ShapeIcon } from '@/components/icons/ShapeIcon'
 import { BrickDropPicker } from '@/components/shared/BrickDropPicker'
 import { dropOf } from '@/engine/geometry'
 
-/** `inSheet`: shown in the phone's bottom sheet, which already carries the title and does the scrolling. */
-export function ShapePanel({ inSheet = false }: { inSheet?: boolean } = {}) {
+/** `embedded`: sits inside something that already carries the title and does the scrolling — the phone's bottom sheet, or the desktop sidebar's tab. */
+export function ShapePanel({ embedded = false }: { embedded?: boolean } = {}) {
   const { rows, cols, rowShape, staggerPhase, growRowEdge, shrinkRowEdge, addRowAtTop, removeRowAtTop, setBrickDrop } = useEditorStore()
   // 2-drop/3-drop: rows go in stacks woven as one, so they're listed and edited by stack.
   const drop = dropOf(staggerPhase)
   const stacks = Math.ceil(rows / drop)
 
   return (
-    <div className={`flex flex-col gap-3 p-4 ${inSheet ? '' : 'h-full overflow-y-auto'}`}>
-      {!inSheet && (
+    <div className={`flex flex-col gap-3 p-4 ${embedded ? '' : 'h-full overflow-y-auto'}`}>
+      {!embedded && (
         <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
           <ShapeIcon />
           {t.editor.shape.title}
