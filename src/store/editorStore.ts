@@ -353,6 +353,15 @@ interface EditorState {
   setTool: (tool: Tool) => void
   setActiveSlot: (slot: SlotId) => void
   setZoom: (zoom: number) => void
+  /**
+   * Bumped by "Ajustar a pantalla" — the canvas is the only thing that knows
+   * how much room it has, so the button asks and `CanvasGrid` answers with
+   * the framing `lib/fitZoom.ts#initialFitZoom` gives a pattern when it
+   * opens. A counter rather than a flag: asking twice in a row has to work,
+   * and there is nothing to clear afterwards.
+   */
+  fitZoomRequest: number
+  requestFitZoom: () => void
   renamePattern: (name: string) => void
 
   paintCell: (row: number, col: number, hex: string | null) => void
@@ -1111,6 +1120,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     setTray(get, set, next.tray, next.active)
   },
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
+  fitZoomRequest: 0,
+  requestFitZoom: () => set((st) => ({ fitZoomRequest: st.fitZoomRequest + 1 })),
   setShowFringeDivider: (show) => set({ showFringeDivider: show }),
 
   renamePattern: (name) => {

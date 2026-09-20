@@ -323,6 +323,8 @@ export const t = {
     zoom: 'Zoom',
     zoomOut: 'Alejar',
     zoomIn: 'Acercar',
+    /** Devuelve el encuadre con que se abre el patrón — ver lib/fitZoom.ts. */
+    fitToScreen: 'Ajustar a pantalla',
     canvasLabel: 'Lienzo del patrón',
     reletter: 'Reordenar letras',
     reletterHint: 'Vuelve a numerar los colores A, B, C… en el orden en que se tejen. Las letras no cambian solas al editar.',

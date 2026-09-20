@@ -2,9 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useEditorStore } from '@/store/editorStore'
 import { sliderToZoom, zoomToSlider } from '@/lib/zoomScale'
+import { t } from '@/i18n/es'
 import { ZoomBar } from './ZoomBar'
 
-beforeEach(() => useEditorStore.setState({ zoom: 100 }))
+beforeEach(() => useEditorStore.setState({ zoom: 100, fitZoomRequest: 0 }))
 const zoom = () => useEditorStore.getState().zoom
 
 describe('ZoomBar — acercar y alejar con precisión', () => {
@@ -18,6 +19,16 @@ describe('ZoomBar — acercar y alejar con precisión', () => {
     expect(zoom()).toBeGreaterThan(100)
     expect(zoom()).toBeLessThan(110)
     expect(screen.getByText(`${zoom()}%`)).toBeInTheDocument()
+  })
+
+  it('"Ajustar a pantalla" le pide el encuadre al canvas, que es el que sabe cuánto espacio hay', () => {
+    render(<ZoomBar />)
+    fireEvent.click(screen.getByRole('button', { name: t.editor.fitToScreen }))
+    expect(useEditorStore.getState().fitZoomRequest).toBe(1)
+    // Pedirlo dos veces seguidas tiene que volver a encuadrar, no quedar mudo.
+    fireEvent.click(screen.getByRole('button', { name: t.editor.fitToScreen }))
+    expect(useEditorStore.getState().fitZoomRequest).toBe(2)
+    expect(zoom()).toBe(100) // el zoom lo pone el canvas, no la barra
   })
 
   it('− y + saltan de a 25, como el teclado, sin salirse del rango', () => {

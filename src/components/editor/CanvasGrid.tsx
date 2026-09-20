@@ -51,6 +51,8 @@ export function CanvasGrid() {
   // for a bead chart where you mostly pinch OR pan, not both at once.
   /** Pattern id whose opening zoom has already been applied — see the framing effect below. */
   const framedPatternId = useRef<string | null>(null)
+  /** The last "Ajustar a pantalla" already answered — see the effect below. */
+  const fittedRequest = useRef(0)
   /**
    * Set by the zoom changes that place the view themselves — the opening
    * framing, and a pinch, which pans with the fingers — so the next redraw
@@ -122,6 +124,7 @@ export function CanvasGrid() {
     activeSlot,
     zoom,
     setZoom,
+    fitZoomRequest,
     selection,
     colorSelectionMask,
     clipboard,
@@ -196,6 +199,31 @@ export function CanvasGrid() {
       }),
     )
   }, [patternId, bounds.width, bounds.height, setZoom])
+
+  /**
+   * "Ajustar a pantalla" (`ZoomBar`): the opening framing again, on demand —
+   * after pinching and panning around, one tap brings the whole pattern (or,
+   * on a strip, its whole width) back into view.
+   *
+   * Deliberately does NOT skip the zoom anchoring below: the middle of the
+   * view stays put, so fitting a long bracelet doesn't also throw her back to
+   * row 1 of the chart she was in the middle of.
+   */
+  useEffect(() => {
+    if (fitZoomRequest === fittedRequest.current) return
+    fittedRequest.current = fitZoomRequest
+    const container = containerRef.current
+    if (!container || container.clientWidth === 0) return
+    setZoom(
+      initialFitZoom({
+        boundsWidth: bounds.width,
+        boundsHeight: bounds.height,
+        viewportWidth: container.clientWidth,
+        viewportHeight: container.clientHeight,
+        margin: MARGIN,
+      }),
+    )
+  }, [fitZoomRequest, bounds.width, bounds.height, setZoom])
   const activeColor = activeSlot >= 0 ? (slots[activeSlot] ?? null) : null
 
   /**

@@ -82,6 +82,7 @@ export function EditorPage() {
     setNote,
     zoom,
     setZoom,
+    requestFitZoom,
     setTool,
     setFringeSymmetric,
     undo,
@@ -249,11 +250,15 @@ export function EditorPage() {
       } else if (key === '-') {
         e.preventDefault()
         setZoom(zoom - 25)
+      } else if (key === '0') {
+        // Lo mismo que el botón "Ajustar a pantalla" de la barra de zoom.
+        e.preventDefault()
+        requestFitZoom()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setTool, undo, redo, zoom, setZoom])
+  }, [setTool, undo, redo, zoom, setZoom, requestFitZoom])
 
   if (!id || !getPattern(id)) {
     return (
@@ -709,6 +714,10 @@ export function EditorPage() {
               <li className="flex items-center justify-between gap-4">
                 <span className="text-text-muted">{t.editor.zoom}</span>
                 <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">+ / −</kbd>
+              </li>
+              <li className="flex items-center justify-between gap-4">
+                <span className="text-text-muted">{t.editor.fitToScreen}</span>
+                <kbd className="rounded border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">0</kbd>
               </li>
             </ul>
           </div>
