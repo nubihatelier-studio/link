@@ -36,6 +36,7 @@ import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { ResizeDialog } from '@/components/editor/ResizeDialog'
+import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
 import { suggestDifficulty } from '@/engine/difficulty'
 import type { TemplateMeta } from '@/engine/template'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
@@ -119,6 +120,8 @@ export function EditorPage() {
   const [noteOpen, setNoteOpen] = useState(false)
   /** "Cambiar tamaño" — see ResizeDialog. */
   const [resizeOpen, setResizeOpen] = useState(false)
+  /** "Cambiar la mostacilla" — see BeadTypeDialog. */
+  const [beadTypeOpen, setBeadTypeOpen] = useState(false)
   /** The "Guardar como plantilla" dialog's name draft, or null while it's closed. */
   const [templateName, setTemplateName] = useState<string | null>(null)
   /** After saving a template: what to say, and how to undo it (drop the new one, or put back the one it replaced). */
@@ -490,6 +493,13 @@ export function EditorPage() {
                   {t.editor.resize.menu}
                 </MenuItem>
                 <MenuItem
+                  hint={t.editor.beadType.menuHint}
+                  onClick={() => setBeadTypeOpen(true)}
+                  close={() => setMoreMenuOpen(false)}
+                >
+                  {t.editor.beadType.menu}
+                </MenuItem>
+                <MenuItem
                   disabled={paintedCells === 0}
                   hint={t.editor.clearPatternHint}
                   onClick={clearAllCells}
@@ -771,6 +781,7 @@ export function EditorPage() {
         <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
       {resizeOpen && <ResizeDialog onClose={() => setResizeOpen(false)} />}
+      {beadTypeOpen && <BeadTypeDialog onClose={() => setBeadTypeOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
   )

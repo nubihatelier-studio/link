@@ -87,6 +87,14 @@ interface EditorState {
   rows: number
   beadTypeId: string
   /**
+   * Changes the bead an existing pattern is woven with (see
+   * `BeadTypeDialog`). Not an undo step and no weave-progress reset: not a
+   * single cell moves — the bead type only decides the finished piece's
+   * millimetres and which calibration row applies (`engine/calibration.ts`),
+   * and the same control puts the old bead back.
+   */
+  setBeadType: (beadTypeId: string) => void
+  /**
    * 0 or 1 — shifts brick's row-parity stagger check from a row's raw index
    * to `row + staggerPhase` (see `geometry.ts#cellPosition`). Legacy patterns
    * load with 0, reproducing their exact prior look. `addRowAtTop`/
@@ -558,6 +566,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   rows: 20,
   beadTypeId: 'miyuki-delica-11',
   staggerPhase: 0,
+  setBeadType: (beadTypeId) => {
+    const { beadTypeId: current, patternId } = get()
+    if (beadTypeId === current) return
+    set({ beadTypeId })
+    if (patternId) usePatternsStore.getState().setBeadType(patternId, beadTypeId)
+  },
   cells: {},
 
   fringe: createEmptyFringe(20),

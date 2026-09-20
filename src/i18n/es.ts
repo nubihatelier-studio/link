@@ -236,6 +236,21 @@ export const t = {
       cancel: 'Cancelar',
       rightSide: 'El tamaño se cambia desde el aro izquierdo.',
     },
+    /** "Cambiar la mostacilla" de un patrón ya hecho — cambia los milímetros, no el dibujo. */
+    beadType: {
+      menu: 'Cambiar la mostacilla',
+      menuHint: 'Con cuál se teje. Cambian los milímetros, no el dibujo.',
+      title: 'Cambiar la mostacilla',
+      intro: 'El dibujo queda igual. Lo que cambia es cuánto mide la pieza terminada, y eso es lo que sale en el PDF.',
+      now: 'Ahora',
+      after: 'Así queda',
+      sizeLabel: 'Tamaño estimado',
+      sizeLabelPair: 'Tamaño de cada aro',
+      beadSize: (widthMm: number, heightMm: number) => `${widthMm} × ${heightMm} mm cada mostacilla`,
+      notes: 'Se puede volver a cambiar cuando quieras: los colores y lo tejido no se tocan.',
+      apply: 'Cambiar la mostacilla',
+      cancel: 'Cancelar',
+    },
     /** Ficha de una plantilla: qué pieza es, cuánto cuesta tejerla y una foto — ver engine/difficulty.ts. */
     templateMeta: {
       kindLabel: '¿Qué es?',
