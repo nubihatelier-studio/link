@@ -305,6 +305,9 @@ export const t = {
       rectErase: 'Borrar área',
       eyedropper: 'Pipeta',
       select: 'Seleccionar',
+      /** La manito: arrastra el gráfico sin pintar — ver CanvasGrid.tsx. */
+      pan: 'Mover el gráfico',
+      panOff: 'Dejar de mover',
       /** Volver a tocar la herramienta activa la cancela y deja el lápiz — ver ToolPanel.tsx. */
       selectOff: 'Dejar de seleccionar',
       rectEraseOff: 'Dejar de borrar área',

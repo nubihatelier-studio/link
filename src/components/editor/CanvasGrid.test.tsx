@@ -89,3 +89,30 @@ describe('CanvasGrid — pellizcar para hacer zoom no pinta', () => {
     expect(editor().cells['0,0']).toBe(GOLD)
   })
 })
+
+describe('CanvasGrid — la mano mueve el gráfico sin pintarlo', () => {
+  it('arrastrar con la mano corre la vista y no deja ni una mostacilla pintada', () => {
+    useEditorStore.setState({ tool: 'pan' })
+    const c = canvas()
+    const scroller = c.closest('[role="grid"]') as HTMLElement
+    scroller.scrollLeft = 100
+    scroller.scrollTop = 100
+
+    fireEvent.pointerDown(c, { ...CELL_00, pointerId: 1 })
+    fireEvent.pointerMove(c, { clientX: CELL_00.clientX - 30, clientY: CELL_00.clientY - 20, pointerId: 1 })
+    fireEvent.pointerUp(c, { clientX: CELL_00.clientX - 30, clientY: CELL_00.clientY - 20, pointerId: 1 })
+
+    // El gráfico sigue al dedo: se arrastra hacia arriba y a la izquierda, así
+    // que la vista avanza en esa misma medida.
+    expect(scroller.scrollLeft).toBe(130)
+    expect(scroller.scrollTop).toBe(120)
+    expect(editor().cells).toEqual({})
+    expect(editor().history).toHaveLength(0)
+  })
+
+  it('elegir la mano no borra lo que estaba marcado', () => {
+    useEditorStore.setState({ tool: 'select', selection: { r0: 0, c0: 0, r1: 1, c1: 1 } })
+    useEditorStore.getState().setTool('pan')
+    expect(editor().selection).toEqual({ r0: 0, c0: 0, r1: 1, c1: 1 })
+  })
+})

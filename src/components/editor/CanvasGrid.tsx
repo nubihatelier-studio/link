@@ -54,6 +54,12 @@ export function CanvasGrid() {
   /** The last "Ajustar a pantalla" already answered — see the effect below. */
   const fittedRequest = useRef(0)
   /**
+   * Where the finger (or the mouse) was on the last move while dragging with
+   * "Mover el gráfico" — the chart follows it one to one. Null when the hand
+   * isn't dragging.
+   */
+  const panFrom = useRef<{ x: number; y: number } | null>(null)
+  /**
    * Set by the zoom changes that place the view themselves — the opening
    * framing, and a pinch, which pans with the fingers — so the next redraw
    * doesn't also re-centre it. Every other zoom change (the bar, the keyboard)
@@ -739,6 +745,25 @@ export function CanvasGrid() {
     }
     if (activePointers.current.size > 2) return // ignore a third finger
 
+    /**
+     * "Mover el gráfico": with the hand chosen, one finger drags the chart
+     * instead of painting — a pattern zoomed in past the screen used to need
+     * two fingers to move, which on a phone means putting down the needle.
+     *
+     * A paste waiting to be dropped still wins: the hand must never leave her
+     * with something armed and no way to let go of it.
+     */
+    if (tool === 'pan' && !pasteArmed) {
+      try {
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+      } catch {
+        // ignore — capture is a nice-to-have (keeps dragging past the canvas edge), not required
+      }
+      panFrom.current = { x: e.clientX, y: e.clientY }
+      isPointerDown.current = true
+      return
+    }
+
     if (fringeSculptMode) {
       try {
         ;(e.target as Element).setPointerCapture(e.pointerId)
@@ -847,6 +872,17 @@ export function CanvasGrid() {
     }
     if (activePointers.current.size >= 2) return
 
+    // La mano no pinta ni resalta la mostacilla de abajo: sólo arrastra.
+    if (tool === 'pan' && !pasteArmed) {
+      const container = containerRef.current
+      if (panFrom.current && container) {
+        container.scrollLeft -= e.clientX - panFrom.current.x
+        container.scrollTop -= e.clientY - panFrom.current.y
+        panFrom.current = { x: e.clientX, y: e.clientY }
+      }
+      return
+    }
+
     if (isFringeSculpting.current) {
       const { col, length } = fringeSculptTargetFromEvent(e)
       if (col >= 0 && col < cols) fringeSculptSetColumn(col, length)
@@ -885,6 +921,12 @@ export function CanvasGrid() {
     activePointers.current.delete(e.pointerId)
     if (activePointers.current.size < 2) pinch.current = null
     if (activePointers.current.size >= 1) return // still mid-pinch (or settling back to one finger): don't treat as a draw release
+
+    if (panFrom.current) {
+      panFrom.current = null
+      isPointerDown.current = false
+      return
+    }
 
     if (pendingColorRequest.current) {
       pendingColorRequest.current = false
@@ -1040,7 +1082,7 @@ export function CanvasGrid() {
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
             onPointerLeave={() => setHoverCell(null)}
-            className="cursor-crosshair touch-none"
+            className={`touch-none ${tool === 'pan' && !pasteArmed ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'}`}
           />
         </div>
       </div>

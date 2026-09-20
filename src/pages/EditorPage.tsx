@@ -53,6 +53,7 @@ const TOOL_SHORTCUTS: { key: string; tool: Tool; labelKey: keyof typeof t.editor
   { key: 'E', tool: 'eraser', labelKey: 'eraser' },
   { key: 'I', tool: 'eyedropper', labelKey: 'eyedropper' },
   { key: 'S', tool: 'select', labelKey: 'select' },
+  { key: 'M', tool: 'pan', labelKey: 'pan' },
 ]
 
 function isTypingTarget(target: EventTarget | null): boolean {

@@ -5,6 +5,7 @@ import {
   PaintBucket,
   Eraser,
   Pipette,
+  Hand,
   SquareDashedMousePointer,
   Copy,
   FlipHorizontal2,
@@ -78,7 +79,8 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
    * en vez de borrar, y eso sí cuesta caro.
    */
   function toggleTool(id: Tool) {
-    const cancelable = id === 'select' || id === 'rectErase'
+    // La mano tampoco pinta, así que también se puede apagar de un toque.
+    const cancelable = id === 'select' || id === 'rectErase' || id === 'pan'
     setTool(cancelable && tool === id ? 'pencil' : id)
   }
 
@@ -112,6 +114,17 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
           </IconButton>
         )
       })}
+
+      {/* La mano no pinta: arrastra el gráfico con un dedo, para no tener que
+          soltar la aguja y usar dos. Va junto a las que pintan porque se
+          alterna con ellas todo el rato. */}
+      <IconButton
+        label={tool === 'pan' ? t.editor.tools.panOff : t.editor.tools.pan}
+        active={tool === 'pan'}
+        onClick={() => toggleTool('pan')}
+      >
+        <Hand size={18} />
+      </IconButton>
 
       <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
 

@@ -17,7 +17,8 @@ import { activeAfterEmptying, fillSlot, loadColor, slotOf, TRAY_SIZE, trayFor, w
 import { usePatternsStore } from './patternsStore'
 import { useWeaveStore } from './weaveStore'
 
-export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill'
+/** `pan` no pinta: arrastra el gráfico bajo el dedo — ver CanvasGrid y ToolPanel. */
+export type Tool = 'pencil' | 'line' | 'eraser' | 'rectErase' | 'eyedropper' | 'select' | 'fill' | 'pan'
 /** Index into the `slots` array — the quick-access palette grows as colors are added, so slots are no longer a fixed A–D set. */
 export type SlotId = number
 export type CloneDirection = 'vertical' | 'horizontal'
@@ -1111,7 +1112,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   setTool: (tool) => {
-    const keep = tool === 'select' || tool === 'rectErase'
+    // Mover el gráfico es mirar, no editar: lo marcado tiene que seguir ahí
+    // después de arrastrar la vista.
+    const keep = tool === 'select' || tool === 'rectErase' || tool === 'pan'
     set({ tool, selection: keep ? get().selection : null, colorSelectionMask: keep ? get().colorSelectionMask : null })
   },
   setActiveSlot: (slot) => set({ activeSlot: slot }),
