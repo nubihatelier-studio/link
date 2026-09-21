@@ -93,6 +93,8 @@ export const t = {
     /** Bajo el total, cuando el patrón es de una sola mostacilla (1 × 1). */
     totalBeadsOne: 'mostacilla',
     estimatedSize: 'Tamaño estimado',
+    /** Rótulo accesible de la silueta en el resumen — ver PiecePreview.tsx. */
+    preview: 'Cómo va a quedar',
     photoToPattern: 'Foto a patrón',
     photoToPatternDesc: 'Genera un patrón a partir de una foto',
     createButton: '+ Crear patrón',

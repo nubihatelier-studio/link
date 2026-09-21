@@ -31,6 +31,7 @@ import { RowsIcon } from '@/components/icons/RowsIcon'
 import { SliderField } from '@/components/shared/SliderField'
 import { TechniqueIcon } from '@/components/configurator/TechniqueIcon'
 import { TemplateIcon, type TemplateId } from '@/components/configurator/TemplateIcon'
+import { PiecePreview } from '@/components/shared/PiecePreview'
 import { PatternThumb } from '@/components/shared/PatternThumb'
 import { templateSummary } from '@/components/templates/templateSummary'
 import { NameDialog } from '@/components/shared/NameDialog'
@@ -665,7 +666,35 @@ export function ConfiguratorPage() {
             </section>
           )}
 
+          {/* Cómo va a quedar, antes de crearla — ver PiecePreview. */}
           <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
+            <div className="mb-2 flex items-end gap-3" aria-label={t.configurator.preview}>
+              <PiecePreview
+                technique={technique}
+                cols={cols}
+                rows={rows}
+                drop={drop}
+                fringeLengths={fringePreviewLengths}
+                rowShape={rowShapePreview}
+                loop={loop}
+                size={pairChosen ? 84 : 104}
+              />
+              {/* El par se teje dos veces: se muestran los dos aros, el derecho espejado. */}
+              {pairChosen && (
+                <span className="-scale-x-100">
+                  <PiecePreview
+                    technique={technique}
+                    cols={cols}
+                    rows={rows}
+                    drop={drop}
+                    fringeLengths={fringePreviewLengths}
+                    rowShape={rowShapePreview}
+                    loop={loop}
+                    size={84}
+                  />
+                </span>
+              )}
+            </div>
             <p className="text-2xl font-bold">{(pairChosen ? total * 2 : total).toLocaleString('es')}</p>
             <p className="text-sm text-text-muted">{pairChosen ? t.configurator.totalBeadsPair : total === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
             <p className="mt-2 text-sm text-text-muted">
