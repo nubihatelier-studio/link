@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BeadTypeDef } from '@/engine/types'
-import { estimateThreadMeters, suggestedNeedle } from './materials'
+import { beadsPerGram, estimateThreadMeters, gramsForBeads, suggestedNeedle } from './materials'
+import { getBeadType } from '@/data/beadTypes'
 
 const DELICA_WIDTH = 1.6
 const ROCALLA_WIDTH = 2.1
@@ -60,6 +61,7 @@ describe('suggestedNeedle', () => {
     label: 'Miyuki Delica 11/0',
     widthMm: DELICA_WIDTH,
     heightMm: 1.3,
+    holeMm: 0.8,
     shape: 'cylinder',
   }
   const rocalla: BeadTypeDef = { ...delica, id: 'rocalla-11', widthMm: ROCALLA_WIDTH, shape: 'round' }
@@ -75,5 +77,27 @@ describe('suggestedNeedle', () => {
 
   it('suggests a sturdier #10 for wide beads', () => {
     expect(suggestedNeedle(wide)).toBe('Aguja para bead N.º 10')
+  })
+})
+
+describe('Peso de las mostacillas, para la lista de compras', () => {
+  it('una Delica 11/0 da alrededor de 200 por gramo, que es lo que dicen las tiendas', () => {
+    const porGramo = beadsPerGram(getBeadType('miyuki-delica-11'))
+    expect(porGramo).toBeGreaterThan(185)
+    expect(porGramo).toBeLessThan(215)
+  })
+
+  it('una rocalla 11/0 pesa más: menos mostacillas por gramo', () => {
+    expect(beadsPerGram(getBeadType('rocalla-11'))).toBeLessThan(beadsPerGram(getBeadType('miyuki-delica-11')))
+    expect(beadsPerGram(getBeadType('rocalla-11'))).toBeGreaterThan(100)
+  })
+
+  it('nunca dice 0 g de un color que sí se usa', () => {
+    expect(gramsForBeads(3, getBeadType('miyuki-delica-11'))).toBe(0.1)
+    expect(gramsForBeads(0, getBeadType('miyuki-delica-11'))).toBe(0)
+  })
+
+  it('1000 mostacillas Delica son unos 5 g', () => {
+    expect(gramsForBeads(1000, getBeadType('miyuki-delica-11'))).toBeCloseTo(4.9, 0)
   })
 })

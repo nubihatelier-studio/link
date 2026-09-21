@@ -37,6 +37,7 @@ import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { ResizeDialog } from '@/components/editor/ResizeDialog'
 import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
+import { ShoppingListDialog } from '@/components/editor/ShoppingListDialog'
 import { EditorPanelTabs } from '@/components/editor/EditorPanelTabs'
 import { suggestDifficulty } from '@/engine/difficulty'
 import type { TemplateMeta } from '@/engine/template'
@@ -125,6 +126,8 @@ export function EditorPage() {
   const [resizeOpen, setResizeOpen] = useState(false)
   /** "Cambiar la mostacilla" — see BeadTypeDialog. */
   const [beadTypeOpen, setBeadTypeOpen] = useState(false)
+  /** "Lista de compras" — see ShoppingListDialog. */
+  const [shoppingOpen, setShoppingOpen] = useState(false)
   /** The "Guardar como plantilla" dialog's name draft, or null while it's closed. */
   const [templateName, setTemplateName] = useState<string | null>(null)
   /** After saving a template: what to say, and how to undo it (drop the new one, or put back the one it replaced). */
@@ -500,6 +503,13 @@ export function EditorPage() {
                   {t.editor.resize.menu}
                 </MenuItem>
                 <MenuItem
+                  hint={t.editor.shopping.menuHint}
+                  onClick={() => setShoppingOpen(true)}
+                  close={() => setMoreMenuOpen(false)}
+                >
+                  {t.editor.shopping.menu}
+                </MenuItem>
+                <MenuItem
                   hint={t.editor.beadType.menuHint}
                   onClick={() => setBeadTypeOpen(true)}
                   close={() => setMoreMenuOpen(false)}
@@ -777,6 +787,7 @@ export function EditorPage() {
       )}
       {resizeOpen && <ResizeDialog onClose={() => setResizeOpen(false)} />}
       {beadTypeOpen && <BeadTypeDialog onClose={() => setBeadTypeOpen(false)} />}
+      {shoppingOpen && <ShoppingListDialog onClose={() => setShoppingOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
   )

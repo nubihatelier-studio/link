@@ -11,6 +11,12 @@ export interface BeadTypeDef {
   widthMm: number
   /** physical height of one bead, in mm, as woven (row pitch) */
   heightMm: number
+  /**
+   * Diámetro del agujero, en mm. Aproximado y usado sólo para estimar el
+   * peso (ver `lib/materials.ts#beadWeightG`): el agujero es hueco y en una
+   * mostacilla chica se lleva una parte nada despreciable del vidrio.
+   */
+  holeMm: number
   shape: 'cylinder' | 'round'
 }
 

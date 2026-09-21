@@ -14,6 +14,7 @@ export const BEAD_TYPES: BeadTypeDef[] = [
     label: 'Miyuki Delica 11/0',
     widthMm: 1.6,
     heightMm: 1.3,
+    holeMm: 0.8,
     shape: 'cylinder',
   },
   {
@@ -24,6 +25,7 @@ export const BEAD_TYPES: BeadTypeDef[] = [
     label: 'Rocalla 11/0',
     widthMm: 2.1,
     heightMm: 1.5,
+    holeMm: 0.9,
     shape: 'round',
   },
   // Próximos hitos (fuera de alcance de esta iteración, dejar estructura lista):

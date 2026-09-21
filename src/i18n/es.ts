@@ -348,6 +348,22 @@ export const t = {
       firstColorHint: 'Toca una casilla vacía para cargar tu primer color',
     },
     /** La ficha de un color: se abre al tocar de nuevo el color activo, o su fila en la paleta. */
+    /** "Lista de compras" — ver ShoppingListDialog.tsx. */
+    shopping: {
+      menu: 'Lista de compras',
+      menuHint: 'Colores, cantidades y gramos, para llevar a comprar.',
+      title: 'Lista de compras',
+      beads: (n: number) => `${n.toLocaleString('es')} ${n === 1 ? 'mostacilla' : 'mostacillas'}`,
+      grams: (g: number) => `${g.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g`,
+      thread: 'Hilo estimado',
+      needle: 'Aguja sugerida',
+      copy: 'Copiar la lista',
+      copied: 'Copiada',
+      close: 'Cerrar',
+      empty: 'Todavía no hay colores pintados.',
+      pairNote: 'Las cantidades alcanzan para los dos aros.',
+      estimate: 'Los gramos son una estimación por el tamaño de la mostacilla, no una pesada. Compra siempre un poco más.',
+    },
     card: {
       title: (letter: string) => (letter ? `Color ${letter}` : 'Color cargado'),
       count: (n: number) => (n === 0 ? 'Todavía sin pintar' : `${n} ${n === 1 ? 'mostacilla' : 'mostacillas'}`),
