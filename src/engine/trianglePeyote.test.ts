@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   beadsInRound,
   beadsPerSide,
+  HOLE_RADIUS,
+  roundDistance,
   parseTriangleKey,
   ROUND_PITCH,
   triangleBeadCount,
@@ -60,11 +62,21 @@ describe('Triángulo de peyote — los tres lados', () => {
   })
 })
 
-describe('Triángulo de peyote — el huequito del centro', () => {
-  it('las tres primeras dejan un espacio en el medio', () => {
+describe('Triángulo de peyote — los huecos, que la tejedora pidió respetar', () => {
+  it('las tres del centro rodean el triangulito hueco, no lo tapan', () => {
     const centro = triangleBeads(1).map(triangleBeadPlacement)
-    // Ninguna de las tres cae en el centro: lo rodean.
-    for (const p of centro) expect(Math.hypot(p.x, p.y)).toBeGreaterThan(0.2)
+    expect(centro).toHaveLength(3)
+    // Quedan lo bastante afuera como para que se vea el hueco entre ellas.
+    for (const p of centro) expect(Math.hypot(p.x, p.y)).toBeCloseTo(HOLE_RADIUS, 5)
+  })
+
+  it('en la costura sobra espacio: las dos mostacillas se tocan por la punta', () => {
+    for (const k of [2, 5, 9, 14]) {
+      const cabe = 2 * Math.sqrt(3) * roundDistance(k)
+      const sobra = cabe - beadsInRound(k)
+      expect(sobra).toBeGreaterThan(0)
+      expect(sobra).toBeLessThan(1)
+    }
   })
 })
 
