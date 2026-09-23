@@ -1,37 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  beadsPerSide,
-  roundBeadCount,
+  ROW_HEIGHT,
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
   triangleBoundsUnits,
-  type TriangleGrowth,
-} from '@/engine/triangleRound'
+} from '@/engine/trianglePeyote'
 import { beadMetrics } from '@/lib/beadStyle'
 import { SliderField } from '@/components/shared/SliderField'
-import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { t } from '@/i18n/es'
 
-/** Tres colores para que se vea cuál mostacilla es de cuál lado. */
+/** Un color por sector, para que se vea cómo se reparte la pieza. */
 const COLORES = ['#8050c0', '#4ab3a5', '#c9a227']
 
 /**
- * Prueba a la vista del triángulo tejido en vueltas, antes de construir
- * nada encima: sólo dibuja, no se puede pintar. Está para que la tejedora
- * diga si la geometría es la de su técnica — ver `engine/triangleRound.ts`.
+ * Prueba a la vista del triángulo de peyote, antes de construir nada
+ * encima: sólo dibuja, no se puede pintar. Está para que la tejedora diga si
+ * la geometría es la de su técnica — ver `engine/trianglePeyote.ts`.
  *
  * No hay link a esta pantalla en ninguna parte de la app: se llega
- * escribiendo la dirección. Se va a ir cuando la técnica esté hecha de
- * verdad (o antes, si resulta que la geometría no era ésta).
+ * escribiendo la dirección.
  */
 export function TrianglePreviewPage() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [rounds, setRounds] = useState(8)
-  const [porLado, setPorLado] = useState(true)
-  const [growth, setGrowth] = useState<TriangleGrowth>('dibujo')
+  const [side, setSide] = useState(13)
+  const [porSector, setPorSector] = useState(true)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -48,23 +43,22 @@ export function TrianglePreviewPage() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, size, size)
 
-    const bounds = triangleBoundsUnits(rounds)
-    const escala = (size * 0.92) / Math.max(bounds.width, bounds.height)
+    const bounds = triangleBoundsUnits(side)
+    const escala = (size * 0.94) / Math.max(bounds.width, bounds.height)
     const cx = size / 2
-    const cy = size / 2
+    const cy = size / 2 - ((side - 1) * ROW_HEIGHT * escala) / 2
 
-    // Una mostacilla ocupa una vuelta de alto y el tramo que le toca del lado.
-    const alto = escala
-    // Lo que le toca a cada mostacilla del lado de su vuelta.
-    const ancho = (escala * 2 * Math.sqrt(3)) / (beadsPerSide(rounds, growth) / rounds)
-    const m = beadMetrics(ancho, alto, 0.5, 1.5)
+    // La mostacilla ocupa su lugar en la retícula: tan ancha como el paso
+    // entre vecinas y tan alta como el paso entre filas, que en una retícula
+    // triangular es menor. Sin esto se pisan de una fila a otra.
+    const m = beadMetrics(escala, escala * ROW_HEIGHT, 0.5, 1.5)
 
-    for (const bead of triangleBeads(rounds, growth)) {
-      const { x, y, angle } = triangleBeadPlacement(bead, growth)
+    for (const bead of triangleBeads(side)) {
+      const { x, y, angle, sector } = triangleBeadPlacement(bead, side)
       ctx.save()
       ctx.translate(cx + x * escala, cy + y * escala)
       ctx.rotate((angle * Math.PI) / 180)
-      ctx.fillStyle = porLado ? COLORES[bead.side] : COLORES[(bead.round - 1) % COLORES.length]
+      ctx.fillStyle = porSector ? COLORES[sector] : COLORES[bead.row % COLORES.length]
       ctx.strokeStyle = 'rgba(0,0,0,0.25)'
       ctx.lineWidth = 1
       ctx.beginPath()
@@ -73,7 +67,7 @@ export function TrianglePreviewPage() {
       ctx.stroke()
       ctx.restore()
     }
-  }, [rounds, porLado, growth])
+  }, [side, porSector])
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-16 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -91,44 +85,24 @@ export function TrianglePreviewPage() {
       </div>
 
       <div className="mb-4 flex flex-col gap-3">
-        <SliderField label={t.trianglePreview.rounds} value={rounds} min={1} max={20} onChange={setRounds} />
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{t.trianglePreview.growthLabel}</span>
-          <SegmentedControl<TriangleGrowth>
-            ariaLabel={t.trianglePreview.growthLabel}
-            size="sm"
-            value={growth}
-            onChange={setGrowth}
-            options={[
-              { value: 'dibujo', label: t.trianglePreview.growthDiagram },
-              { value: 'plano', label: t.trianglePreview.growthFlat },
-            ]}
-          />
-          <p className="text-[11px] text-text-muted">
-            {growth === 'dibujo' ? t.trianglePreview.growthDiagramHint : t.trianglePreview.growthFlatHint}
-          </p>
-        </div>
+        <SliderField label={t.trianglePreview.side} value={side} min={2} max={30} onChange={setSide} />
         <button
-          onClick={() => setPorLado((v) => !v)}
-          aria-pressed={porLado}
+          onClick={() => setPorSector((v) => !v)}
+          aria-pressed={porSector}
           className="self-start rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"
         >
-          {porLado ? t.trianglePreview.bySide : t.trianglePreview.byRound}
+          {porSector ? t.trianglePreview.bySector : t.trianglePreview.byRow}
         </button>
       </div>
 
       <dl className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-text-muted">{t.trianglePreview.perSide}</dt>
-          <dd className="font-semibold tabular-nums">{beadsPerSide(rounds, growth)}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-text-muted">{t.trianglePreview.lastRound}</dt>
-          <dd className="font-semibold tabular-nums">{roundBeadCount(rounds, growth)}</dd>
+          <dd className="font-semibold tabular-nums">{side}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-text-muted">{t.trianglePreview.total}</dt>
-          <dd className="font-semibold tabular-nums">{triangleBeadCount(rounds, growth).toLocaleString('es')}</dd>
+          <dd className="font-semibold tabular-nums">{triangleBeadCount(side).toLocaleString('es')}</dd>
         </div>
       </dl>
 
