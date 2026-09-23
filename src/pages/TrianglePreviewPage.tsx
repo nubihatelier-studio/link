@@ -12,8 +12,10 @@ import { beadMetrics } from '@/lib/beadStyle'
 import { SliderField } from '@/components/shared/SliderField'
 import { t } from '@/i18n/es'
 
-/** Un color por sector, para que se vea cómo se reparte la pieza. */
-const COLORES = ['#8050c0', '#4ab3a5', '#c9a227']
+/** Un color por lado, como los que usa ella para explicar la técnica. */
+const COLORES = ['#2f6fd0', '#e2b93b', '#8050c0']
+/** Las vueltas que ya no son la primera van en gris: lo que importa es la nueva. */
+const YA_TEJIDO = '#c9c3ba'
 
 /**
  * Prueba a la vista del triángulo de peyote, antes de construir nada
@@ -26,8 +28,7 @@ const COLORES = ['#8050c0', '#4ab3a5', '#c9a227']
 export function TrianglePreviewPage() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [rounds, setRounds] = useState(8)
-  const [porSector, setPorSector] = useState(true)
+  const [rounds, setRounds] = useState(1)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -45,7 +46,9 @@ export function TrianglePreviewPage() {
     ctx.clearRect(0, 0, size, size)
 
     const bounds = triangleBoundsUnits(rounds)
-    const escala = (size * 0.94) / Math.max(bounds.width, bounds.height)
+    // Con pocas vueltas la pieza es chica: se dibuja grande igual, para poder
+    // mirarla de cerca mientras se va armando paso a paso.
+    const escala = Math.min((size * 0.94) / Math.max(bounds.width, bounds.height), size / 5)
     const cx = size / 2
     const cy = size / 2
 
@@ -61,7 +64,9 @@ export function TrianglePreviewPage() {
       ctx.save()
       ctx.translate(cx + x * escala, cy + y * escala)
       ctx.rotate((angle * Math.PI) / 180)
-      ctx.fillStyle = porSector ? COLORES[sector] : COLORES[(bead.round - 1) % COLORES.length]
+      // La vuelta de más afuera va con un color por lado —azul, amarilla y
+      // morada, como en sus diagramas—; lo ya tejido queda en gris.
+      ctx.fillStyle = bead.round === rounds ? COLORES[sector] : YA_TEJIDO
       ctx.strokeStyle = 'rgba(0,0,0,0.25)'
       ctx.lineWidth = 1
       ctx.beginPath()
@@ -70,7 +75,7 @@ export function TrianglePreviewPage() {
       ctx.stroke()
       ctx.restore()
     }
-  }, [rounds, porSector])
+  }, [rounds])
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-16 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -89,13 +94,6 @@ export function TrianglePreviewPage() {
 
       <div className="mb-4 flex flex-col gap-3">
         <SliderField label={t.trianglePreview.rounds} value={rounds} min={1} max={20} onChange={setRounds} />
-        <button
-          onClick={() => setPorSector((v) => !v)}
-          aria-pressed={porSector}
-          className="self-start rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"
-        >
-          {porSector ? t.trianglePreview.bySector : t.trianglePreview.byRound}
-        </button>
       </div>
 
       <dl className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-sm">

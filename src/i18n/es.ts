@@ -640,13 +640,11 @@ export const t = {
   /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
     title: 'Triángulo de peyote (prueba)',
-    intro: 'Las proporciones están medidas de tu aro terminado: 17 mostacillas de lado y 8 filas del borde al centro. Tres sectores, uno por lado, con las filas paralelas a su lado y la mostacilla parada cruzada a la fila. En el medio queda el huequito de las tres del comienzo. Todavía no se puede pintar.',
+    intro: 'Vamos por partes. Con una vuelta se ven las tres primeras mostacillas —una por lado— rodeando el triangulito hueco del centro. Sube las vueltas para ir viendo cómo crece; la última siempre va con un color por lado y lo ya tejido queda en gris.',
     rounds: 'Vueltas',
-    bySector: 'Un color por lado',
-    byRound: 'Un color por vuelta',
     perSide: 'Mostacillas en el lado de afuera',
     total: 'Mostacillas en total',
-    note: 'El diagrama paso a paso y la pieza real no coinciden: el diagrama dibuja una mostacilla más por lado en cada vuelta y las vueltas separadas, porque si las dibujara encajadas no se entendería el hilo. En la pieza de verdad cada vuelta suma unas dos por lado — con una sola no quedaría plana.',
+    note: 'Todavía no se puede pintar: esto es sólo para mirar la forma.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

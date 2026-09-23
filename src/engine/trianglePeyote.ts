@@ -54,6 +54,16 @@ export interface TriangleBeadPlacement {
 export const ROUND_PITCH = 0.61
 
 /**
+ * A qué distancia del centro va la primera vuelta, con el ancho de la
+ * mostacilla como unidad.
+ *
+ * Las tres primeras no se tocan entre sí: rodean el triangulito hueco del
+ * medio, que es por donde pasa el hilo al empezar, y el hilo se ve entre una
+ * y otra. Por eso van un poco más afuera de lo que darían si se tocaran.
+ */
+export const HOLE_RADIUS = 0.6
+
+/**
  * Cuántas mostacillas lleva un lado en la vuelta `round`.
  *
  * A una distancia d del centro, el lado de un triángulo mide 2·√3·d. Con
@@ -61,10 +71,16 @@ export const ROUND_PITCH = 0.61
  * que se midió en la pieza. La media vuelta de menos es para que la primera
  * sean las tres mostacillas del centro y no más.
  */
+/** A qué distancia del centro va una vuelta. */
+export function roundDistance(round: number): number {
+  return HOLE_RADIUS + (Math.max(1, Math.trunc(round)) - 1) * ROUND_PITCH
+}
+
 export function beadsInRound(round: number): number {
   const k = Math.max(0, Math.trunc(round))
   if (k === 0) return 0
-  return Math.max(1, Math.round(2 * Math.sqrt(3) * (k - 0.5) * ROUND_PITCH))
+  if (k === 1) return 1 // las tres del centro, una por lado
+  return Math.max(1, Math.round(2 * Math.sqrt(3) * roundDistance(k)))
 }
 
 /** Cuántas mostacillas tiene la pieza entera. */
@@ -96,7 +112,7 @@ export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement
   const { sector, round, index } = bead
   const n = beadsInRound(round)
   const along = index - (n - 1) / 2
-  const out = (round - 0.5) * ROUND_PITCH
+  const out = roundDistance(round)
   const giro = (sector * 120 * Math.PI) / 180
   return {
     x: along * Math.cos(giro) + out * Math.sin(giro),
