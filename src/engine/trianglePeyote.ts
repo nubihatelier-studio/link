@@ -54,37 +54,17 @@ export interface TriangleBeadPlacement {
 export const ROUND_PITCH = 0.61
 
 /**
- * A qué distancia del centro va la primera vuelta, con el ancho de la
- * mostacilla como unidad.
- *
- * Las tres primeras no se tocan entre sí: dejan el triangulito hueco del
- * medio, que es por donde pasa el hilo al empezar. Con tres cuartos de
- * mostacilla el hueco se ve, que es lo que pidió la tejedora — con menos,
- * las tres primeras se juntan y lo tapan.
- */
-export const HOLE_RADIUS = 0.75
-
-/**
  * Cuántas mostacillas lleva un lado en la vuelta `round`.
  *
- * A una distancia d del centro, el lado de un triángulo mide 2·√3·d, y eso
- * es lo que se llena: poco más de dos mostacillas más por vuelta, que es lo
- * medido en la pieza. La primera vuelta da 1 por lado — las tres del centro,
- * alrededor del hueco.
+ * A una distancia d del centro, el lado de un triángulo mide 2·√3·d. Con
+ * `d = (round - ½)·ROUND_PITCH` eso da poco más de dos por vuelta, que es lo
+ * que se midió en la pieza. La media vuelta de menos es para que la primera
+ * sean las tres mostacillas del centro y no más.
  */
 export function beadsInRound(round: number): number {
   const k = Math.max(0, Math.trunc(round))
   if (k === 0) return 0
-  if (k === 1) return 1 // las tres del centro, una por lado
-  // Hacia abajo, no al más cercano: lo que sobra al final de la fila es el
-  // huequito de la costura, donde la última mostacilla de un lado y la
-  // primera del otro se tocan sólo por la punta.
-  return Math.max(1, Math.floor(2 * Math.sqrt(3) * roundDistance(k)))
-}
-
-/** A qué distancia del centro va una vuelta. */
-export function roundDistance(round: number): number {
-  return HOLE_RADIUS + (Math.max(1, Math.trunc(round)) - 1) * ROUND_PITCH
+  return Math.max(1, Math.round(2 * Math.sqrt(3) * (k - 0.5) * ROUND_PITCH))
 }
 
 /** Cuántas mostacillas tiene la pieza entera. */
@@ -116,7 +96,7 @@ export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement
   const { sector, round, index } = bead
   const n = beadsInRound(round)
   const along = index - (n - 1) / 2
-  const out = roundDistance(round)
+  const out = (round - 0.5) * ROUND_PITCH
   const giro = (sector * 120 * Math.PI) / 180
   return {
     x: along * Math.cos(giro) + out * Math.sin(giro),
