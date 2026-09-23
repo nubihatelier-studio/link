@@ -1,3 +1,5 @@
+import { PEYOTE_ROW_COMPACTION } from './geometry'
+
 /**
  * Triángulo de peyote plano — la técnica de los aros triangulares.
  *
@@ -46,11 +48,11 @@ export interface TriangleBeadPlacement {
 /**
  * Distancia entre vueltas, con el ancho de la mostacilla como unidad.
  *
- * Se está afinando vuelta por vuelta con la tejedora, mirando cada una antes
- * de pasar a la siguiente. Con 0,35 la segunda vuelta cae donde ella la
- * muestra en sus diagramas: encajada contra la primera, no apoyada encima.
+ * Es el mismo paso entre filas que la app ya usa para peyote
+ * (`geometry.ts#PEYOTE_ROW_COMPACTION`), para que un triángulo se vea con las
+ * mismas proporciones que el resto de los patrones y no con unas propias.
  */
-export const ROUND_PITCH = 0.35
+export const ROUND_PITCH = PEYOTE_ROW_COMPACTION
 
 /**
  * A qué distancia del centro va la primera vuelta, con el ancho de la
@@ -122,11 +124,20 @@ export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement
   }
 }
 
-/** Ancho y alto de la pieza, en unidades de mostacilla. */
+/**
+ * Ancho y alto de la pieza, en unidades de mostacilla, sacados de dónde
+ * quedaron las mostacillas y no de una fórmula aparte: así el encuadre no se
+ * puede desfasar del dibujo.
+ */
 export function triangleBoundsUnits(rounds: number): { width: number; height: number } {
-  const n = Math.max(1, Math.trunc(rounds))
-  const lado = beadsInRound(n) + 1
-  return { width: lado, height: lado * (Math.sqrt(3) / 2) }
+  const pts = triangleBeads(rounds).map(triangleBeadPlacement)
+  if (pts.length === 0) return { width: 1, height: 1 }
+  const xs = pts.map((p) => p.x)
+  const ys = pts.map((p) => p.y)
+  return {
+    width: Math.max(...xs) - Math.min(...xs) + 1,
+    height: Math.max(...ys) - Math.min(...ys) + 1,
+  }
 }
 
 /** La clave con que se guarda una mostacilla pintada. */

@@ -8,7 +8,7 @@ import {
   triangleBeads,
   triangleBoundsUnits,
 } from '@/engine/trianglePeyote'
-import { beadMetrics } from '@/lib/beadStyle'
+import { beadMetrics, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX } from '@/lib/beadStyle'
 import { SliderField } from '@/components/shared/SliderField'
 import { t } from '@/i18n/es'
 
@@ -48,16 +48,19 @@ export function TrianglePreviewPage() {
     const bounds = triangleBoundsUnits(rounds)
     // Con pocas vueltas la pieza es chica: se dibuja grande igual, para poder
     // mirarla de cerca mientras se va armando paso a paso.
-    const escala = Math.min((size * 0.94) / Math.max(bounds.width, bounds.height), size / 5)
+    // Con una o dos vueltas la pieza es chiquita: se dibuja grande igual,
+    // hasta un tope, para poder mirarla de cerca mientras se arma.
+    const escala = Math.min((size * 0.92) / Math.max(bounds.width, bounds.height), size / 4.5)
     const cx = size / 2
     const cy = size / 2
 
     // Parada cruzada a su fila: angosta a lo largo de la fila y más alta
     // que el paso entre filas, que es lo que hace que una fila se encaje en
     // la de al lado, igual que en un gráfico de peyote.
-    // Parada cruzada a su fila y más alta que el paso entre vueltas: así se
-    // encaja en la vuelta de al lado, como en peyote.
-    const m = beadMetrics(escala * 0.92, escala * ROUND_PITCH * 1.35, 0.5, 1.5)
+    // Las mismas proporciones con que la app dibuja una mostacilla de peyote
+    // en el editor: su celda es de un ancho por el paso entre filas, y la
+    // mostacilla va con la holgura de siempre (lib/beadStyle.ts).
+    const m = beadMetrics(escala, escala * ROUND_PITCH, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
 
     for (const bead of triangleBeads(rounds)) {
       const { x, y, angle, sector } = triangleBeadPlacement(bead)
