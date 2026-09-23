@@ -637,6 +637,23 @@ export const t = {
     protected: 'Almacenamiento protegido',
     atRisk: 'El navegador podría liberar estos datos — descarga un respaldo',
   },
+  /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
+  trianglePreview: {
+    title: 'Triángulo en vueltas (prueba)',
+    intro: 'Así dibujaría la app tu técnica de aros: se empieza con 3 mostacillas y cada vuelta rodea a la anterior, con tantas por lado como número de vuelta. Todavía no se puede pintar — esto es sólo para que mires si la forma es la correcta.',
+    rounds: 'Vueltas',
+    growthLabel: '¿Cuánto crece cada vuelta?',
+    growthDiagram: 'Una más por lado',
+    growthFlat: 'Las que caben',
+    growthDiagramHint: 'Como tus diagramas: 3, 6, 9, 12… Cuadra con los dibujos, pero cada mostacilla queda larga y angosta.',
+    growthFlatHint: 'Las que caben de verdad en el lado, contando que la mostacilla es casi cuadrada. Es lo que tiene que pasar para que la pieza quede plana.',
+    bySide: 'Un color por lado',
+    byRound: 'Un color por vuelta',
+    perSide: 'Mostacillas por lado en la última vuelta',
+    lastRound: 'Mostacillas de la última vuelta',
+    total: 'Mostacillas en total',
+    note: 'Como todo gráfico, el triángulo va dibujado perfecto y las mostacillas de cada lado repartidas parejo: en la mano, la tensión del hilo las acomoda un poco distinto.',
+  },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
     materials: 'Materiales',

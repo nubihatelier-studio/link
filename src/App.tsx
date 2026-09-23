@@ -7,6 +7,7 @@ import { HomePage } from '@/pages/HomePage'
 import { ConfiguratorPage } from '@/pages/ConfiguratorPage'
 import { EditorPage } from '@/pages/EditorPage'
 import { WeavePage } from '@/pages/WeavePage'
+import { TrianglePreviewPage } from '@/pages/TrianglePreviewPage'
 import { PhotoToPatternPage } from '@/pages/PhotoToPatternPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { UpdateToast } from '@/components/shared/UpdateToast'
@@ -58,6 +59,8 @@ function App() {
         />
         <Route path="/new" element={<ConfiguratorPage />} />
         <Route path="/new/photo" element={<PhotoToPatternPage />} />
+        {/* Prueba a la vista, sin link en ninguna parte — ver TrianglePreviewPage. */}
+        <Route path="/triangulo" element={<TrianglePreviewPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/editor/:id/weave" element={<WeavePage />} />
         <Route path="*" element={<NotFoundPage />} />
