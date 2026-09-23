@@ -48,11 +48,10 @@ export function TrianglePreviewPage() {
     const cx = size / 2
     const cy = size / 2 - ((side - 1) * ROW_HEIGHT * escala) / 2
 
-    // Cuadrada, no rectangular: en esta retícula la mostacilla tiene
-    // vecinas a la misma distancia en tres direcciones, así que una
-    // rectangular se vería de un porte distinto en cada sector al girarla.
-    const lado = escala * ROW_HEIGHT
-    const m = beadMetrics(lado, lado, 0.5, 1.5)
+    // Parada cruzada a su fila: angosta a lo largo de la fila y más alta
+    // que el paso entre filas, que es lo que hace que una fila se encaje en
+    // la de al lado, igual que en un gráfico de peyote.
+    const m = beadMetrics(escala * 0.92, escala * ROW_HEIGHT * 1.3, 0.5, 1.5)
 
     for (const bead of triangleBeads(side)) {
       const { x, y, angle, sector } = triangleBeadPlacement(bead, side)

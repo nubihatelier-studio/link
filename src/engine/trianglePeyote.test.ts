@@ -64,9 +64,9 @@ describe('Triángulo de peyote — los tres sectores', () => {
     expect(cuenta[1]).toBe(cuenta[2])
   })
 
-  it('cada mostacilla se acuesta a lo largo del lado que tiene más cerca', () => {
+  it('cada fila corre a lo largo del lado que tiene más cerca', () => {
     const side = 9
-    // Arriba al medio: sector de arriba, acostada horizontal.
+    // Arriba al medio: la fila corre horizontal (y la mostacilla, cruzada, queda vertical).
     expect(triangleBeadPlacement({ row: 0, index: 4 }, side).angle).toBe(0)
     // Abajo del todo: la punta, que ya no es del lado de arriba.
     expect(triangleSectorOf({ row: 8, index: 0 }, side)).not.toBe(0)

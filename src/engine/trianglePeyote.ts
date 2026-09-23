@@ -30,7 +30,10 @@ export interface TriangleBead {
 export interface TriangleBeadPlacement {
   x: number
   y: number
-  /** Giro en grados: 0 es acostada horizontal, como las del lado de arriba. */
+  /**
+   * Hacia dónde corre la fila, en grados; 0 es horizontal, como las del
+   * sector de arriba. La mostacilla se dibuja parada cruzada a esto.
+   */
   angle: number
   sector: TriangleSector
 }
@@ -92,8 +95,11 @@ function rawPosition(bead: TriangleBead, side: number): { x: number; y: number }
 export function triangleBeadPlacement(bead: TriangleBead, side: number): TriangleBeadPlacement {
   const { x, y } = rawPosition(bead, side)
   const sector = triangleSectorOf(bead, side)
-  // Acostada a lo largo del lado de su sector: arriba horizontal, y los
-  // otros dos a 60° de ahí, cada uno hacia su lado.
+  // `angle` es hacia dónde corre la fila, no hacia dónde apunta la
+  // mostacilla: la mostacilla va parada cruzada a su fila, como en peyote,
+  // y de eso se encarga quien la dibuja (alta y angosta, girada este
+  // ángulo). En el sector de arriba la fila es horizontal y la mostacilla
+  // queda vertical.
   return { x, y, angle: sector * 60, sector }
 }
 
