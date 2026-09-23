@@ -46,12 +46,11 @@ export interface TriangleBeadPlacement {
 /**
  * Distancia entre vueltas, con el ancho de la mostacilla como unidad.
  *
- * Medida en su aro: 8 filas para cubrir del borde al centro, y en un
- * triángulo de lado 17 esa distancia es 17/(2·√3) ≈ 4,9 mostacillas. Da 0,61
- * — menos de una mostacilla, porque en peyote cada fila se encaja en la
- * anterior en vez de apoyarse encima.
+ * Se está afinando vuelta por vuelta con la tejedora, mirando cada una antes
+ * de pasar a la siguiente. Con 0,35 la segunda vuelta cae donde ella la
+ * muestra en sus diagramas: encajada contra la primera, no apoyada encima.
  */
-export const ROUND_PITCH = 0.61
+export const ROUND_PITCH = 0.35
 
 /**
  * A qué distancia del centro va la primera vuelta, con el ancho de la
@@ -79,8 +78,9 @@ export function roundDistance(round: number): number {
 export function beadsInRound(round: number): number {
   const k = Math.max(0, Math.trunc(round))
   if (k === 0) return 0
-  if (k === 1) return 1 // las tres del centro, una por lado
-  return Math.max(1, Math.round(2 * Math.sqrt(3) * roundDistance(k)))
+  // La vuelta k lleva k por lado: 1, 2, 3, 4… — la regla que dio la
+  // tejedora y que se está comprobando vuelta por vuelta con ella.
+  return k
 }
 
 /** Cuántas mostacillas tiene la pieza entera. */
