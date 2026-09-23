@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ROW_HEIGHT,
+  beadsPerSide,
+  ROUND_PITCH,
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
@@ -25,7 +26,7 @@ const COLORES = ['#8050c0', '#4ab3a5', '#c9a227']
 export function TrianglePreviewPage() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [side, setSide] = useState(13)
+  const [rounds, setRounds] = useState(8)
   const [porSector, setPorSector] = useState(true)
 
   useEffect(() => {
@@ -43,22 +44,24 @@ export function TrianglePreviewPage() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, size, size)
 
-    const bounds = triangleBoundsUnits(side)
+    const bounds = triangleBoundsUnits(rounds)
     const escala = (size * 0.94) / Math.max(bounds.width, bounds.height)
     const cx = size / 2
-    const cy = size / 2 - ((side - 1) * ROW_HEIGHT * escala) / 2
+    const cy = size / 2
 
     // Parada cruzada a su fila: angosta a lo largo de la fila y más alta
     // que el paso entre filas, que es lo que hace que una fila se encaje en
     // la de al lado, igual que en un gráfico de peyote.
-    const m = beadMetrics(escala * 0.92, escala * ROW_HEIGHT * 1.3, 0.5, 1.5)
+    // Parada cruzada a su fila y más alta que el paso entre vueltas: así se
+    // encaja en la vuelta de al lado, como en peyote.
+    const m = beadMetrics(escala * 0.92, escala * ROUND_PITCH * 1.35, 0.5, 1.5)
 
-    for (const bead of triangleBeads(side)) {
-      const { x, y, angle, sector } = triangleBeadPlacement(bead, side)
+    for (const bead of triangleBeads(rounds)) {
+      const { x, y, angle, sector } = triangleBeadPlacement(bead)
       ctx.save()
       ctx.translate(cx + x * escala, cy + y * escala)
       ctx.rotate((angle * Math.PI) / 180)
-      ctx.fillStyle = porSector ? COLORES[sector] : COLORES[bead.row % COLORES.length]
+      ctx.fillStyle = porSector ? COLORES[sector] : COLORES[(bead.round - 1) % COLORES.length]
       ctx.strokeStyle = 'rgba(0,0,0,0.25)'
       ctx.lineWidth = 1
       ctx.beginPath()
@@ -67,7 +70,7 @@ export function TrianglePreviewPage() {
       ctx.stroke()
       ctx.restore()
     }
-  }, [side, porSector])
+  }, [rounds, porSector])
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-16 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -85,24 +88,24 @@ export function TrianglePreviewPage() {
       </div>
 
       <div className="mb-4 flex flex-col gap-3">
-        <SliderField label={t.trianglePreview.side} value={side} min={2} max={30} onChange={setSide} />
+        <SliderField label={t.trianglePreview.rounds} value={rounds} min={1} max={20} onChange={setRounds} />
         <button
           onClick={() => setPorSector((v) => !v)}
           aria-pressed={porSector}
           className="self-start rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"
         >
-          {porSector ? t.trianglePreview.bySector : t.trianglePreview.byRow}
+          {porSector ? t.trianglePreview.bySector : t.trianglePreview.byRound}
         </button>
       </div>
 
       <dl className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-text-muted">{t.trianglePreview.perSide}</dt>
-          <dd className="font-semibold tabular-nums">{side}</dd>
+          <dd className="font-semibold tabular-nums">{beadsPerSide(rounds)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-text-muted">{t.trianglePreview.total}</dt>
-          <dd className="font-semibold tabular-nums">{triangleBeadCount(side).toLocaleString('es')}</dd>
+          <dd className="font-semibold tabular-nums">{triangleBeadCount(rounds).toLocaleString('es')}</dd>
         </div>
       </dl>
 

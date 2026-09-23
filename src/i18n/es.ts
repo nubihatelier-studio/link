@@ -640,13 +640,13 @@ export const t = {
   /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
     title: 'Triángulo de peyote (prueba)',
-    intro: 'Una sola retícula pareja, con la mostacilla parada cruzada a su fila. Los tres lados se reparten la pieza y en cada uno la fila corre paralela a ese lado: por eso se ven tres direcciones. Todavía no se puede pintar: esto es sólo para que mires si la forma es la correcta.',
-    side: 'Mostacillas por lado',
+    intro: 'Las proporciones están medidas de tu aro terminado: 17 mostacillas de lado y 8 filas del borde al centro. Tres sectores, uno por lado, con las filas paralelas a su lado y la mostacilla parada cruzada a la fila. En el medio queda el huequito de las tres del comienzo. Todavía no se puede pintar.',
+    rounds: 'Vueltas',
     bySector: 'Un color por lado',
-    byRow: 'Un color por fila',
-    perSide: 'Mostacillas por lado',
+    byRound: 'Un color por vuelta',
+    perSide: 'Mostacillas en el lado de afuera',
     total: 'Mostacillas en total',
-    note: 'Medido sobre tu plantilla en blanco: 1.398 casillas, todas a la misma distancia de sus vecinas —19 píxeles, también al cruzar de un lado a otro— y en tres direcciones a 60°. Como todo gráfico, va dibujado perfecto: en la mano la tensión del hilo acomoda un poco distinto.',
+    note: 'El diagrama paso a paso y la pieza real no coinciden: el diagrama dibuja una mostacilla más por lado en cada vuelta y las vueltas separadas, porque si las dibujara encajadas no se entendería el hilo. En la pieza de verdad cada vuelta suma unas dos por lado — con una sola no quedaría plana.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

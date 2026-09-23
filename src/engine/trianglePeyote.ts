@@ -1,29 +1,34 @@
 /**
  * Triángulo de peyote plano — la técnica de los aros triangulares.
  *
- * Medido sobre un gráfico real de la tejedora ("Flat Peyote Triangle Graph"):
- * detectando cada mostacilla, los vecinos de una cualquiera caen siempre a
- * 0°, 60° y 120°, y todos a la misma distancia. O sea que las mostacillas se
- * acomodan en una **retícula triangular pareja** — cada una tocando a seis —
- * y no repartidas a lo largo de cada vuelta, que es lo que las dejaba
- * montadas unas sobre otras.
+ * Las proporciones están **medidas sobre una pieza terminada** de la
+ * tejedora, no sacadas de los diagramas paso a paso: en su aro, el lado
+ * tiene unas 17 mostacillas y hay unas 8 filas desde el borde hasta el
+ * centro. De ahí sale todo lo demás.
  *
- * Lo que sí cambia de una zona a otra es **cómo queda parada** cada
- * mostacilla: la pieza se lee como tres sectores, uno por lado, y en cada
- * uno la mostacilla se acuesta a lo largo de ese lado. Por eso un triángulo
- * terminado muestra mostacillas en tres direcciones, y por eso no se puede
- * dibujar con la grilla de filas y columnas del resto de las técnicas.
+ * Eso es importante y cuesta un poco creerlo: **el diagrama de enseñanza y
+ * la pieza real no coinciden**. Los diagramas (los que van paso a paso
+ * mostrando el hilo) dibujan una mostacilla más por lado en cada vuelta y
+ * dejan las vueltas bien separadas, porque si las dibujaran encajadas no se
+ * entendería el recorrido. En la pieza de verdad cada vuelta suma unas dos
+ * por lado: con una sola el triángulo no alcanza a cerrarse y la pieza se
+ * enrosca en vez de quedar plana.
  *
- * El triángulo apunta hacia abajo, como en los gráficos: la fila 0 es la de
- * arriba y la más larga.
+ * La pieza se lee como **tres sectores, uno por lado**. En cada uno las
+ * filas corren paralelas a su lado y la mostacilla va parada cruzada a la
+ * fila, como en cualquier gráfico de peyote; las costuras van de cada punta
+ * al centro. En el mismo centro queda un huequito triangular, el que dejan
+ * las tres mostacillas con que se parte.
  */
 
-/** Los tres sectores, uno por lado del triángulo. */
+/** Los tres sectores, uno por lado. */
 export type TriangleSector = 0 | 1 | 2
 
-/** Una mostacilla: su fila (0 es la de arriba) y su lugar dentro de la fila. */
+/** Una mostacilla: su sector, su vuelta y su lugar en la fila. */
 export interface TriangleBead {
-  row: number
+  sector: TriangleSector
+  /** 1 es la vuelta del centro, la de las tres primeras mostacillas. */
+  round: number
   index: number
 }
 
@@ -31,90 +36,89 @@ export interface TriangleBeadPlacement {
   x: number
   y: number
   /**
-   * Hacia dónde corre la fila, en grados; 0 es horizontal, como las del
-   * sector de arriba. La mostacilla se dibuja parada cruzada a esto.
+   * Hacia dónde corre la fila, en grados. La mostacilla se dibuja parada
+   * cruzada a esto.
    */
   angle: number
   sector: TriangleSector
 }
 
-/** Alto de fila de una retícula triangular, con la mostacilla como unidad. */
-export const ROW_HEIGHT = Math.sqrt(3) / 2
+/**
+ * Distancia entre vueltas, con el ancho de la mostacilla como unidad.
+ *
+ * Medida en su aro: 8 filas para cubrir del borde al centro, y en un
+ * triángulo de lado 17 esa distancia es 17/(2·√3) ≈ 4,9 mostacillas. Da 0,61
+ * — menos de una mostacilla, porque en peyote cada fila se encaja en la
+ * anterior en vez de apoyarse encima.
+ */
+export const ROUND_PITCH = 0.61
 
-/** Cuántas mostacillas lleva una fila: la de arriba es la más larga. */
-export function beadsInRow(side: number, row: number): number {
-  const n = Math.max(0, Math.trunc(side))
-  return Math.max(0, n - Math.trunc(row))
+/**
+ * Cuántas mostacillas lleva un lado en la vuelta `round`.
+ *
+ * A una distancia d del centro, el lado de un triángulo mide 2·√3·d. Con
+ * `d = (round - ½)·ROUND_PITCH` eso da poco más de dos por vuelta, que es lo
+ * que se midió en la pieza. La media vuelta de menos es para que la primera
+ * sean las tres mostacillas del centro y no más.
+ */
+export function beadsInRound(round: number): number {
+  const k = Math.max(0, Math.trunc(round))
+  if (k === 0) return 0
+  return Math.max(1, Math.round(2 * Math.sqrt(3) * (k - 0.5) * ROUND_PITCH))
 }
 
-/** Cuántas mostacillas tiene un triángulo de `side` por lado: 1 + 2 + 3 + … */
-export function triangleBeadCount(side: number): number {
-  const n = Math.max(0, Math.trunc(side))
-  return (n * (n + 1)) / 2
+/** Cuántas mostacillas tiene la pieza entera. */
+export function triangleBeadCount(rounds: number): number {
+  let total = 0
+  for (let k = 1; k <= Math.trunc(rounds); k++) total += 3 * beadsInRound(k)
+  return total
 }
 
-/** Todas las mostacillas, de arriba hacia abajo. */
-export function triangleBeads(side: number): TriangleBead[] {
+/** Cuántas mostacillas tiene el lado de afuera de una pieza de `rounds` vueltas. */
+export function beadsPerSide(rounds: number): number {
+  return beadsInRound(rounds)
+}
+
+/** Todas las mostacillas, en el orden en que se tejen: vuelta por vuelta desde el centro. */
+export function triangleBeads(rounds: number): TriangleBead[] {
   const out: TriangleBead[] = []
-  for (let row = 0; row < Math.trunc(side); row++) {
-    for (let index = 0; index < beadsInRow(side, row); index++) out.push({ row, index })
+  for (let round = 1; round <= Math.trunc(rounds); round++) {
+    const n = beadsInRound(round)
+    for (const sector of [0, 1, 2] as TriangleSector[]) {
+      for (let index = 0; index < n; index++) out.push({ sector, round, index })
+    }
   }
   return out
 }
 
-/**
- * A qué sector pertenece una mostacilla: al del lado que tiene más cerca,
- * contado **en la retícula** y no por ángulo desde el centro.
- *
- * Para una mostacilla, sus distancias a los tres lados suman siempre lo
- * mismo (`side - 1`), así que el lado más cercano parte la pieza en tres
- * sectores exactamente iguales, con los bordes siguiendo las filas de la
- * retícula. Repartir por ángulo —que fue lo primero que hice— deja los
- * bordes dentados y un sector más grande que los otros dos.
- */
-export function triangleSectorOf(bead: TriangleBead, side: number): TriangleSector {
-  const n = Math.trunc(side)
-  // Arriba, izquierda, derecha.
-  const d = [bead.row, bead.index, n - 1 - bead.row - bead.index]
-  const menor = Math.min(d[0], d[1], d[2])
-  const empatados = ([0, 1, 2] as TriangleSector[]).filter((s) => d[s] === menor)
-  if (empatados.length === 1) return empatados[0]
-  if (empatados.length === 3) return 0 // el centro exacto de una pieza chica
-  // Dos empatados, justo en la costura: se elige el anterior del ciclo, que
-  // es la única forma de que girar la pieza un tercio la deje igual.
-  const [a, b] = empatados
-  return (a + 1) % 3 === b ? a : b
-}
-
-function rawPosition(bead: TriangleBead, side: number): { x: number; y: number } {
-  const n = beadsInRow(side, bead.row)
-  return { x: bead.index - (n - 1) / 2, y: bead.row * ROW_HEIGHT }
-}
-
-/** Dónde va una mostacilla y cómo queda parada. */
-export function triangleBeadPlacement(bead: TriangleBead, side: number): TriangleBeadPlacement {
-  const { x, y } = rawPosition(bead, side)
-  const sector = triangleSectorOf(bead, side)
-  // `angle` es hacia dónde corre la fila, no hacia dónde apunta la
-  // mostacilla: la mostacilla va parada cruzada a su fila, como en peyote,
-  // y de eso se encarga quien la dibuja (alta y angosta, girada este
-  // ángulo). En el sector de arriba la fila es horizontal y la mostacilla
-  // queda vertical.
-  return { x, y, angle: sector * 60, sector }
+/** Dónde va una mostacilla y hacia dónde corre su fila. */
+export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement {
+  const { sector, round, index } = bead
+  const n = beadsInRound(round)
+  const along = index - (n - 1) / 2
+  const out = (round - 0.5) * ROUND_PITCH
+  const giro = (sector * 120 * Math.PI) / 180
+  return {
+    x: along * Math.cos(giro) + out * Math.sin(giro),
+    y: along * Math.sin(giro) - out * Math.cos(giro),
+    angle: sector * 120,
+    sector,
+  }
 }
 
 /** Ancho y alto de la pieza, en unidades de mostacilla. */
-export function triangleBoundsUnits(side: number): { width: number; height: number } {
-  const n = Math.max(1, Math.trunc(side))
-  return { width: n, height: (n - 1) * ROW_HEIGHT + 1 }
+export function triangleBoundsUnits(rounds: number): { width: number; height: number } {
+  const n = Math.max(1, Math.trunc(rounds))
+  const lado = beadsInRound(n) + 1
+  return { width: lado, height: lado * (Math.sqrt(3) / 2) }
 }
 
 /** La clave con que se guarda una mostacilla pintada. */
 export function triangleKey(bead: TriangleBead): string {
-  return `${bead.row}:${bead.index}`
+  return `${bead.sector}:${bead.round}:${bead.index}`
 }
 
 export function parseTriangleKey(key: string): TriangleBead {
-  const [row, index] = key.split(':').map(Number)
-  return { row, index }
+  const [sector, round, index] = key.split(':').map(Number)
+  return { sector: sector as TriangleSector, round, index }
 }

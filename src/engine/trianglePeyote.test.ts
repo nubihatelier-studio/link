@@ -1,108 +1,76 @@
 import { describe, expect, it } from 'vitest'
 import {
-  beadsInRow,
+  beadsInRound,
+  beadsPerSide,
   parseTriangleKey,
-  ROW_HEIGHT,
+  ROUND_PITCH,
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
   triangleKey,
-  triangleSectorOf,
 } from './trianglePeyote'
 
-describe('Triángulo de peyote — cuántas mostacillas', () => {
-  it('la fila de arriba es la más larga y van bajando de a una', () => {
-    expect([0, 1, 2, 3].map((r) => beadsInRow(4, r))).toEqual([4, 3, 2, 1])
+describe('Triángulo de peyote — medido contra una pieza terminada', () => {
+  it('parte con las tres mostacillas del centro', () => {
+    expect(beadsInRound(1)).toBe(1)
+    expect(triangleBeads(1)).toHaveLength(3)
   })
 
-  it('el total es la suma de las filas', () => {
-    expect(triangleBeadCount(13)).toBe(91)
-    expect(triangleBeads(13)).toHaveLength(91)
-  })
-})
-
-describe('Triángulo de peyote — la retícula queda pareja, no montada', () => {
-  it('cada mostacilla tiene vecinas a la misma distancia, en tres direcciones', () => {
-    const side = 9
-    const pts = triangleBeads(side).map((b) => triangleBeadPlacement(b, side))
-    const vecinas = (p: { x: number; y: number }) =>
-      pts
-        .map((q) => Math.hypot(q.x - p.x, q.y - p.y))
-        .filter((d) => d > 1e-9)
-        .sort((a, b) => a - b)
-    // Una del medio: sus seis vecinas están todas a una mostacilla de distancia.
-    const medio = triangleBeadPlacement({ row: 4, index: 2 }, side)
-    const seis = vecinas(medio).slice(0, 6)
-    expect(seis.every((d) => Math.abs(d - 1) < 1e-9)).toBe(true)
+  it('a las 8 vueltas el lado tiene lo que tiene su aro: unas 17', () => {
+    expect(beadsPerSide(8)).toBeGreaterThanOrEqual(15)
+    expect(beadsPerSide(8)).toBeLessThanOrEqual(18)
   })
 
-  it('las filas se corren media mostacilla, como en peyote', () => {
-    const a = triangleBeadPlacement({ row: 0, index: 0 }, 5)
-    const b = triangleBeadPlacement({ row: 1, index: 0 }, 5)
-    expect(b.x - a.x).toBeCloseTo(0.5, 10)
-    expect(b.y - a.y).toBeCloseTo(ROW_HEIGHT, 10)
-  })
-})
-
-describe('Triángulo de peyote — los tres sectores', () => {
-  it('los tres quedan del mismo porte', () => {
-    for (const side of [9, 13, 20]) {
-      const cuenta = [0, 0, 0]
-      for (const b of triangleBeads(side)) cuenta[triangleSectorOf(b, side)]++
-      // Se reparten la pieza en tres partes iguales; las costuras pueden
-      // dejar una mostacilla de diferencia en las piezas impares.
-      expect(Math.max(...cuenta) - Math.min(...cuenta)).toBeLessThanOrEqual(side)
-      expect(cuenta[0] + cuenta[1] + cuenta[2]).toBe(triangleBeadCount(side))
+  it('cada vuelta suma unas dos por lado — con una sola la pieza no queda plana', () => {
+    for (const k of [3, 6, 10, 15]) {
+      const suma = beadsInRound(k + 1) - beadsInRound(k)
+      expect(suma).toBeGreaterThanOrEqual(1)
+      expect(suma).toBeLessThanOrEqual(3)
     }
   })
 
-  it('girar la pieza un tercio la deja igual: los sectores rotan, no cambian de porte', () => {
-    const side = 15
+  it('las filas van más juntas que el ancho de una mostacilla: en peyote se encajan', () => {
+    expect(ROUND_PITCH).toBeLessThan(1)
+    expect(ROUND_PITCH).toBeGreaterThan(0.4)
+  })
+})
+
+describe('Triángulo de peyote — los tres lados', () => {
+  it('son iguales', () => {
     const cuenta = [0, 0, 0]
-    for (const b of triangleBeads(side)) cuenta[triangleSectorOf(b, side)]++
+    for (const b of triangleBeads(9)) cuenta[b.sector]++
     expect(cuenta[0]).toBe(cuenta[1])
     expect(cuenta[1]).toBe(cuenta[2])
+    expect(cuenta[0] * 3).toBe(triangleBeadCount(9))
   })
 
-  it('cada fila corre a lo largo del lado que tiene más cerca', () => {
-    const side = 9
-    // Arriba al medio: la fila corre horizontal (y la mostacilla, cruzada, queda vertical).
-    expect(triangleBeadPlacement({ row: 0, index: 4 }, side).angle).toBe(0)
-    // Abajo del todo: la punta, que ya no es del lado de arriba.
-    expect(triangleSectorOf({ row: 8, index: 0 }, side)).not.toBe(0)
-    // Los dos lados de abajo miran para distinto lado.
-    expect(triangleSectorOf({ row: 6, index: 0 }, side)).not.toBe(
-      triangleSectorOf({ row: 6, index: 2 }, side),
-    )
+  it('cada uno corre en su propia dirección, a un tercio de vuelta', () => {
+    expect(triangleBeadPlacement({ sector: 0, round: 4, index: 0 }).angle).toBe(0)
+    expect(triangleBeadPlacement({ sector: 1, round: 4, index: 0 }).angle).toBe(120)
+    expect(triangleBeadPlacement({ sector: 2, round: 4, index: 0 }).angle).toBe(240)
   })
 
-  it('los tres sectores se reparten la pieza', () => {
-    const side = 12
-    const sectores = new Set(triangleBeads(side).map((b) => triangleSectorOf(b, side)))
-    expect(sectores).toEqual(new Set([0, 1, 2]))
+  it('las vueltas se van alejando del centro', () => {
+    const d = (k: number) => {
+      const p = triangleBeadPlacement({ sector: 0, round: k, index: 0 })
+      return Math.hypot(p.x, p.y)
+    }
+    expect(d(1)).toBeLessThan(d(2))
+    expect(d(5)).toBeLessThan(d(6))
+  })
+})
+
+describe('Triángulo de peyote — el huequito del centro', () => {
+  it('las tres primeras dejan un espacio en el medio', () => {
+    const centro = triangleBeads(1).map(triangleBeadPlacement)
+    // Ninguna de las tres cae en el centro: lo rodean.
+    for (const p of centro) expect(Math.hypot(p.x, p.y)).toBeGreaterThan(0.2)
   })
 })
 
 describe('Triángulo de peyote — la clave de una mostacilla', () => {
   it('va y vuelve', () => {
-    expect(parseTriangleKey(triangleKey({ row: 7, index: 3 }))).toEqual({ row: 7, index: 3 })
-  })
-})
-
-describe('Triángulo de peyote — contra la plantilla en blanco de la tejedora', () => {
-  it('los tres lados se llevan la misma cantidad de mostacillas', () => {
-    // En su plantilla, midiendo casilla por casilla: 467, 462 y 469 — iguales
-    // salvo por las que caen justo en una costura.
-    const side = 30
-    const cuenta = [0, 0, 0]
-    for (const b of triangleBeads(side)) cuenta[triangleSectorOf(b, side)]++
-    const total = triangleBeadCount(side)
-    for (const c of cuenta) expect(Math.abs(c - total / 3)).toBeLessThan(total * 0.02)
-  })
-
-  it('las filas de los tres lados corren a 60° una de otra, como se midió ahí', () => {
-    const side = 20
-    const angulos = new Set(triangleBeads(side).map((b) => triangleBeadPlacement(b, side).angle))
-    expect([...angulos].sort((a, b) => a - b)).toEqual([0, 60, 120])
+    const bead = { sector: 1, round: 6, index: 4 } as const
+    expect(parseTriangleKey(triangleKey(bead))).toEqual(bead)
   })
 })
