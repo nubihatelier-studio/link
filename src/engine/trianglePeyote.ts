@@ -1,5 +1,3 @@
-import { PEYOTE_ROW_COMPACTION } from './geometry'
-
 /**
  * Triángulo de peyote plano — la técnica de los aros triangulares.
  *
@@ -48,11 +46,15 @@ export interface TriangleBeadPlacement {
 /**
  * Distancia entre vueltas, con el ancho de la mostacilla como unidad.
  *
- * Es el mismo paso entre filas que la app ya usa para peyote
- * (`geometry.ts#PEYOTE_ROW_COMPACTION`), para que un triángulo se vea con las
- * mismas proporciones que el resto de los patrones y no con unas propias.
+ * Con las mostacillas cada dos columnas (ver `triangleBeadPlacement`), este
+ * paso es el que hace que los tres lados se junten justo: cada uno abre 60°
+ * a cada costado de su bisectriz y entre los tres completan la vuelta. Con
+ * menos se encaraman en las puntas; con más se abren huecos.
+ *
+ * Es también lo que se midió en su plantilla en blanco: las vecinas de cada
+ * mostacilla caen a la misma distancia en tres direcciones a 60°.
  */
-export const ROUND_PITCH = PEYOTE_ROW_COMPACTION
+export const ROUND_PITCH = 1 / Math.sqrt(3)
 
 /**
  * A qué distancia del centro va la primera vuelta, con el ancho de la
@@ -74,6 +76,8 @@ export const HOLE_RADIUS = 0.6
  */
 /** A qué distancia del centro va una vuelta. */
 export function roundDistance(round: number): number {
+  // Un paso por vuelta: la nueva mostacilla queda al lado de la vieja y un
+  // poco más arriba, no una fila entera encima.
   return HOLE_RADIUS + (Math.max(1, Math.trunc(round)) - 1) * ROUND_PITCH
 }
 
@@ -112,18 +116,23 @@ export function triangleBeads(rounds: number): TriangleBead[] {
 /**
  * Dónde va una mostacilla y hacia dónde corre su fila.
  *
- * El punto peyote: dentro de una misma vuelta, **una mostacilla sí y una no
- * va medio paso más afuera**, de modo que cada una queda al lado de su
- * vecina y un poco diferida. Eso es lo que hace que la vuelta siguiente se
- * encaje en los huecos en vez de apoyarse encima, y es el mismo zigzag con
- * que la app dibuja el peyote de siempre (`geometry.ts#cellPosition`).
+ * El punto peyote, dicho como lo dijo la tejedora: **al lado de cada
+ * mostacilla vieja, por la derecha y por la izquierda, va una nueva medio
+ * paso más arriba**. De ahí salen las dos cosas que lo definen:
+ *
+ * - Dentro de una vuelta, las mostacillas van **cada dos columnas**: entre
+ *   una y otra queda el lugar donde encajará la vuelta siguiente.
+ * - Cada vuelta sube **medio paso**, no uno entero.
+ *
+ * Es la misma retícula que la app dibuja para peyote —una columna sí y una
+ * no, media fila corrida— mirada a lo largo del lado.
  */
 export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement {
   const { sector, round, index } = bead
   const n = beadsInRound(round)
-  const along = index - (n - 1) / 2
-  const zigzag = Math.abs(Math.round(along)) % 2 === 1 ? ROUND_PITCH / 2 : 0
-  const out = roundDistance(round) + zigzag
+  // Cada dos columnas, centradas en la bisectriz del lado.
+  const along = (index - (n - 1) / 2) * 2
+  const out = roundDistance(round)
   const giro = (sector * 120 * Math.PI) / 180
   return {
     x: along * Math.cos(giro) + out * Math.sin(giro),
