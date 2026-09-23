@@ -640,13 +640,13 @@ export const t = {
   /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
     title: 'Triángulo de peyote (prueba)',
-    intro: 'Cada lado es su propio tejido de peyote, creciendo desde el centro, y cada vuelta lleva las mostacillas que quepan. Donde se juntan dos lados queda el huequito. Todavía no se puede pintar: esto es sólo para que mires si la forma es la correcta.',
-    rounds: 'Vueltas',
+    intro: 'Una sola retícula pareja, con la mostacilla parada cruzada a su fila. Los tres lados se reparten la pieza y en cada uno la fila corre paralela a ese lado: por eso se ven tres direcciones. Todavía no se puede pintar: esto es sólo para que mires si la forma es la correcta.',
+    side: 'Mostacillas por lado',
     bySector: 'Un color por lado',
-    byRound: 'Un color por vuelta',
-    perSide: 'Mostacillas en el lado de la última vuelta',
+    byRow: 'Un color por fila',
+    perSide: 'Mostacillas por lado',
     total: 'Mostacillas en total',
-    note: 'Como todo gráfico, va dibujado perfecto: en la mano, la tensión del hilo acomoda un poco distinto.',
+    note: 'Medido sobre tu plantilla en blanco: 1.398 casillas, todas a la misma distancia de sus vecinas —19 píxeles, también al cruzar de un lado a otro— y en tres direcciones a 60°. Como todo gráfico, va dibujado perfecto: en la mano la tensión del hilo acomoda un poco distinto.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
