@@ -109,12 +109,21 @@ export function triangleBeads(rounds: number): TriangleBead[] {
   return out
 }
 
-/** Dónde va una mostacilla y hacia dónde corre su fila. */
+/**
+ * Dónde va una mostacilla y hacia dónde corre su fila.
+ *
+ * El punto peyote: dentro de una misma vuelta, **una mostacilla sí y una no
+ * va medio paso más afuera**, de modo que cada una queda al lado de su
+ * vecina y un poco diferida. Eso es lo que hace que la vuelta siguiente se
+ * encaje en los huecos en vez de apoyarse encima, y es el mismo zigzag con
+ * que la app dibuja el peyote de siempre (`geometry.ts#cellPosition`).
+ */
 export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement {
   const { sector, round, index } = bead
   const n = beadsInRound(round)
   const along = index - (n - 1) / 2
-  const out = roundDistance(round)
+  const zigzag = Math.abs(Math.round(along)) % 2 === 1 ? ROUND_PITCH / 2 : 0
+  const out = roundDistance(round) + zigzag
   const giro = (sector * 120 * Math.PI) / 180
   return {
     x: along * Math.cos(giro) + out * Math.sin(giro),
