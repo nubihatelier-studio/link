@@ -59,23 +59,28 @@ export function triangleBeads(side: number): TriangleBead[] {
   return out
 }
 
-/** El centro de la pieza, en unidades de mostacilla. */
-function centre(side: number): { x: number; y: number } {
-  return { x: 0, y: ((side - 1) * ROW_HEIGHT) / 3 }
-}
-
 /**
- * A qué sector pertenece una mostacilla: al del lado que tiene más cerca.
- * Los tres sectores se reparten la pieza desde el centro, y la frontera cae
- * donde en una pieza tejida se juntan dos lados.
+ * A qué sector pertenece una mostacilla: al del lado que tiene más cerca,
+ * contado **en la retícula** y no por ángulo desde el centro.
+ *
+ * Para una mostacilla, sus distancias a los tres lados suman siempre lo
+ * mismo (`side - 1`), así que el lado más cercano parte la pieza en tres
+ * sectores exactamente iguales, con los bordes siguiendo las filas de la
+ * retícula. Repartir por ángulo —que fue lo primero que hice— deja los
+ * bordes dentados y un sector más grande que los otros dos.
  */
 export function triangleSectorOf(bead: TriangleBead, side: number): TriangleSector {
-  const { x, y } = rawPosition(bead, side)
-  const c = centre(side)
-  // 90° es hacia arriba; cada sector se lleva 120° desde ahí.
-  const ang = (Math.atan2(y - c.y, x - c.x) * 180) / Math.PI
-  const from = (((ang + 90 + 60) % 360) + 360) % 360
-  return (Math.floor(from / 120) % 3) as TriangleSector
+  const n = Math.trunc(side)
+  // Arriba, izquierda, derecha.
+  const d = [bead.row, bead.index, n - 1 - bead.row - bead.index]
+  const menor = Math.min(d[0], d[1], d[2])
+  const empatados = ([0, 1, 2] as TriangleSector[]).filter((s) => d[s] === menor)
+  if (empatados.length === 1) return empatados[0]
+  if (empatados.length === 3) return 0 // el centro exacto de una pieza chica
+  // Dos empatados, justo en la costura: se elige el anterior del ciclo, que
+  // es la única forma de que girar la pieza un tercio la deje igual.
+  const [a, b] = empatados
+  return (a + 1) % 3 === b ? a : b
 }
 
 function rawPosition(bead: TriangleBead, side: number): { x: number; y: number } {

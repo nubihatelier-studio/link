@@ -48,10 +48,11 @@ export function TrianglePreviewPage() {
     const cx = size / 2
     const cy = size / 2 - ((side - 1) * ROW_HEIGHT * escala) / 2
 
-    // La mostacilla ocupa su lugar en la retícula: tan ancha como el paso
-    // entre vecinas y tan alta como el paso entre filas, que en una retícula
-    // triangular es menor. Sin esto se pisan de una fila a otra.
-    const m = beadMetrics(escala, escala * ROW_HEIGHT, 0.5, 1.5)
+    // Cuadrada, no rectangular: en esta retícula la mostacilla tiene
+    // vecinas a la misma distancia en tres direcciones, así que una
+    // rectangular se vería de un porte distinto en cada sector al girarla.
+    const lado = escala * ROW_HEIGHT
+    const m = beadMetrics(lado, lado, 0.5, 1.5)
 
     for (const bead of triangleBeads(side)) {
       const { x, y, angle, sector } = triangleBeadPlacement(bead, side)

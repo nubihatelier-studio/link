@@ -45,6 +45,25 @@ describe('Triángulo de peyote — la retícula queda pareja, no montada', () =>
 })
 
 describe('Triángulo de peyote — los tres sectores', () => {
+  it('los tres quedan del mismo porte', () => {
+    for (const side of [9, 13, 20]) {
+      const cuenta = [0, 0, 0]
+      for (const b of triangleBeads(side)) cuenta[triangleSectorOf(b, side)]++
+      // Se reparten la pieza en tres partes iguales; las costuras pueden
+      // dejar una mostacilla de diferencia en las piezas impares.
+      expect(Math.max(...cuenta) - Math.min(...cuenta)).toBeLessThanOrEqual(side)
+      expect(cuenta[0] + cuenta[1] + cuenta[2]).toBe(triangleBeadCount(side))
+    }
+  })
+
+  it('girar la pieza un tercio la deja igual: los sectores rotan, no cambian de porte', () => {
+    const side = 15
+    const cuenta = [0, 0, 0]
+    for (const b of triangleBeads(side)) cuenta[triangleSectorOf(b, side)]++
+    expect(cuenta[0]).toBe(cuenta[1])
+    expect(cuenta[1]).toBe(cuenta[2])
+  })
+
   it('cada mostacilla se acuesta a lo largo del lado que tiene más cerca', () => {
     const side = 9
     // Arriba al medio: sector de arriba, acostada horizontal.
