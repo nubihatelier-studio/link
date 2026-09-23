@@ -640,13 +640,13 @@ export const t = {
   /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
     title: 'Triángulo de peyote (prueba)',
-    intro: 'Así dibujaría la app tu técnica de aros. Las mostacillas quedan parejas, cada una tocando a seis, y acostadas a lo largo del lado que tienen más cerca — por eso se ven tres direcciones en una misma pieza. Todavía no se puede pintar: esto es sólo para que mires si la forma es la correcta.',
-    side: 'Mostacillas por lado',
+    intro: 'Cada lado es su propio tejido de peyote, creciendo desde el centro, y cada vuelta lleva las mostacillas que quepan. Donde se juntan dos lados queda el huequito. Todavía no se puede pintar: esto es sólo para que mires si la forma es la correcta.',
+    rounds: 'Vueltas',
     bySector: 'Un color por lado',
-    byRow: 'Un color por fila',
-    perSide: 'Mostacillas por lado',
+    byRound: 'Un color por vuelta',
+    perSide: 'Mostacillas en el lado de la última vuelta',
     total: 'Mostacillas en total',
-    note: 'Medido sobre tu gráfico: las vecinas de cada mostacilla caen siempre a la misma distancia, en tres direcciones. Como todo gráfico, va dibujado perfecto: en la mano la tensión del hilo acomoda un poco distinto.',
+    note: 'Como todo gráfico, va dibujado perfecto: en la mano, la tensión del hilo acomoda un poco distinto.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',
