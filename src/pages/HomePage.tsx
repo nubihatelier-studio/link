@@ -30,6 +30,14 @@ import { UndoToast } from '@/components/shared/UndoToast'
 /** Colors shown as dots on a card; the rest become "+N". */
 const MAX_CARD_COLORS = 4
 
+/**
+ * A qué pantalla lleva un patrón: el aro triangular tiene la suya, porque no
+ * es una grilla de filas y columnas (ver `engine/trianglePeyote.ts`).
+ */
+function abrir(pattern: PatternDoc): string {
+  return pattern.config.technique === 'triangle' ? `/triangulo/${pattern.id}` : `/editor/${pattern.id}`
+}
+
 export function HomePage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -450,7 +458,10 @@ export function HomePage() {
                     <span className="truncate font-semibold">{p.name}</span>
                   )}
                   <span className="truncate text-xs text-text-muted">
-                    {t.technique[p.config.technique]} · {p.config.cols}×{p.config.rows}
+                    {t.technique[p.config.technique]} ·{' '}
+                    {p.config.technique === 'triangle'
+                      ? t.home.roundCount(p.config.rounds ?? p.config.cols)
+                      : `${p.config.cols}×${p.config.rows}`}
                   </span>
                   {colors.length > 0 && (
                     <span className="flex items-center" aria-label={t.home.colorCount(colors.length)} title={t.home.colorCount(colors.length)}>
@@ -492,7 +503,7 @@ export function HomePage() {
                   <div className="flex min-w-0 flex-1 items-center gap-3">{cardBody}</div>
                 ) : (
                   <button
-                    onClick={() => navigate(`/editor/${id}`)}
+                    onClick={() => navigate(abrir(p))}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                   >
                     {cardBody}

@@ -4,6 +4,7 @@ import { cellPosition, gridBoundsUnits, loopAnchorX, effectiveStaggerPhase } fro
 import { maxFringeLength } from '@/engine/fringe'
 import { parseCellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits } from '@/engine/loop'
+import { triangleBeadPlacement, triangleBeads, triangleBoundsUnits, triangleKey } from '@/engine/trianglePeyote'
 
 interface PatternThumbProps {
   pattern: PatternDoc
@@ -26,6 +27,10 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
     ctx.clearRect(0, 0, size, size)
 
     const { technique, cols, rows } = pattern.config
+    if (technique === 'triangle') {
+      dibujarTriangulo(ctx, pattern, size)
+      return
+    }
     const staggerPhase = effectiveStaggerPhase(pattern.config)
     const { loop } = pattern
     const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(pattern.fringe))
@@ -65,4 +70,28 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
   }, [pattern, size])
 
   return <canvas ref={ref} style={{ width: size, height: size }} className="rounded-lg" />
+}
+
+/**
+ * Miniatura de un aro triangular: no es una grilla, así que se dibuja con su
+ * propio motor (`engine/trianglePeyote.ts`). Las vueltas van en
+ * `config.cols` — ver `PatternConfig.rounds`.
+ */
+function dibujarTriangulo(ctx: CanvasRenderingContext2D, pattern: PatternDoc, size: number) {
+  const rounds = pattern.config.rounds ?? pattern.config.cols
+  const bounds = triangleBoundsUnits(rounds)
+  const escala = (size * 0.94) / Math.max(bounds.width, bounds.height)
+  ctx.fillStyle = 'rgba(127,127,127,0.08)'
+  ctx.fillRect(0, 0, size, size)
+  for (const bead of triangleBeads(rounds)) {
+    const hex = pattern.cells[triangleKey(bead)]
+    if (!hex) continue
+    const { x, y, angle } = triangleBeadPlacement(bead)
+    ctx.save()
+    ctx.translate(size / 2 + x * escala, size / 2 + y * escala)
+    ctx.rotate((angle * Math.PI) / 180)
+    ctx.fillStyle = hex
+    ctx.fillRect(-escala / 2, (-escala * 0.92) / 2, escala, escala * 0.92)
+    ctx.restore()
+  }
 }

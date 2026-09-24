@@ -1,5 +1,18 @@
 import type { LetterAssignment } from './letters'
-export type Technique = 'loom' | 'peyote' | 'brick'
+/**
+ * `triangle` es el aro triangular: no es una grilla de filas y columnas como
+ * las otras tres, sino tres sectores girados (ver `engine/trianglePeyote.ts`).
+ * Por eso lo que vale para un patrón normal —columnas, filas, flecos, forma
+ * del cuerpo— no le aplica, y tiene su propia pantalla para editarlo.
+ */
+export type Technique = 'loom' | 'peyote' | 'brick' | 'triangle'
+
+/** Las tres técnicas que se tejen sobre una grilla de filas y columnas. */
+export type GridTechnique = Exclude<Technique, 'triangle'>
+
+export function isGridTechnique(technique: Technique): technique is GridTechnique {
+  return technique !== 'triangle'
+}
 
 export interface BeadTypeDef {
   id: string
@@ -24,6 +37,8 @@ export interface PatternConfig {
   technique: Technique
   cols: number
   rows: number
+  /** Sólo el aro triangular: cuántas vueltas tiene desde el centro. */
+  rounds?: number
   beadTypeId: string
   /** 0 or 1, defaults to 0 for legacy patterns. See `geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Eraser, Undo2 } from 'lucide-react'
 import {
   beadsPerSide,
@@ -15,39 +15,42 @@ import { contrastTextColor } from '@/lib/color'
 import { describeColor } from '@/lib/colorName'
 import { SliderField } from '@/components/shared/SliderField'
 import { IconButton } from '@/components/shared/IconButton'
+import { usePatternsStore } from '@/store/patternsStore'
+import { InfoScreen } from '@/components/shared/InfoScreen'
 import { t } from '@/i18n/es'
 
 /** Una mostacilla todavía sin pintar. */
 const SIN_PINTAR = '#d7d2ca'
 /** Alto de la mostacilla, en anchos: apenas menor que el ancho, como una Delica. */
 const BEAD_HEIGHT = 0.92
-/** Con qué pintar mientras esto es una prueba: seis colores y la goma. */
+/** Paleta provisoria: seis colores y la goma, hasta que el aro triangular use la bandeja libre. */
 const PALETA = ['#2f6fd0', '#e2b93b', '#8050c0', '#4ab3a5', '#d94f4f', '#faf7f0']
 
-/** Lo pintado: la clave de cada mostacilla con su color. */
-type Pintado = Record<string, string>
-
 /**
- * Prueba del triángulo de peyote: se puede mirar y ahora también pintar.
+ * Editor del aro triangular de peyote, que se teje en vueltas desde el centro.
  *
- * Lo pintado vive sólo acá, en la pantalla: todavía no se guarda ni se
- * exporta. El objetivo de esta etapa es que la tejedora pruebe la técnica
- * con las manos —tocar una mostacilla y verla tomar color— antes de meter
- * la geometría nueva en el editor, la biblioteca y el PDF.
- *
- * No hay link a esta pantalla salvo la tarjeta "Aro triangular" de "Crear
- * patrón", que dice que es una prueba.
+ * Es un patrón de verdad: se crea desde "Crear patrón", lo pintado se guarda
+ * en el patrón (`cells`, con la llave de `triangleKey`) y aparece en la
+ * biblioteca con su miniatura. Todavía le faltan la paleta libre, el PDF y el
+ * modo tejido, así que tiene su propia pantalla en vez del editor de grilla:
+ * acá no hay filas ni columnas, sino tres sectores de 120° —ver
+ * `engine/trianglePeyote.ts`.
  */
 export function TrianglePreviewPage() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [rounds, setRounds] = useState(10)
+  const pattern = usePatternsStore((s) => (id ? s.patterns[id] : undefined))
+  const setCell = usePatternsStore((s) => s.setCell)
+  const setCells = usePatternsStore((s) => s.setCells)
+  const setTriangleRounds = usePatternsStore((s) => s.setTriangleRounds)
   const [color, setColor] = useState(PALETA[0])
   const [borrando, setBorrando] = useState(false)
-  const [pintado, setPintado] = useState<Pintado>({})
   /** Lo pintado antes de cada trazo, para poder deshacerlo entero. */
-  const historia = useRef<Pintado[]>([])
+  const historia = useRef<Record<string, string | undefined>[]>([])
   const pintando = useRef(false)
+  const rounds = pattern?.config.rounds ?? pattern?.config.cols ?? 10
+  const pintado = pattern?.cells ?? {}
   /** Escala y centro del último dibujo: para saber qué mostacilla se tocó. */
   const vista = useRef({ escala: 1, cx: 0, cy: 0 })
 
@@ -97,19 +100,14 @@ export function TrianglePreviewPage() {
       const { escala, cx, cy } = vista.current
       const bead = triangleBeadAt((clientX - rect.left - cx) / escala, (clientY - rect.top - cy) / escala, rounds)
       if (!bead) return
-      const key = triangleKey(bead)
-      setPintado((antes) => {
-        const nuevo = { ...antes }
-        if (borrando) delete nuevo[key]
-        else nuevo[key] = color
-        return nuevo
-      })
+      if (!id) return
+      setCell(id, triangleKey(bead), borrando ? null : color)
     },
-    [borrando, color, rounds],
+    [borrando, color, id, rounds, setCell],
   )
 
   function empezarTrazo(e: React.PointerEvent) {
-    historia.current = [...historia.current, pintado].slice(-30)
+    historia.current = [...historia.current, { ...pintado }].slice(-30)
     pintando.current = true
     try {
       ;(e.target as Element).setPointerCapture(e.pointerId)
@@ -121,18 +119,31 @@ export function TrianglePreviewPage() {
 
   function deshacer() {
     const previo = historia.current.pop()
-    if (previo) setPintado(previo)
+    if (previo && id) setCells(id, previo)
   }
 
-  const pintadas = Object.keys(pintado).length
+  const pintadas = Object.values(pintado).filter(Boolean).length
+
+  if (!id || !pattern || pattern.config.technique !== 'triangle') {
+    return (
+      <InfoScreen
+        title={t.common.patternNotFound}
+        message={t.common.patternNotFoundHint}
+        action={{ label: t.common.goHome, onClick: () => navigate('/') }}
+      />
+    )
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-16 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
       <div className="mb-4 flex items-center gap-2">
-        <button onClick={() => navigate('/new')} aria-label={t.editor.back} className="-ml-2 rounded-full p-2 text-lg hover:bg-surface-2">
+        <button onClick={() => navigate('/')} aria-label={t.editor.back} className="-ml-2 rounded-full p-2 text-lg hover:bg-surface-2">
           ←
         </button>
-        <h1 className="text-xl font-bold">{t.trianglePreview.title}</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold">{pattern.name}</h1>
+          <p className="text-xs text-text-muted">{t.trianglePreview.subtitle}</p>
+        </div>
       </div>
 
       <p className="mb-4 text-sm text-text-muted">{t.trianglePreview.intro}</p>
@@ -175,7 +186,13 @@ export function TrianglePreviewPage() {
       </div>
 
       <div className="mb-4">
-        <SliderField label={t.trianglePreview.rounds} value={rounds} min={1} max={20} onChange={setRounds} />
+        <SliderField
+          label={t.trianglePreview.rounds}
+          value={rounds}
+          min={1}
+          max={20}
+          onChange={(v) => setTriangleRounds(id, v)}
+        />
       </div>
 
       <dl className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-sm">

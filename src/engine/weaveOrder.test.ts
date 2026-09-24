@@ -573,3 +573,9 @@ describe('peyoteThreadPath — el recorrido del hilo', () => {
     }
   })
 })
+
+describe('buildWeaveOrder — el aro triangular', () => {
+  it('devuelve un orden vacío en vez de tirar un error: la biblioteca le pregunta el avance a todos', () => {
+    expect(buildWeaveOrder('triangle', 10, 10)).toEqual([])
+  })
+})

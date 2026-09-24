@@ -439,7 +439,9 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number,
     beadCount(opts.technique, opts.cols, opts.rows, opts.rowShape) +
     totalFringeBeadCount(opts.fringe) +
     loopBeadCount(opts.loop)
-  const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch' }[opts.technique]
+  const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch', triangle: 'Aro triangular' }[
+    opts.technique
+  ]
   // A pair is two earrings of the same size: the size is per earring, the total is the pair's.
   const sizeLabel = `${formatSizeMm(size.widthMm, size.heightMm)}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
   const totalLabel = opts.pair ? t.pdf.pairTotal(total * 2) : `Total: ${total} mostacillas`

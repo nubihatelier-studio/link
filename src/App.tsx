@@ -59,8 +59,8 @@ function App() {
         />
         <Route path="/new" element={<ConfiguratorPage />} />
         <Route path="/new/photo" element={<PhotoToPatternPage />} />
-        {/* Prueba a la vista, sin link en ninguna parte — ver TrianglePreviewPage. */}
-        <Route path="/triangulo" element={<TrianglePreviewPage />} />
+        {/* El aro triangular tiene su propio editor: no es una grilla — ver TrianglePreviewPage. */}
+        <Route path="/triangulo/:id" element={<TrianglePreviewPage />} />
         <Route path="/editor/:id" element={<EditorPage />} />
         <Route path="/editor/:id/weave" element={<WeavePage />} />
         <Route path="*" element={<NotFoundPage />} />

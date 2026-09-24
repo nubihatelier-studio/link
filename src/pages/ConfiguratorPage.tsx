@@ -309,6 +309,17 @@ export function ConfiguratorPage() {
     updateRows(newRows)
   }
 
+  /**
+   * El aro triangular se crea con sus vueltas y se abre en su propia
+   * pantalla: no es una grilla de filas y columnas, así que no pasa por los
+   * pasos de técnica, tamaño y flecos de esta página.
+   */
+  function crearTriangulo() {
+    const vueltas = 10
+    const id = createPattern({ technique: 'triangle', cols: vueltas, rows: vueltas, rounds: vueltas, beadTypeId })
+    navigate(`/triangulo/${id}`)
+  }
+
   function handleCreate() {
     const fringe: FringeData | undefined = fringePreviewLengths
       ? { lengths: fringePreviewLengths, turnBeads: fringePreviewLengths.map((len) => len > 0) }
@@ -354,7 +365,7 @@ export function ConfiguratorPage() {
               {template.id === 'aroFlecos' && (
                 <IconSelectableCard
                   selected={false}
-                  onClick={() => navigate('/triangulo')}
+                  onClick={crearTriangulo}
                   icon={<TemplateIcon templateId="triangulo" className="text-text-muted" />}
                   label={t.configurator.templates.triangulo}
                   description={t.configurator.templates.trianguloDesc}

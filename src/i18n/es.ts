@@ -36,6 +36,8 @@ export const t = {
     cardOptions: (name: string) => `Opciones de ${name}`,
     download: 'Descargar',
     colorCount: (n: number) => (n === 1 ? '1 color' : `${n} colores`),
+    /** El aro triangular no se mide en filas y columnas, sino en vueltas desde el centro. */
+    roundCount: (n: number) => (n === 1 ? '1 vuelta' : `${n} vueltas`),
     unfavorite: (name: string) => `Quitar ${name} de favoritos`,
   },
   /** La barra de abajo de las pantallas principales. */
@@ -68,6 +70,9 @@ export const t = {
     loomDesc: 'Grilla recta, tejido en telar',
     peyoteDesc: 'Filas intercaladas, beads verticales',
     brickDesc: 'Filas escalonadas tipo ladrillo',
+    /** El aro triangular: no es una grilla, son tres sectores — ver engine/trianglePeyote.ts. */
+    triangle: 'Aro triangular',
+    triangleDesc: 'Tres lados que crecen desde el centro',
   },
   configurator: {
     title: 'Crear patrón',
@@ -102,9 +107,9 @@ export const t = {
       title: '1 · Empezar desde una plantilla',
       pulsera: 'Pulsera',
       aroFlecos: 'Aro con flecos',
-      /** Técnica nueva, todavía sin poder pintar — ver TrianglePreviewPage.tsx. */
+      /** Peyote en vueltas desde el centro — ver engine/trianglePeyote.ts. */
       triangulo: 'Aro triangular',
-      trianguloDesc: 'En prueba: sólo para mirar',
+      trianguloDesc: 'Se teje en vueltas desde el centro',
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },
@@ -640,10 +645,11 @@ export const t = {
     protected: 'Almacenamiento protegido',
     atRisk: 'El navegador podría liberar estos datos — descarga un respaldo',
   },
-  /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
+  /** Editor del aro triangular, que se teje en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
-    title: 'Aro triangular (prueba)',
-    intro: 'Elige un color y toca las mostacillas para pintarlas; se puede arrastrar. Sube las vueltas para agrandar la pieza.',
+    title: 'Aro triangular',
+    subtitle: 'Peyote en vueltas desde el centro',
+    intro: 'Elige un color y toca las mostacillas para pintarlas; se puede arrastrar. Sube las vueltas para agrandar la pieza — lo pintado se queda donde está.',
     canvasLabel: 'Triángulo: toca una mostacilla para pintarla',
     rounds: 'Vueltas',
     perSide: 'Mostacillas en el lado de afuera',
@@ -651,7 +657,7 @@ export const t = {
     painted: 'Pintadas',
     erase: 'Borrar',
     undo: 'Deshacer',
-    note: 'Esto todavía es una prueba: lo que pintes acá no se guarda ni sale en el PDF. Sirve para probar la técnica con las manos antes de meterla en el editor de verdad.',
+    note: 'Lo que pintes se guarda con el patrón y aparece en tu biblioteca. Todavía no sale en el PDF ni tiene modo tejido, y la paleta es fija: eso viene después.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

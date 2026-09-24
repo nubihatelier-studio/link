@@ -101,6 +101,12 @@ interface PatternsState {
   /** Makes the pattern an earring pair, changes how its right earring is kept, or (undefined) makes it a single piece again. */
   setPair: (id: string, pair: PairData | undefined) => void
   /**
+   * Sólo el aro triangular: cuántas vueltas tiene. Lo pintado se conserva —
+   * achicar la pieza deja fuera lo que caía en las vueltas que se van, y
+   * agrandarla las devuelve tal como estaban.
+   */
+  setTriangleRounds: (id: string, rounds: number) => void
+  /**
    * The bead the pattern is woven with. Nothing painted changes — the bead
    * only decides how many millimetres the finished piece measures (and which
    * calibration row applies), so this rewrites `config.beadTypeId` alone.
@@ -515,6 +521,20 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       const doc = s.patterns[id]
       if (!doc) return s
       updated = { ...doc, loop, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setTriangleRounds: (id, rounds) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc || doc.config.technique !== 'triangle') return s
+      const n = Math.max(1, Math.trunc(rounds))
+      // `cols`/`rows` van con las vueltas: es de donde las lee todo lo que
+      // cuenta mostacillas sin saber de triángulos (ver `beadCount`).
+      updated = { ...doc, config: { ...doc.config, rounds: n, cols: n, rows: n }, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

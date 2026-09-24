@@ -241,3 +241,41 @@ describe('patternsStore — crear desde una plantilla Nubih', () => {
     expect(usePatternsStore.getState().order).toContain(id)
   })
 })
+
+describe('patternsStore — el aro triangular', () => {
+  beforeEach(() => {
+    adapterError = null
+    fakeAdapter = createFakeAdapter([])
+    vi.resetModules()
+  })
+
+  async function store() {
+    const { usePatternsStore } = await import('./patternsStore')
+    await usePatternsStore.getState().hydrate()
+    return usePatternsStore
+  }
+
+  it('cambiar las vueltas mueve también cols/rows, que es de donde sale el conteo', async () => {
+    const s = await store()
+    const id = s.getState().createPattern({ technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' })
+    s.getState().setTriangleRounds(id, 14)
+    expect(s.getState().patterns[id].config).toMatchObject({ rounds: 14, cols: 14, rows: 14 })
+  })
+
+  it('achicar y volver a agrandar conserva lo pintado', async () => {
+    const s = await store()
+    const id = s.getState().createPattern({ technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' })
+    // La llave es la de `triangleKey`: sector:vuelta:índice.
+    s.getState().setCell(id, '1:9:3', '#2f6fd0')
+    s.getState().setTriangleRounds(id, 4)
+    s.getState().setTriangleRounds(id, 10)
+    expect(s.getState().patterns[id].cells['1:9:3']).toBe('#2f6fd0')
+  })
+
+  it('no toca un patrón que no es triangular', async () => {
+    const s = await store()
+    const id = s.getState().createPattern({ technique: 'loom', cols: 10, rows: 10, beadTypeId: 'delica-11' })
+    s.getState().setTriangleRounds(id, 14)
+    expect(s.getState().patterns[id].config).toMatchObject({ cols: 10, rows: 10 })
+  })
+})

@@ -1,4 +1,5 @@
 import type { BrickDrop, Technique, BeadTypeDef, CellPosition, RowShape } from './types'
+import { triangleBeadCount } from './trianglePeyote'
 import { loopHeightUnits } from './loop'
 import { weaveThreadFactor } from './calibration'
 
@@ -39,6 +40,13 @@ import { weaveThreadFactor } from './calibration'
  *   `calibration.ts#WEAVE_THREAD_FACTOR`).
  */
 
+/**
+ * Paso entre vueltas del aro triangular, en anchos de mostacilla. Con las
+ * mostacillas cada dos columnas dentro de una vuelta, éste es el paso que
+ * hace que los tres lados se junten justo — ver `engine/trianglePeyote.ts`.
+ */
+export const TRIANGLE_ROUND_PITCH = 1 / Math.sqrt(3)
+
 export const PEYOTE_ROW_COMPACTION = 0.75
 export const BRICK_ROW_COMPACTION = 0.85
 
@@ -75,6 +83,9 @@ const BEAD_AXIS_MAP: Record<Technique, { horizontal: 'width' | 'height'; vertica
   loom: { horizontal: 'width', vertical: 'height' },
   peyote: { horizontal: 'height', vertical: 'width' },
   brick: { horizontal: 'width', vertical: 'height' },
+  // El aro triangular acuesta la mostacilla a lo largo de su fila, igual que
+  // peyote; su tamaño en milímetros se calcula aparte (ver trianglePeyote).
+  triangle: { horizontal: 'height', vertical: 'width' },
 }
 
 function beadAxisMm(technique: Technique, axis: 'horizontal' | 'vertical', bead: BeadTypeDef): number {
@@ -127,6 +138,8 @@ function physicalRowPitch(technique: Technique): number {
       return 1
     case 'brick':
       return BRICK_ROW_COMPACTION
+    case 'triangle':
+      return TRIANGLE_ROUND_PITCH
   }
 }
 
@@ -227,6 +240,8 @@ export function rowPitch(technique: Technique): number {
       return PEYOTE_ROW_COMPACTION
     case 'brick':
       return BRICK_ROW_COMPACTION
+    case 'triangle':
+      return TRIANGLE_ROUND_PITCH
   }
 }
 
@@ -280,6 +295,12 @@ export function cellPosition(
       const xOffset = isShiftedRow(row, staggerPhase) ? 0.5 : 0
       return { x: col + xOffset, y: row * pitch }
     }
+    case 'triangle':
+      // El aro triangular no es una grilla de filas y columnas: tiene su
+      // propio motor (`engine/trianglePeyote.ts`) y su propia pantalla. Si
+      // alguien llega acá con un triángulo, es que lo mandó por el camino
+      // equivocado — mejor enterarse ahora que dibujar cualquier cosa.
+      throw new Error('El aro triangular no usa la grilla de filas y columnas')
   }
 }
 
@@ -349,7 +370,10 @@ export function gridBoundsUnits(technique: Technique, cols: number, rows: number
  * simplification. When `rowShape` is given (a shaped brick body), sums each
  * row's own length instead of assuming every row is `cols` wide.
  */
-export function beadCount(_technique: Technique, cols: number, rows: number, rowShape?: RowShape[]): number {
+export function beadCount(technique: Technique, cols: number, rows: number, rowShape?: RowShape[]): number {
+  // El aro triangular no es una grilla: su cuenta sale de las vueltas, que
+  // es lo que guarda en `cols` (ver `PatternConfig.rounds`).
+  if (technique === 'triangle') return triangleBeadCount(cols)
   if (!rowShape) return cols * rows
   let total = 0
   for (let r = 0; r < rows; r++) total += rowShape[r]?.length ?? cols
@@ -439,6 +463,9 @@ export function cellAtPosition(
       const col = Math.floor(xUnits - xOffset)
       return { row, col }
     }
+    case 'triangle':
+      // Ver el comentario en `cellPosition`: el triángulo tiene su propio motor.
+      throw new Error('El aro triangular no usa la grilla de filas y columnas')
   }
 }
 

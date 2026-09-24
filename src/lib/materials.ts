@@ -16,6 +16,9 @@ import { beadCount } from '@/engine/geometry'
  */
 const THREAD_PASSES_PER_BEAD: Record<Technique, number> = {
   loom: 1,
+  // El aro triangular se teje como peyote: el hilo pasa dos veces por cada
+  // mostacilla a medida que las vueltas se traban entre sí.
+  triangle: 2,
   peyote: 2,
   brick: 2,
 }
