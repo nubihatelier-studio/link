@@ -9,6 +9,8 @@ import { t } from '@/i18n/es'
 interface TriangleWeaveCanvasProps {
   rounds: number
   pointingUp: boolean
+  /** Hacia qué lado se da la vuelta — ver `store/editorPrefsStore.ts#triangleWeaveClockwise`. */
+  clockwise: boolean
   cells: ColorMap
   /** Índice del último paso ya tejido; −1 cuando no se ha empezado. */
   currentIndex: number
@@ -40,6 +42,7 @@ const RING_COLOR = '#c9a227'
 export function TriangleWeaveCanvas({
   rounds,
   pointingUp,
+  clockwise,
   cells,
   currentIndex,
   onTapNext,
@@ -50,7 +53,7 @@ export function TriangleWeaveCanvas({
   const [cellPx, setCellPx] = useState(DEFAULT_CELL_PX)
 
   const bounds = useMemo(() => triangleBoundsUnits(rounds, pointingUp), [rounds, pointingUp])
-  const order = useMemo(() => buildTriangleWeaveOrder(rounds), [rounds])
+  const order = useMemo(() => buildTriangleWeaveOrder(rounds, clockwise), [rounds, clockwise])
   const nextStep = order[currentIndex + 1]
   /** El hilo hasta el paso que viene: lo que reemplaza a la flecha. */
   const stops = useMemo(

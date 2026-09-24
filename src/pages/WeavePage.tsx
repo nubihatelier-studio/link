@@ -12,9 +12,12 @@ import {
   jumpTargetToIndex,
   totalBeadCount,
   beadsThrough,
+  triangleStepsToWeaveOrder,
   WEAVE_ORDER_VERSION,
   type JumpTarget,
 } from '@/engine/weaveOrder'
+import { buildTriangleWeaveOrder } from '@/engine/triangleWeave'
+import { useEditorPrefsStore } from '@/store/editorPrefsStore'
 import { loopBeadCount } from '@/engine/loop'
 import { leftPieceOf, piecesOf, rightEarring } from '@/engine/pair'
 import type { EarringSide } from '@/engine/types'
@@ -95,13 +98,24 @@ export function WeavePage() {
   const fringe = useMemo(() => piece?.fringe ?? { lengths: [], turnBeads: [] }, [piece])
   const rowShape = piece?.rowShape
   const loop = piece?.loop
-  const order = useMemo(
-    () =>
-      piece
-        ? buildWeaveOrder(piece.technique, piece.cols, piece.rows, piece.fringe, piece.rowShape, loopBeadCount(piece.loop), piece.staggerPhase)
-        : [],
-    [piece],
-  )
+  /**
+   * Hacia qué lado se da la vuelta al tejer un peyote triangular: una maña de
+   * la mano, no algo del patrón — ver `editorPrefsStore#triangleWeaveClockwise`.
+   */
+  const triangleClockwise = useEditorPrefsStore((st) => st.triangleWeaveClockwise)
+  const setTriangleClockwise = useEditorPrefsStore((st) => st.setTriangleWeaveClockwise)
+  const triangleRounds = pattern?.config.rounds ?? pattern?.config.cols ?? 0
+
+  const order = useMemo(() => {
+    if (!piece) return []
+    // El peyote triangular se puede dar vuelta para un lado o para el otro —
+    // ver `editorPrefsStore#triangleWeaveClockwise`. Son las mismas
+    // mostacillas y los mismos pasos, en el orden espejado.
+    if (piece.technique === 'triangle') {
+      return triangleStepsToWeaveOrder(buildTriangleWeaveOrder(triangleRounds, triangleClockwise))
+    }
+    return buildWeaveOrder(piece.technique, piece.cols, piece.rows, piece.fringe, piece.rowShape, loopBeadCount(piece.loop), piece.staggerPhase)
+  }, [piece, triangleRounds, triangleClockwise])
   const technique = pattern?.config.technique ?? 'loom'
   /**
    * El peyote triangular se teje en vueltas desde el centro: no tiene filas,
@@ -111,7 +125,6 @@ export function WeavePage() {
    * filas. Ver `engine/triangleWeave.ts`.
    */
   const esTriangulo = technique === 'triangle'
-  const vueltas = pattern?.config.rounds ?? pattern?.config.cols ?? 0
   const puntaArriba = pattern?.config.triangleUp ?? false
   /** Brick 2-drop/3-drop weave stacks of rows as one stitch row — see `engine/geometry.ts#BrickStagger`. */
   const drop = piece ? dropOf(piece.staggerPhase) : 1
@@ -299,7 +312,7 @@ export function WeavePage() {
   const currentRowLabel = finished
     ? t.weave.finished
     : esTriangulo
-      ? `${t.weave.roundOf(workingUnit, vueltas)} · ${triangleStepLabel}`
+      ? `${t.weave.roundOf(workingUnit, triangleRounds)} · ${triangleStepLabel}`
       : onLoop
         ? t.weave.loopStepLabel
         : onFringe
@@ -333,7 +346,7 @@ export function WeavePage() {
   const peyotePassCount =
     technique === 'peyote' ? new Set(order.filter((s) => !s.isFringe && !s.isLoop).map((s) => s.unit)).size : 0
   const rowJumpOptions: { target: JumpTarget; label: string }[] = esTriangulo
-    ? Array.from({ length: vueltas }, (_, i) => ({
+    ? Array.from({ length: triangleRounds }, (_, i) => ({
         target: { kind: 'body' as const, index: i + 1 },
         label: `${t.weave.round} ${i + 1}`,
       }))
@@ -438,8 +451,9 @@ export function WeavePage() {
       <div className="relative min-h-0 flex-1">
         {esTriangulo ? (
           <TriangleWeaveCanvas
-            rounds={vueltas}
+            rounds={triangleRounds}
             pointingUp={puntaArriba}
+            clockwise={triangleClockwise}
             cells={piece.cells}
             currentIndex={currentIndex}
             onTapNext={advance}
@@ -504,6 +518,15 @@ export function WeavePage() {
                     ? t.weave.markPassDone
                     : t.weave.markRowDone}
           </button>
+          {esTriangulo && (
+            <button
+              onClick={() => setTriangleClockwise(!triangleClockwise)}
+              title={t.weave.triangleWayHint}
+              className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-surface-3"
+            >
+              {triangleClockwise ? t.weave.triangleWayClockwise : t.weave.triangleWayCounter}
+            </button>
+          )}
           <button
             onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}
             aria-pressed={tapAnywhereToAdvance}

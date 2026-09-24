@@ -586,6 +586,10 @@ export const t = {
     roundOf: (n: number, total: number) => `Vuelta ${n} de ${total}`,
     jumpToRound: 'Ir a la vuelta',
     markRoundDone: 'Marcar vuelta hecha',
+    /** Hacia qué lado se da la vuelta — ver store/editorPrefsStore.ts#triangleWeaveClockwise. */
+    triangleWayClockwise: 'Sentido: como el reloj',
+    triangleWayCounter: 'Sentido: al revés del reloj',
+    triangleWayHint: 'Hacia qué lado das la vuelta al tejer. Se guarda para todos tus patrones. Si lo cambias a mitad de una pieza sigues en la misma vuelta, con la misma cuenta.',
     /** Lo que pide el paso del peyote triangular — ver engine/triangleWeave.ts. */
     triangleStart: 'Las 3 del centro, en aro',
     triangleCorner: 'Toma 2 — es esquina',

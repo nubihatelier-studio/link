@@ -145,3 +145,74 @@ describe('Por dónde pasa la aguja', () => {
     }
   })
 })
+
+describe('El recorrido al revés', () => {
+  const rounds = 7
+  const alReves = buildTriangleWeaveOrder(rounds, false)
+  const comoElReloj = buildTriangleWeaveOrder(rounds, true)
+
+  it('ensarta exactamente las mismas mostacillas, en otro orden', () => {
+    expect(new Set(triangleWeaveKeys(alReves))).toEqual(new Set(triangleWeaveKeys(comoElReloj)))
+    expect(triangleWeaveKeys(alReves)).not.toEqual(triangleWeaveKeys(comoElReloj))
+  })
+
+  it('tiene los mismos pasos y las mismas esquinas: es el mismo tejido al espejo', () => {
+    expect(alReves).toHaveLength(comoElReloj.length)
+    expect(alReves.filter((p) => p.isCorner)).toHaveLength(comoElReloj.filter((p) => p.isCorner).length)
+    for (let round = 2; round <= rounds; round++) {
+      const pasos = alReves.filter((p) => p.round === round)
+      expect(pasos.filter((p) => p.isCorner)).toHaveLength(3)
+      expect(pasos.filter((p) => !p.isCorner)).toHaveLength(3 * (round - 2))
+    }
+  })
+
+  it('sigue arrancando cada vuelta en una esquina', () => {
+    for (let round = 2; round <= rounds; round++) {
+      expect(alReves.find((p) => p.round === round)!.isCorner).toBe(true)
+    }
+  })
+
+  it('las dos de una esquina siguen siendo las que se dan la mano en la costura', () => {
+    const vecinas = triangleNeighbourMap(rounds)
+    for (const paso of alReves.filter((p) => p.isCorner)) {
+      const [a, b] = paso.beads.map(triangleKey)
+      expect(vecinas.get(a)).toContain(b)
+    }
+  })
+
+  it('va para el otro lado: la primera esquina de cada vuelta no es la misma', () => {
+    for (let round = 2; round <= rounds; round++) {
+      const a = alReves.find((p) => p.round === round)!.beads.map(triangleKey)
+      const b = comoElReloj.find((p) => p.round === round)!.beads.map(triangleKey)
+      // Es la misma costura, tomada al revés: misma pareja, otro orden de entrada.
+      expect(new Set(a)).toEqual(new Set(b))
+      expect(a).toEqual([...b].reverse())
+    }
+  })
+
+  it('el hilo aguanta igual: ni salta al aire ni pasa por lo que no está puesto', () => {
+    const vecinas = triangleNeighbourMap(rounds)
+    const camino = triangleThreadPath(alReves, alReves.length - 1)
+    const puestas = new Set<string>()
+    for (let i = 0; i < camino.length; i++) {
+      const llave = triangleKey(camino[i].bead)
+      if (camino[i].kind === 'through') expect(puestas.has(llave), `pasa por ${llave} sin haberla puesto`).toBe(true)
+      else puestas.add(llave)
+      if (i > 0) {
+        const antes = triangleKey(camino[i - 1].bead)
+        expect(vecinas.get(antes), `de ${antes} a ${llave} salta al aire`).toContain(llave)
+      }
+    }
+  })
+
+  it('y sigue pasando por cada mostacilla de la vuelta anterior una sola vez', () => {
+    for (let round = 3; round <= rounds; round++) {
+      const iPrimero = alReves.findIndex((p) => p.round === round)
+      const iUltimo = alReves.map((p) => p.round).lastIndexOf(round)
+      const deEstaVuelta = triangleThreadPath(alReves, iUltimo).filter((p) => p.step >= iPrimero)
+      const pasadas = deEstaVuelta.filter((p) => p.kind === 'through' && p.round === round - 1).map((p) => triangleKey(p.bead))
+      expect(new Set(pasadas).size).toBe(pasadas.length)
+      expect(pasadas).toHaveLength(triangleBeadCount(round - 1) - triangleBeadCount(round - 2))
+    }
+  })
+})

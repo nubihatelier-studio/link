@@ -26,6 +26,14 @@ interface EditorPrefsState {
    */
   panelTab: EditorPanelTab
   setPanelTab: (tab: EditorPanelTab) => void
+  /**
+   * Hacia qué lado se da la vuelta al tejer un peyote triangular. Es una maña
+   * de la mano, no algo del patrón —lo dijo la tejedora: "probablemente sea
+   * una decisión personal"—, así que vive acá y no en el patrón: se elige una
+   * vez y vale para todos.
+   */
+  triangleWeaveClockwise: boolean
+  setTriangleWeaveClockwise: (clockwise: boolean) => void
 }
 
 export const useEditorPrefsStore = create<EditorPrefsState>()(
@@ -35,6 +43,8 @@ export const useEditorPrefsStore = create<EditorPrefsState>()(
       setLetterVisibility: (value) => set({ letterVisibility: value }),
       panelTab: 'colors',
       setPanelTab: (panelTab) => set({ panelTab }),
+      triangleWeaveClockwise: true,
+      setTriangleWeaveClockwise: (triangleWeaveClockwise) => set({ triangleWeaveClockwise }),
       cycleLetterVisibility: () =>
         set((s) => {
           const next = LETTER_VISIBILITY_ORDER.indexOf(s.letterVisibility) + 1

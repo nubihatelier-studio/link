@@ -59,7 +59,7 @@ export type WeaveOrder = WeaveStep[]
  * esquina es un paso `grouped` (dos mostacillas de una vez, como se toman), y
  * las llaves de verdad viajan en `keys`.
  */
-function triangleStepsToWeaveOrder(steps: TriangleWeaveStep[]): WeaveOrder {
+export function triangleStepsToWeaveOrder(steps: TriangleWeaveStep[]): WeaveOrder {
   return steps.map((paso) => ({
     cells: paso.beads.map((_, i) => ({ row: -1, col: i })),
     keys: paso.beads.map(triangleKey),

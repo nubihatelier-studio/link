@@ -12,6 +12,7 @@ function renderCanvas(props: Partial<Parameters<typeof TriangleWeaveCanvas>[0]> 
     <TriangleWeaveCanvas
       rounds={5}
       pointingUp
+      clockwise
       cells={{}}
       currentIndex={-1}
       onTapNext={onTapNext}

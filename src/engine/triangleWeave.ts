@@ -42,34 +42,44 @@ const SECTORS: TriangleSector[] = [0, 1, 2]
  * vuelta k trae 3 esquinas (6 mostacillas) más un hueco menos que la vuelta
  * por cada lado, 3·(k−2), y suma las 3·k que tiene que tener.
  */
-export function buildTriangleWeaveOrder(rounds: number): TriangleWeaveStep[] {
+export function buildTriangleWeaveOrder(rounds: number, clockwise = true): TriangleWeaveStep[] {
   const pasos: TriangleWeaveStep[] = []
   if (rounds < 1) return pasos
 
-  // Las tres del centro van juntas: se ensartan y se cierran en aro.
-  pasos.push({
-    beads: SECTORS.map((sector) => ({ sector, round: 1, index: 0 })),
-    round: 1,
-    isCorner: false,
-  })
+  // Las tres del centro van juntas: se ensartan y se cierran en aro. El orden
+  // entre ellas importa aunque entren de una sola vez: la última es donde
+  // queda la aguja, y tiene que ser la que toca la primera de la vuelta 2. Si
+  // no, al cambiar de sentido el hilo arrancaba cruzando la pieza por el aire.
+  const centro = SECTORS.map((sector) => ({ sector, round: 1, index: 0 }))
+  pasos.push({ beads: clockwise ? centro : [...centro].reverse(), round: 1, isCorner: false })
 
   for (let round = 2; round <= rounds; round++) {
     const n = beadsInRound(round)
-    for (let i = 0; i < SECTORS.length; i++) {
-      // La esquina: la última de un lado y la primera del siguiente.
+    for (let vuelta = 0; vuelta < SECTORS.length; vuelta++) {
+      // Dando la vuelta para un lado o para el otro. Las dos de la esquina son
+      // siempre la misma pareja —la costura entre dos lados—, lo que cambia es
+      // cuál entra primero a la aguja y hacia dónde sigue el recorrido.
+      const i = clockwise ? vuelta : (3 - vuelta) % 3
       const anterior = SECTORS[(i + 2) % 3]
       const actual = SECTORS[i]
       pasos.push({
-        beads: [
-          { sector: anterior, round, index: n - 1 },
-          { sector: actual, round, index: 0 },
-        ],
+        beads: clockwise
+          ? [
+              { sector: anterior, round, index: n - 1 },
+              { sector: actual, round, index: 0 },
+            ]
+          : [
+              { sector: actual, round, index: 0 },
+              { sector: anterior, round, index: n - 1 },
+            ],
         round,
         isCorner: true,
       })
       // El lado: una mostacilla por hueco, entre las de la vuelta anterior.
-      for (let index = 1; index <= n - 2; index++) {
-        pasos.push({ beads: [{ sector: actual, round, index }], round, isCorner: false })
+      const lado = clockwise ? actual : anterior
+      for (let paso = 1; paso <= n - 2; paso++) {
+        const index = clockwise ? paso : n - 1 - paso
+        pasos.push({ beads: [{ sector: lado, round, index }], round, isCorner: false })
       }
     }
   }
@@ -110,15 +120,20 @@ export interface TriangleThreadStop {
  */
 export function triangleThreadPath(order: TriangleWeaveStep[], uptoIndex: number): TriangleThreadStop[] {
   const stops: TriangleThreadStop[] = []
-  let previa: { bead: TriangleBead; step: number } | null = null
+  let previa: TriangleBead | null = null
+  /** La primera que se ensartó en la vuelta en curso: por ahí se sube a la siguiente. */
+  let primeraDeLaVuelta: TriangleBead | null = null
 
   for (let i = 0; i <= uptoIndex && i < order.length; i++) {
     const paso = order[i]
     paso.beads.forEach((bead, enElPaso) => {
-      const puente = enElPaso > 0 ? null : previa ? beadEntreMedio(previa.bead, bead) : null
+      const puente = enElPaso > 0 || !previa ? null : beadEntreMedio(previa, bead, primeraDeLaVuelta)
       if (puente) stops.push({ bead: puente, kind: 'through', step: i, round: puente.round })
       stops.push({ bead, kind: 'new', step: i, round: paso.round })
-      previa = { bead, step: i }
+      // Se anota después de cruzar el puente: al subir de vuelta, el puente es
+      // la primera de la vuelta que *termina*, no la de la que empieza.
+      if (!primeraDeLaVuelta || primeraDeLaVuelta.round !== bead.round) primeraDeLaVuelta = bead
+      previa = bead
     })
   }
   return stops
@@ -129,14 +144,19 @@ export function triangleThreadPath(order: TriangleWeaveStep[], uptoIndex: number
  * `hasta`, o `null` cuando van una tras otra sin nada en medio (las dos de
  * una esquina, y la salida del aro del centro).
  */
-function beadEntreMedio(desde: TriangleBead, hasta: TriangleBead): TriangleBead | null {
+function beadEntreMedio(
+  desde: TriangleBead,
+  hasta: TriangleBead,
+  primeraDeLaVuelta: TriangleBead | null,
+): TriangleBead | null {
   // Dentro de un lado: la de la vuelta anterior, en el hueco entre las dos.
-  if (desde.round === hasta.round && desde.sector === hasta.sector && hasta.index === desde.index + 1) {
-    return { sector: desde.sector, round: desde.round - 1, index: desde.index }
+  // Sirve para los dos sentidos — el hueco es el mismo se venga de donde se venga.
+  if (desde.round === hasta.round && desde.sector === hasta.sector && Math.abs(hasta.index - desde.index) === 1) {
+    return { sector: desde.sector, round: desde.round - 1, index: Math.min(desde.index, hasta.index) }
   }
-  // Al cambiar de vuelta: la primera de la vuelta que termina, que está en la esquina.
-  if (hasta.round === desde.round + 1 && desde.round >= 2) {
-    return { sector: desde.sector, round: desde.round, index: beadsInRound(desde.round) - 1 }
-  }
+  // Al cambiar de vuelta: la primera que se ensartó en la vuelta que termina,
+  // que quedó justo en la esquina. Cuál es depende del sentido, así que se
+  // arrastra desde el recorrido en vez de deducirla de los índices.
+  if (hasta.round === desde.round + 1 && desde.round >= 2) return primeraDeLaVuelta
   return null
 }
