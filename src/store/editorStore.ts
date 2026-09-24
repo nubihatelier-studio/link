@@ -86,6 +86,16 @@ interface EditorState {
   technique: Technique
   cols: number
   rows: number
+  /**
+   * Sólo el aro triangular: cuántas vueltas tiene desde el centro. No hay
+   * filas ni columnas ahí — ver `engine/trianglePeyote.ts`.
+   */
+  rounds: number
+  /**
+   * Cambia las vueltas del aro triangular. No es un paso de deshacer: no se
+   * pierde nada al achicarlo, lo pintado afuera vuelve tal cual al agrandarlo.
+   */
+  setRounds: (rounds: number) => void
   beadTypeId: string
   /**
    * Changes the bead an existing pattern is woven with (see
@@ -366,6 +376,13 @@ interface EditorState {
   renamePattern: (name: string) => void
 
   paintCell: (row: number, col: number, hex: string | null) => void
+  /**
+   * Pinta por llave, sin pasar por filas y columnas: es lo que usa el aro
+   * triangular, cuyas llaves son `engine/trianglePeyote.ts#triangleKey`.
+   */
+  paintKey: (key: string, hex: string | null) => void
+  /** El cuentagotas por llave — el hermano de `pickColor` para el aro triangular. */
+  pickColorKey: (key: string) => void
   paintLine: (r0: number, c0: number, r1: number, c1: number, hex: string | null) => void
   pickColor: (row: number, col: number) => void
   /** Repaints every cell of `fromHex` to `toHex` in one undo step — used by both "fusionar colores" and "reemplazar en todo el patrón". */
@@ -574,8 +591,19 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   technique: 'peyote',
   cols: 20,
   rows: 20,
+  rounds: 0,
   beadTypeId: 'miyuki-delica-11',
   staggerPhase: 0,
+  setRounds: (rounds) => {
+    const { patternId, rounds: current } = get()
+    const n = Math.max(1, Math.trunc(rounds))
+    if (n === current) return
+    // `cols`/`rows` van con las vueltas: es de donde lee todo lo que cuenta
+    // mostacillas sin saber de triángulos (ver `engine/geometry.ts#beadCount`).
+    set({ rounds: n, cols: n, rows: n })
+    if (patternId) usePatternsStore.getState().setTriangleRounds(patternId, n)
+  },
+
   setBeadType: (beadTypeId) => {
     const { beadTypeId: current, patternId } = get()
     if (beadTypeId === current) return
@@ -1085,6 +1113,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       technique: doc.config.technique,
       cols: doc.config.cols,
       rows: doc.config.rows,
+      rounds: doc.config.rounds ?? doc.config.cols,
       beadTypeId: doc.config.beadTypeId,
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),
@@ -1171,14 +1200,23 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   paintCell: (row, col, hex) => {
-    const { cells, cols, rows, fringe, rowShape } = get()
+    const { cols, rows, fringe, rowShape } = get()
     if (!isPaintableCell(row, col, cols, rows, fringe, rowShape)) return
-    const key = cellKey(row, col)
+    get().paintKey(cellKey(row, col), hex)
+  },
+
+  paintKey: (key, hex) => {
+    const { cells } = get()
     if (cells[key] === (hex ?? undefined)) return
     const next = { ...cells }
     if (hex) next[key] = hex
     else delete next[key]
     get().commit(next)
+  },
+
+  pickColorKey: (key) => {
+    const hex = get().cells[key]
+    if (hex) get().chooseColor(hex)
   },
 
   paintLine: (r0, c0, r1, c1, hex) => {

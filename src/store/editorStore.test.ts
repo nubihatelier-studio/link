@@ -965,3 +965,43 @@ describe('editorStore — cambiar tamaño', () => {
     expect(useEditorStore.getState().cols).toBe(4)
   })
 })
+
+describe('editorStore — el aro triangular', () => {
+  const DOC: PatternDoc = {
+    id: 'tri',
+    name: 'Aro triangular',
+    config: { technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' },
+    cells: { '0:3:1': '#111111' },
+    palette: ['#111111', null, null, null, null, null],
+    createdAt: 0,
+    updatedAt: 0,
+  }
+
+  beforeEach(() => {
+    usePatternsStore.setState({ patterns: { tri: DOC }, order: ['tri'] })
+    useEditorStore.getState().loadPattern(DOC)
+  })
+
+  it('al abrirlo trae sus vueltas', () => {
+    expect(useEditorStore.getState().rounds).toBe(10)
+  })
+
+  it('pintar por llave entra en el deshacer, igual que en la grilla', () => {
+    useEditorStore.getState().paintKey('1:4:2', '#222222')
+    expect(useEditorStore.getState().cells['1:4:2']).toBe('#222222')
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().cells['1:4:2']).toBeUndefined()
+  })
+
+  it('el cuentagotas por llave carga el color en la bandeja', () => {
+    useEditorStore.getState().pickColorKey('0:3:1')
+    const { slots, activeSlot } = useEditorStore.getState()
+    expect(slots[activeSlot]).toBe('#111111')
+  })
+
+  it('cambiar las vueltas mueve también cols/rows y queda guardado', () => {
+    useEditorStore.getState().setRounds(14)
+    expect(useEditorStore.getState()).toMatchObject({ rounds: 14, cols: 14, rows: 14 })
+    expect(usePatternsStore.getState().patterns.tri.config.rounds).toBe(14)
+  })
+})
