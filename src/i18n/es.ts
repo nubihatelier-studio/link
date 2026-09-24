@@ -102,6 +102,9 @@ export const t = {
       title: '1 · Empezar desde una plantilla',
       pulsera: 'Pulsera',
       aroFlecos: 'Aro con flecos',
+      /** Técnica nueva, todavía sin poder pintar — ver TrianglePreviewPage.tsx. */
+      triangulo: 'Aro triangular',
+      trianguloDesc: 'En prueba: sólo para mirar',
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },

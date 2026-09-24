@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { BrickDrop, FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
@@ -335,19 +335,32 @@ export function ConfiguratorPage() {
         <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.templates.title}</h2>
         <div className="grid grid-cols-3 gap-3">
           {TEMPLATES.map((template) => (
-            <IconSelectableCard
-              key={template.id}
-              selected={selectedTemplate === template.id}
-              onClick={() => applyTemplate(template)}
-              icon={
-                <TemplateIcon
-                  templateId={template.id}
-                  className={selectedTemplate === template.id ? 'text-accent-500' : 'text-text-muted'}
+            <Fragment key={template.id}>
+              <IconSelectableCard
+                selected={selectedTemplate === template.id}
+                onClick={() => applyTemplate(template)}
+                icon={
+                  <TemplateIcon
+                    templateId={template.id}
+                    className={selectedTemplate === template.id ? 'text-accent-500' : 'text-text-muted'}
+                  />
+                }
+                label={template.label}
+                description={template.description}
+              />
+              {/* Va aquí, al lado del aro con flecos, porque es la otra pieza
+                  de aro. Todavía no se puede pintar: por ahora lleva a la
+                  pantalla donde se mira cómo queda (TrianglePreviewPage). */}
+              {template.id === 'aroFlecos' && (
+                <IconSelectableCard
+                  selected={false}
+                  onClick={() => navigate('/triangulo')}
+                  icon={<TemplateIcon templateId="triangulo" className="text-text-muted" />}
+                  label={t.configurator.templates.triangulo}
+                  description={t.configurator.templates.trianguloDesc}
                 />
-              }
-              label={template.label}
-              description={template.description}
-            />
+              )}
+            </Fragment>
           ))}
         </div>
       </section>

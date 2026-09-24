@@ -1,4 +1,5 @@
-export type TemplateId = 'pulsera' | 'aroFlecos' | 'personalizado'
+import type { ReactElement } from 'react'
+export type TemplateId = 'pulsera' | 'aroFlecos' | 'triangulo' | 'personalizado'
 
 interface TemplateIconProps {
   templateId: TemplateId
@@ -18,6 +19,8 @@ export function TemplateIcon({ templateId, size = 40, className }: TemplateIconP
       return <PulseraIcon size={size} className={className} />
     case 'aroFlecos':
       return <AroFlecosIcon size={size} className={className} />
+    case 'triangulo':
+      return <TrianguloIcon size={size} className={className} />
     case 'personalizado':
       return <PersonalizadoIcon size={size} className={className} />
   }
@@ -107,6 +110,34 @@ function PersonalizadoIcon({ size = 40, className }: IconProps) {
       <rect x={9} y={9} width={30} height={30} rx={5} ry={5} fill="none" stroke="currentColor" strokeWidth={1.6} />
       <line x1={24} y1={17} x2={24} y2={31} stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
       <line x1={17} y1={24} x2={31} y2={24} stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Aro triangular — las mostacillas de las tres vueltas del comienzo, cada
+ * una acostada a lo largo de su lado y rodeando el triangulito hueco del
+ * medio: lo que distingue a esta técnica de un triángulo cualquiera.
+ */
+function TrianguloIcon({ size = 40, className }: IconProps) {
+  // Tres lados, girados un tercio de vuelta cada uno, con dos vueltas.
+  const beads: ReactElement[] = []
+  const centro = 24
+  for (let vuelta = 1; vuelta <= 2; vuelta++) {
+    const fuera = 6 + (vuelta - 1) * 7
+    for (let lado = 0; lado < 3; lado++) {
+      const giro = (lado * 120 * Math.PI) / 180
+      for (let i = 0; i < vuelta; i++) {
+        const along = (i - (vuelta - 1) / 2) * 8
+        const x = centro + along * Math.cos(giro) + fuera * Math.sin(giro)
+        const y = centro + along * Math.sin(giro) - fuera * Math.cos(giro)
+        beads.push(bead(x, y, 6.4, `${vuelta}-${lado}-${i}`))
+      }
+    }
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden>
+      {beads}
     </svg>
   )
 }
