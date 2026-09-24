@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FringeData } from './types'
+import { buildWeaveOrder } from './weaveOrder'
 import { pickMostRecentInProgress, summarizeWeaveProgress } from './weaveProgressSummary'
 
 describe('summarizeWeaveProgress', () => {
@@ -16,6 +17,7 @@ describe('summarizeWeaveProgress', () => {
       isFringe: false,
       isLoop: false,
       isPass: false,
+      isRound: false,
     })
     // Last cell (row 1, col 2) — final index of 6 total.
     expect(summarizeWeaveProgress(config, 5)).toEqual({
@@ -25,6 +27,7 @@ describe('summarizeWeaveProgress', () => {
       isFringe: false,
       isLoop: false,
       isPass: false,
+      isRound: false,
     })
   })
 
@@ -39,6 +42,7 @@ describe('summarizeWeaveProgress', () => {
       isFringe: false,
       isLoop: false,
       isPass: true,
+      isRound: false,
     })
     expect(summarizeWeaveProgress(config, 5)).toEqual({
       unitIndex: 4,
@@ -47,6 +51,7 @@ describe('summarizeWeaveProgress', () => {
       isFringe: false,
       isLoop: false,
       isPass: true,
+      isRound: false,
     })
   })
 
@@ -67,6 +72,7 @@ describe('summarizeWeaveProgress', () => {
       isFringe: false,
       isLoop: false,
       isPass: false,
+      isRound: false,
     })
   })
 
@@ -83,7 +89,7 @@ describe('summarizeWeaveProgress', () => {
       const config = { technique: 'brick' as const, cols: 2, rows: 2, beadTypeId: 'x' }
       const fringe: FringeData = { lengths: [2, 0], turnBeads: [false, false] }
       const summary = summarizeWeaveProgress(config, 4, fringe) // index 4 = first fringe bead
-      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, isLoop: false, isPass: false })
+      expect(summary).toEqual({ unitIndex: 1, unitCount: 2, percent: 83, isFringe: true, isLoop: false, isPass: false, isRound: false })
     })
   })
 
@@ -128,5 +134,23 @@ describe('pickMostRecentInProgress', () => {
       p3: { currentIndex: -1, updatedAt: 500 }, // not started — ignored despite being "most recent"
     }
     expect(pickMostRecentInProgress(progress)).toBe('p2')
+  })
+})
+
+describe('summarizeWeaveProgress — el peyote triangular', () => {
+  const config = { technique: 'triangle' as const, cols: 6, rows: 6, rounds: 6, beadTypeId: 'delica-11' }
+
+  it('cuenta vueltas, no filas', () => {
+    // El primer paso son las tres del centro: vuelta 1 de 6.
+    expect(summarizeWeaveProgress(config, 0)).toMatchObject({ unitIndex: 0, unitCount: 6, isRound: true, isPass: false })
+  })
+
+  it('el porcentaje va por mostacillas ensartadas, y llega a 100 al final', () => {
+    const orden = buildWeaveOrder('triangle', 6, 6)
+    expect(summarizeWeaveProgress(config, orden.length - 1)!.percent).toBe(100)
+  })
+
+  it('sin empezar no hay nada que resumir', () => {
+    expect(summarizeWeaveProgress(config, -1)).toBeNull()
   })
 })

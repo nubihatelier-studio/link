@@ -24,6 +24,7 @@ import { buildWordChart, wordChartRuns } from '@/engine/wordChart'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { t } from '@/i18n/es'
 import { WeaveCanvas } from '@/components/weave/WeaveCanvas'
+import { TriangleWeaveCanvas } from '@/components/weave/TriangleWeaveCanvas'
 import { WeaveSequence } from '@/components/weave/WeaveSequence'
 import { Button } from '@/components/shared/Button'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
@@ -102,6 +103,16 @@ export function WeavePage() {
     [piece],
   )
   const technique = pattern?.config.technique ?? 'loom'
+  /**
+   * El peyote triangular se teje en vueltas desde el centro: no tiene filas,
+   * ni fleco, ni argolla, ni par, ni dirección de la aguja a lo largo de una
+   * fila. Comparte toda esta pantalla —el avance, el hilo, la vuelta que
+   * viene, terminar— y cambia sólo el lienzo y las palabras que hablan de
+   * filas. Ver `engine/triangleWeave.ts`.
+   */
+  const esTriangulo = technique === 'triangle'
+  const vueltas = pattern?.config.rounds ?? pattern?.config.cols ?? 0
+  const puntaArriba = pattern?.config.triangleUp ?? false
   /** Brick 2-drop/3-drop weave stacks of rows as one stitch row — see `engine/geometry.ts#BrickStagger`. */
   const drop = piece ? dropOf(piece.staggerPhase) : 1
   const orderVersion = WEAVE_ORDER_VERSION[technique]
@@ -137,7 +148,10 @@ export function WeavePage() {
   )
   const hexForLetter = useMemo(() => new Map(letterEntries.map((e) => [e.letter, e.hex])), [letterEntries])
   const wordChartLines = useMemo(() => {
-    if (!left || !piece) return []
+    // El peyote triangular no tiene gráfico en palabras: `wordChart.ts` lee
+    // filas y columnas, y acá no las hay. Lo que la vuelta pide se dice en el
+    // encabezado ("Vuelta 4 · Toma 2 — es esquina").
+    if (!left || !piece || piece.technique === 'triangle') return []
     const letterForHex = new Map(letterEntries.map((e) => [e.hex, e.letter]))
     return buildWordChart(
       piece.technique,
@@ -270,19 +284,33 @@ export function WeavePage() {
   // Peyote counts passes, but the ruler beside the chart counts drawn rows —
   // so the label names both, and the canvas lights up that row's number.
   const workingRow = workingStep && !workingStep.isLoop ? workingStep.cells[0].row : null
+  /**
+   * Qué pide el paso en el peyote triangular: las tres del centro se ensartan
+   * juntas y se cierran en aro, las esquinas van de a dos, y el resto de a
+   * una. Se dice arriba porque es la instrucción entera de ese paso.
+   */
+  const triangleStepLabel =
+    workingStep?.unit === 1
+      ? t.weave.triangleStart
+      : workingStep?.grouped
+        ? t.weave.triangleCorner
+        : t.weave.triangleOne
+
   const currentRowLabel = finished
     ? t.weave.finished
-    : onLoop
-      ? t.weave.loopStepLabel
-      : onFringe
-        ? t.weave.fringeColumnHeader(workingStep!.unit + 1)
-        : workingStep?.isBaseRow
-          ? t.weave.baseRow
-          : technique === 'peyote' && workingRow !== null
-            ? `${t.weave.pass} ${workingUnit + 1} · ${t.weave.chartRow(workingRow + 1)}`
-            : stitchRowLabel(workingUnit)
+    : esTriangulo
+      ? `${t.weave.roundOf(workingUnit, vueltas)} · ${triangleStepLabel}`
+      : onLoop
+        ? t.weave.loopStepLabel
+        : onFringe
+          ? t.weave.fringeColumnHeader(workingStep!.unit + 1)
+          : workingStep?.isBaseRow
+            ? t.weave.baseRow
+            : technique === 'peyote' && workingRow !== null
+              ? `${t.weave.pass} ${workingUnit + 1} · ${t.weave.chartRow(workingRow + 1)}`
+              : stitchRowLabel(workingUnit)
   // A discreet direction indicator — which way the needle moves along the row being worked (meaningless for fringe steps, which hang straight down).
-  const directionArrow = !finished && !onFringe && !onLoop && workingStep ? (workingStep.direction === 'ltr' ? '→' : '←') : null
+  const directionArrow = !finished && !esTriangulo && !onFringe && !onLoop && workingStep ? (workingStep.direction === 'ltr' ? '→' : '←') : null
   const directionLabel = workingStep?.direction === 'ltr' ? t.weave.directionLtr : t.weave.directionRtl
   const currentLine = onLoop
     ? wordChartLines.find((l) => l.isLoop)
@@ -304,8 +332,12 @@ export function WeavePage() {
   // its numeric slot but reads "Fila base".
   const peyotePassCount =
     technique === 'peyote' ? new Set(order.filter((s) => !s.isFringe && !s.isLoop).map((s) => s.unit)).size : 0
-  const rowJumpOptions: { target: JumpTarget; label: string }[] =
-    technique === 'peyote'
+  const rowJumpOptions: { target: JumpTarget; label: string }[] = esTriangulo
+    ? Array.from({ length: vueltas }, (_, i) => ({
+        target: { kind: 'body' as const, index: i + 1 },
+        label: `${t.weave.round} ${i + 1}`,
+      }))
+    : technique === 'peyote'
       ? Array.from({ length: peyotePassCount }, (_, i) => ({
           target: { kind: 'body' as const, index: i },
           label: `${t.weave.pass} ${i + 1}`,
@@ -404,6 +436,16 @@ export function WeavePage() {
       )}
 
       <div className="relative min-h-0 flex-1">
+        {esTriangulo ? (
+          <TriangleWeaveCanvas
+            rounds={vueltas}
+            pointingUp={puntaArriba}
+            cells={piece.cells}
+            currentIndex={currentIndex}
+            onTapNext={advance}
+            tapAnywhere={tapAnywhereToAdvance}
+          />
+        ) : (
         <WeaveCanvas
           technique={piece.technique}
           cols={piece.cols}
@@ -420,12 +462,19 @@ export function WeavePage() {
           loop={loop}
           activeRow={finished ? null : workingRow}
         />
+        )}
       </div>
 
       <footer className="flex flex-col gap-3 border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <label className="text-xs text-text-muted">
-            {fringeColumns.length > 0 ? t.weave.jumpTo : technique === 'peyote' ? t.weave.jumpToPass : t.weave.jumpToRow}
+            {esTriangulo
+              ? t.weave.jumpToRound
+              : fringeColumns.length > 0
+                ? t.weave.jumpTo
+                : technique === 'peyote'
+                  ? t.weave.jumpToPass
+                  : t.weave.jumpToRow}
           </label>
           <select
             className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm"
@@ -445,13 +494,15 @@ export function WeavePage() {
             {onLoop && <option value={LOOP_JUMP_VALUE}>{t.weave.loopStepLabel}</option>}
           </select>
           <button onClick={markUnitDone} className="rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold hover:bg-surface-3">
-            {onLoop
-              ? t.weave.markLoopDone
-              : onFringe
-                ? t.weave.markFringeDone
-                : technique === 'peyote'
-                  ? t.weave.markPassDone
-                  : t.weave.markRowDone}
+            {esTriangulo
+              ? t.weave.markRoundDone
+              : onLoop
+                ? t.weave.markLoopDone
+                : onFringe
+                  ? t.weave.markFringeDone
+                  : technique === 'peyote'
+                    ? t.weave.markPassDone
+                    : t.weave.markRowDone}
           </button>
           <button
             onClick={() => setTapAnywhereToAdvance(!tapAnywhereToAdvance)}

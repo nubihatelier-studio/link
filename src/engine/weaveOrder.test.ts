@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FringeData } from './types'
 import { rowPitch } from './geometry'
+import { triangleBeadCount } from './trianglePeyote'
 import { createShapedRowShape } from './shape'
 import {
   WEAVE_ORDER_VERSION,
@@ -575,7 +576,22 @@ describe('peyoteThreadPath — el recorrido del hilo', () => {
 })
 
 describe('buildWeaveOrder — el peyote triangular', () => {
-  it('devuelve un orden vacío en vez de tirar un error: la biblioteca le pregunta el avance a todos', () => {
-    expect(buildWeaveOrder('triangle', 10, 10)).toEqual([])
+  it('trae el orden de vueltas de `engine/triangleWeave.ts`, hablado en pasos', () => {
+    const orden = buildWeaveOrder('triangle', 4, 4)
+    expect(totalBeadCount(orden)).toBe(triangleBeadCount(4))
+    // Las llaves de verdad viajan aparte: acá no hay filas ni columnas.
+    expect(orden[0].keys).toEqual(['0:1:0', '1:1:0', '2:1:0'])
+    expect(orden.every((paso) => paso.cells.length === paso.keys!.length)).toBe(true)
+  })
+
+  it('la vuelta es la unidad, y la esquina es un paso de dos', () => {
+    const orden = buildWeaveOrder('triangle', 4, 4)
+    expect(orden.map((p) => p.unit)).toEqual([...orden.map((p) => p.unit)].sort((a, b) => a - b))
+    const deLaTres = orden.filter((p) => p.unit === 3)
+    expect(deLaTres.filter((p) => p.grouped)).toHaveLength(3)
+  })
+
+  it('una pieza sin vueltas no tiene nada que tejer', () => {
+    expect(buildWeaveOrder('triangle', 0, 0)).toEqual([])
   })
 })

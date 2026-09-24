@@ -579,6 +579,17 @@ export const t = {
   },
   weave: {
     title: 'Modo tejido',
+    /** El lienzo del peyote triangular en modo tejido — ver TriangleWeaveCanvas. */
+    triangleCanvasLabel: 'El triángulo, con la mostacilla que toca ahora marcada',
+    /** La vuelta del peyote triangular ocupa el lugar que en la grilla tiene la fila. */
+    round: 'Vuelta',
+    roundOf: (n: number, total: number) => `Vuelta ${n} de ${total}`,
+    jumpToRound: 'Ir a la vuelta',
+    markRoundDone: 'Marcar vuelta hecha',
+    /** Lo que pide el paso del peyote triangular — ver engine/triangleWeave.ts. */
+    triangleStart: 'Las 3 del centro, en aro',
+    triangleCorner: 'Toma 2 — es esquina',
+    triangleOne: 'Toma 1',
     row: 'Fila',
     /** Una fila de puntadas en brick 2-drop o 3-drop: varias filas dibujadas que se tejen juntas. */
     rows: (from: number, to: number) => (from === to ? `Fila ${from}` : `Filas ${from}–${to}`),

@@ -18,6 +18,11 @@ export interface WeaveProgressSummary {
    * `weaveOrder.ts#buildPeyoteOrder`), so callers should read "Pasada X de Y".
    */
   isPass: boolean
+  /**
+   * True para el peyote triangular: lo que se cuenta son vueltas desde el
+   * centro, así que quien muestre esto tiene que decir "Vuelta X de Y".
+   */
+  isRound: boolean
 }
 
 /**
@@ -45,6 +50,20 @@ export function summarizeWeaveProgress(
   const step = order[clampedIndex]
   const isFringe = isFringeStep(step)
   const isPass = technique === 'peyote'
+  const isRound = technique === 'triangle'
+  if (isRound) {
+    // Las vueltas se numeran desde 1 y `unit` ya es la vuelta — ver
+    // `engine/triangleWeave.ts`.
+    return {
+      unitIndex: step.unit - 1,
+      unitCount: config.rounds ?? cols,
+      percent: Math.round((beadsThrough(order, clampedIndex) / totalBeadCount(order)) * 100),
+      isFringe: false,
+      isLoop: false,
+      isPass: false,
+      isRound: true,
+    }
+  }
   // Peyote's units are passes, and how many there are follows from the order
   // itself (the foundation is one, then two per grid row) — not from `rows`.
   const unitCount = isPass
@@ -53,7 +72,7 @@ export function summarizeWeaveProgress(
   const unitIndex = isFringe ? unitCount - 1 : step.unit
   const percent = Math.round((beadsThrough(order, clampedIndex) / totalBeadCount(order)) * 100)
 
-  return { unitIndex, unitCount, percent, isFringe, isLoop: step.isLoop === true, isPass }
+  return { unitIndex, unitCount, percent, isFringe, isLoop: step.isLoop === true, isPass, isRound: false }
 }
 
 /**

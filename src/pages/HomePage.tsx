@@ -345,7 +345,7 @@ export function HomePage() {
                 ? t.weave.fringeUnitLabel
                 : heroSummary.isLoop
                   ? t.weave.loopStepLabel
-                  : `${heroSummary.isPass ? t.weave.pass : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
+                  : `${heroSummary.isRound ? t.weave.round : heroSummary.isPass ? t.weave.pass : t.weave.row} ${heroSummary.unitIndex + 1} ${t.weave.of} ${heroSummary.unitCount}`}{' '}
               · {heroSummary.percent}%
             </p>
           </div>

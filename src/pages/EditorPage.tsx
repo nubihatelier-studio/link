@@ -407,14 +407,12 @@ export function EditorPage() {
             {beadsLabel}
           </p>
         </div>
-        {!esTriangulo && (
-          <button
-            onClick={() => navigate(`/editor/${id}/weave`)}
-            className="hidden rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold hover:bg-surface-3 sm:block"
-          >
-            {t.editor.weaveMode}
-          </button>
-        )}
+        <button
+          onClick={() => navigate(`/editor/${id}/weave`)}
+          className="hidden rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold hover:bg-surface-3 sm:block"
+        >
+          {t.editor.weaveMode}
+        </button>
         <button
           onClick={handleBackupPattern}
           aria-label={t.backup.exportPattern}
@@ -641,14 +639,12 @@ export function EditorPage() {
               </button>
             )}
           </div>
-          {!esTriangulo && (
-            <button
-              onClick={() => navigate(`/editor/${id}/weave`)}
-              className="shrink-0 whitespace-nowrap rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
-            >
-              {t.editor.weaveMode}
-            </button>
-          )}
+          <button
+            onClick={() => navigate(`/editor/${id}/weave`)}
+            className="shrink-0 whitespace-nowrap rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
+          >
+            {t.editor.weaveMode}
+          </button>
         </div>
         <div className="flex items-center gap-1">
           {/* `w-max mx-auto` rather than `justify-center`: a centred row that

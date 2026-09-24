@@ -1,5 +1,7 @@
 import type { Cell, FringeData, RowShape, Technique } from './types'
 import { cellPosition, dropOf, type StaggerPhase } from './geometry'
+import { buildTriangleWeaveOrder, type TriangleWeaveStep } from './triangleWeave'
+import { triangleKey } from './trianglePeyote'
 
 export type WeaveDirection = 'ltr' | 'rtl'
 
@@ -16,6 +18,16 @@ export type WeaveDirection = 'ltr' | 'rtl'
 export interface WeaveStep {
   /** The physical cell(s) this step strings, in stringing order. */
   cells: Cell[]
+  /**
+   * Las llaves de lo que ensarta este paso, cuando la pieza no se direcciona
+   * por fila y columna: el peyote triangular guarda sus mostacillas por
+   * sector, vuelta e índice (ver `engine/trianglePeyote.ts#triangleKey`).
+   *
+   * En esos pasos `cells` lleva `row: -1` —nunca una fila de verdad, la misma
+   * convención que usa la argolla— y está sólo para contar: `totalBeadCount`
+   * y `beadsThrough` cuentan mostacillas y no les importa dónde están.
+   */
+  keys?: string[]
   unit: number
   /** Which way the needle moves along this step's row — meaningless for fringe/grouped steps. */
   direction: WeaveDirection
@@ -40,6 +52,22 @@ export interface WeaveStep {
 }
 
 export type WeaveOrder = WeaveStep[]
+
+/**
+ * El orden del peyote triangular, hablado en `WeaveStep` para que el modo
+ * tejido no tenga que saber de qué técnica viene: la vuelta es la `unit`, la
+ * esquina es un paso `grouped` (dos mostacillas de una vez, como se toman), y
+ * las llaves de verdad viajan en `keys`.
+ */
+function triangleStepsToWeaveOrder(steps: TriangleWeaveStep[]): WeaveOrder {
+  return steps.map((paso) => ({
+    cells: paso.beads.map((_, i) => ({ row: -1, col: i })),
+    keys: paso.beads.map(triangleKey),
+    unit: paso.round,
+    direction: 'ltr' as const,
+    grouped: paso.beads.length > 1,
+  }))
+}
 
 export function isFringeStep(step: WeaveStep): boolean {
   return step.isFringe === true
@@ -67,8 +95,8 @@ export function beadsThrough(order: WeaveOrder, index: number): number {
  */
 export const WEAVE_ORDER_VERSION: Record<Technique, number> = {
   loom: 1,
-  // El peyote triangular todavía no tiene modo tejido: cuando lo tenga, parte
-  // en 1 porque no hay progreso guardado que invalidar.
+  // El peyote triangular estrena modo tejido en la 1: no hay progreso
+  // guardado de antes que invalidar.
   triangle: 1,
   // 3: el cuerpo se teje de arriba hacia abajo. Antes partía por la fila más
   //    ancha y subía hasta la punta, así que un índice guardado apunta a otra
@@ -333,12 +361,10 @@ export function buildWeaveOrder(
     case 'peyote':
       return appendLoopStep(buildPeyoteOrder(cols, rows), loopBeadCount)
     case 'triangle':
-      // El peyote triangular todavía no tiene modo tejido: se teje en vueltas
-      // desde el centro, no por filas (ver engine/trianglePeyote.ts). Se
-      // devuelve un orden vacío, que es lo que significa "sin progreso": la
-      // biblioteca pregunta por el avance de cualquier patrón, así que tirar
-      // un error acá tumbaba la app entera al crear uno.
-      return []
+      // Se teje en vueltas desde el centro, no por filas: el orden lo arma
+      // `engine/triangleWeave.ts`, que es donde están las reglas que dictó la
+      // tejedora. `cols` lleva las vueltas — ver `patternsStore#setTriangleRounds`.
+      return triangleStepsToWeaveOrder(buildTriangleWeaveOrder(cols))
   }
 }
 
