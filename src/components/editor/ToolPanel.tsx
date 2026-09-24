@@ -38,7 +38,7 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
 ]
 
 /** Las que sí tienen sentido en el aro triangular — ver el comentario en `ToolPanel`. */
-const TRIANGLE_TOOLS: Tool[] = ['pencil', 'eraser', 'eyedropper']
+const TRIANGLE_TOOLS: Tool[] = ['pencil', 'fill', 'eraser', 'eyedropper']
 
 interface ToolPanelProps {
   orientation?: 'vertical' | 'horizontal'
@@ -49,10 +49,12 @@ interface ToolPanelProps {
 export function ToolPanel({ orientation = 'vertical', showHistory = true }: ToolPanelProps) {
   /**
    * El aro triangular no tiene filas ni columnas, así que no hay rectángulo
-   * que marcar, ni copiar, pegar, clonar, reflejar, borrar área, ni línea
-   * recta o balde, que necesitan vecinos en la grilla. Se esconden en vez de
-   * dejarlas puestas y rotas: quedan el lápiz, la goma, el cuentagotas y la
-   * mano. Ver `engine/trianglePeyote.ts`.
+   * que marcar, ni copiar, pegar, clonar, reflejar, borrar área o línea
+   * recta. Se esconden en vez de dejarlas puestas y rotas: quedan el lápiz,
+   * el balde, la goma, el cuentagotas y la mano. El balde sí funciona, con
+   * las vecinas que de verdad se tocan —costuras incluidas, porque los tres
+   * sub-triángulos son un solo tejido— ver
+   * `engine/trianglePeyote.ts#triangleNeighbourMap`.
    */
   const esTriangulo = useEditorStore((s) => s.technique === 'triangle')
   const {

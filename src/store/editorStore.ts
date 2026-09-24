@@ -4,7 +4,7 @@ import { resizePiece, type ResizePlan } from '@/engine/resize'
 import type { BrickDrop, ColorMap, EarringSide, FringeData, LoopData, PairData, PatternDoc, RowShape, Technique } from '@/engine/types'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { lineCells } from '@/engine/line'
-import { floodFillCells } from '@/engine/floodFill'
+import { floodFillCells, floodFillTriangleCells } from '@/engine/floodFill'
 import { createEmptyFringe, isPaintableCell, MAX_FRINGE_LENGTH, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { normalizeLoop } from '@/engine/loop'
 import { dropOf, effectiveStaggerPhase, flipStagger, isShiftedRow, staggerOf, stitchRowOf, type StaggerPhase } from '@/engine/geometry'
@@ -383,6 +383,8 @@ interface EditorState {
   paintKey: (key: string, hex: string | null) => void
   /** El cuentagotas por llave — el hermano de `pickColor` para el aro triangular. */
   pickColorKey: (key: string) => void
+  /** El balde por llave — el hermano de `floodFill` para el aro triangular. */
+  floodFillKey: (key: string, hex: string | null) => void
   paintLine: (r0: number, c0: number, r1: number, c1: number, hex: string | null) => void
   pickColor: (row: number, col: number) => void
   /** Repaints every cell of `fromHex` to `toHex` in one undo step — used by both "fusionar colores" and "reemplazar en todo el patrón". */
@@ -1219,6 +1221,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   pickColorKey: (key) => {
     const hex = get().cells[key]
     if (hex) get().chooseColor(hex)
+  },
+
+  floodFillKey: (key, hex) => {
+    const { cells, rounds } = get()
+    get().commit(floodFillTriangleCells(cells, rounds, key, hex))
   },
 
   paintLine: (r0, c0, r1, c1, hex) => {

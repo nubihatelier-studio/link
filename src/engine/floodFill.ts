@@ -1,4 +1,5 @@
 import { cellKey } from './cellKey'
+import { triangleNeighbourMap } from './trianglePeyote'
 import { isPaintableCell } from './fringe'
 import type { ColorMap, FringeData, RowShape } from './types'
 
@@ -44,6 +45,46 @@ export function floodFillCells(
     else delete next[key]
 
     stack.push([row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1])
+  }
+
+  return next
+}
+
+/**
+ * El balde de pintura del aro triangular, que no tiene filas ni columnas: se
+ * riega por las mostacillas que de verdad se tocan
+ * (`trianglePeyote.ts#triangleNeighbourMap`), incluidas las de las costuras,
+ * así que de un toque se pinta la pieza entera y no sólo un sub-triángulo.
+ *
+ * Como en la grilla, "vacío" también es un color: se puede rellenar lo que
+ * todavía no está pintado.
+ */
+export function floodFillTriangleCells(
+  cells: ColorMap,
+  rounds: number,
+  startKey: string,
+  newHex: string | null,
+): ColorMap {
+  const vecinas = triangleNeighbourMap(rounds)
+  if (!vecinas.has(startKey)) return cells
+
+  const targetHex = cells[startKey] ?? null
+  if (targetHex === newHex) return cells
+
+  const next = { ...cells }
+  const visitadas = new Set<string>()
+  const pila = [startKey]
+
+  while (pila.length > 0) {
+    const key = pila.pop()!
+    if (visitadas.has(key)) continue
+    visitadas.add(key)
+    if ((cells[key] ?? null) !== targetHex) continue
+
+    if (newHex) next[key] = newHex
+    else delete next[key]
+
+    for (const vecina of vecinas.get(key) ?? []) pila.push(vecina)
   }
 
   return next

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ColorMap, FringeData } from './types'
-import { floodFillCells } from './floodFill'
+import { floodFillCells, floodFillTriangleCells } from './floodFill'
+import { triangleBeadCount, triangleBeads, triangleKey } from './trianglePeyote'
 
 describe('floodFillCells', () => {
   it('fills a contiguous same-color region and stops at a different color', () => {
@@ -118,5 +119,50 @@ describe('floodFillCells', () => {
       const next = floodFillCells(cells, 3, 2, 1, 0, '#C', undefined, rowShape)
       expect(next).toEqual({ '1,0': '#C', '1,1': '#C', '1,2': '#C' })
     })
+  })
+})
+
+describe('floodFillTriangleCells', () => {
+  const ROJO = '#b8444c'
+  const AZUL = '#2f6fd0'
+
+  it('de un toque pinta la pieza entera, costuras incluidas', () => {
+    const lleno = floodFillTriangleCells({}, 6, '0:1:0', ROJO)
+    expect(Object.keys(lleno)).toHaveLength(triangleBeadCount(6))
+    expect(new Set(Object.values(lleno))).toEqual(new Set([ROJO]))
+  })
+
+  it('se detiene en el borde de otro color', () => {
+    // Una vuelta entera de azul encierra lo de adentro.
+    const base: Record<string, string> = {}
+    for (const bead of triangleBeads(6)) if (bead.round === 4) base[triangleKey(bead)] = AZUL
+    const pintado = floodFillTriangleCells(base, 6, '0:1:0', ROJO)
+    // Lo de adentro (vueltas 1 a 3) queda rojo; la vuelta 5 no se toca.
+    expect(pintado['0:1:0']).toBe(ROJO)
+    expect(pintado['0:3:1']).toBe(ROJO)
+    expect(pintado['0:4:2']).toBe(AZUL)
+    expect(pintado['0:5:2']).toBeUndefined()
+  })
+
+  it('pinta también las que están del otro lado de una costura', () => {
+    const pintado = floodFillTriangleCells({}, 5, '0:5:4', ROJO)
+    expect(pintado['1:5:0']).toBe(ROJO)
+    expect(pintado['2:3:1']).toBe(ROJO)
+  })
+
+  it('la goma del balde deja limpio lo que estaba pintado de ese color', () => {
+    const lleno = floodFillTriangleCells({}, 5, '0:1:0', ROJO)
+    const vacio = floodFillTriangleCells(lleno, 5, '0:1:0', null)
+    expect(Object.keys(vacio)).toHaveLength(0)
+  })
+
+  it('pintar del mismo color que ya está no cambia nada', () => {
+    const lleno = floodFillTriangleCells({}, 4, '0:1:0', ROJO)
+    expect(floodFillTriangleCells(lleno, 4, '0:1:0', ROJO)).toBe(lleno)
+  })
+
+  it('una llave que no existe en esta pieza no hace nada', () => {
+    const base = { '0:1:0': ROJO }
+    expect(floodFillTriangleCells(base, 4, '0:99:0', AZUL)).toBe(base)
   })
 })

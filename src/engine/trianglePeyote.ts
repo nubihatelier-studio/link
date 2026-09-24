@@ -207,3 +207,75 @@ export function parseTriangleKey(key: string): TriangleBead {
   const [sector, round, index] = key.split(':').map(Number)
   return { sector: sector as TriangleSector, round, index }
 }
+
+/**
+ * Qué mostacillas siguen a cuál, por su llave: con quiénes se traba cada una
+ * al tejer. Se arma una vez por tamaño de pieza y es lo que sigue el balde de
+ * pintura (ver `engine/floodFill.ts`).
+ *
+ * Se sigue el orden del tejido, no la distancia pelada, por la misma razón
+ * que el balde de la grilla sigue filas y columnas y no el calce visual de
+ * las mostacillas:
+ *
+ * - **Dentro de una vuelta**, las dos que van antes y después en el hilo. En
+ *   la costura de dos sectores eso es la última de uno con la primera del
+ *   siguiente —los tres sub-triángulos son un solo tejido, así que una vuelta
+ *   da la vuelta entera.
+ * - **Hacia afuera**, las dos de la vuelta siguiente en las que ésta se
+ *   encaja; y hacia adentro, las que se encajan en ella.
+ *
+ * Quedan fuera a propósito las de dos vueltas más allá, que en el tejido real
+ * se rozan por el hueco que dejan las del medio. Si contaran, una vuelta
+ * entera de otro color no frenaría el balde —se escaparía por esos roces— y
+ * al pintar un contorno y rellenar adentro se desbordaría toda la pieza.
+ *
+ * Los vecinos de afuera se buscan por cercanía en vez de con una fórmula de
+ * índices: es la misma cuenta con la que se dibuja, así que no se puede
+ * desfasar del dibujo ni en las costuras, que es justo donde una fórmula se
+ * equivoca.
+ */
+export function triangleNeighbourMap(rounds: number): Map<string, string[]> {
+  const porVuelta = new Map<number, { key: string; x: number; y: number }[]>()
+  for (const bead of triangleBeads(rounds)) {
+    const p = triangleBeadPlacement(bead)
+    const lista = porVuelta.get(bead.round)
+    const puesta = { key: triangleKey(bead), x: p.x, y: p.y }
+    if (lista) lista.push(puesta)
+    else porVuelta.set(bead.round, [puesta])
+  }
+
+  const vecinas = new Map<string, Set<string>>()
+  const unir = (a: string, b: string) => {
+    if (a === b) return
+    const va = vecinas.get(a)
+    if (va) va.add(b)
+    else vecinas.set(a, new Set([b]))
+    const vb = vecinas.get(b)
+    if (vb) vb.add(a)
+    else vecinas.set(b, new Set([a]))
+  }
+
+  /** Las `cuantas` más cercanas a `desde` dentro de `entre`. */
+  const masCercanas = (
+    desde: { x: number; y: number },
+    entre: { key: string; x: number; y: number }[],
+    cuantas: number,
+  ) =>
+    entre
+      .map((otra) => ({ key: otra.key, d: Math.hypot(otra.x - desde.x, otra.y - desde.y) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, cuantas)
+
+  for (let round = 1; round <= rounds; round++) {
+    const esta = porVuelta.get(round) ?? []
+    const siguiente = porVuelta.get(round + 1) ?? []
+    for (const bead of esta) {
+      // Vacía la vuelta 1, que son tres y cada una toca a las otras dos.
+      vecinas.set(bead.key, vecinas.get(bead.key) ?? new Set())
+      for (const vecina of masCercanas(bead, esta.filter((o) => o.key !== bead.key), 2)) unir(bead.key, vecina.key)
+      for (const vecina of masCercanas(bead, siguiente, 2)) unir(bead.key, vecina.key)
+    }
+  }
+
+  return new Map([...vecinas].map(([key, set]) => [key, [...set]]))
+}

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ROUND_PITCH,
   beadsInRound,
-  triangleBeadAt,
   beadsPerSide,
   parseTriangleKey,
-  ROUND_PITCH,
+  triangleBeadAt,
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
   triangleKey,
+  triangleNeighbourMap,
 } from './trianglePeyote'
 
 describe('Triángulo de peyote — medido contra una pieza terminada', () => {
@@ -91,5 +92,53 @@ describe('Triángulo de peyote — tocar una mostacilla', () => {
   it('un punto corrido pero dentro de la mostacilla igual la encuentra', () => {
     const p = triangleBeadPlacement({ sector: 0, round: 5, index: 2 })
     expect(triangleBeadAt(p.x + 0.2, p.y - 0.15, 8)).toEqual({ sector: 0, round: 5, index: 2 })
+  })
+})
+
+describe('triangleNeighbourMap', () => {
+  it('cada mostacilla se traba con las de antes y después en su vuelta, y con las de las vueltas vecinas', () => {
+    const vecinas = triangleNeighbourMap(8)
+    expect(new Set(vecinas.get('0:5:2'))).toEqual(
+      new Set(['0:5:1', '0:5:3', '0:6:2', '0:6:3', '0:4:1', '0:4:2']),
+    )
+  })
+
+  it('dos vueltas más allá no cuenta: si contara, una vuelta de otro color no frenaría el balde', () => {
+    expect(triangleNeighbourMap(8).get('0:5:2')).not.toContain('0:7:3')
+    expect(triangleNeighbourMap(8).get('0:5:2')).not.toContain('0:3:1')
+  })
+
+  it('una vuelta da la vuelta entera: la última de un sector sigue en la primera del siguiente', () => {
+    const vecinas = triangleNeighbourMap(8)
+    expect(vecinas.get('0:6:5')).toContain('1:6:0')
+    expect(vecinas.get('1:6:0')).toContain('0:6:5')
+    expect(vecinas.get('2:4:3')).toContain('0:4:0')
+  })
+
+  it('las tres del centro se tocan entre ellas', () => {
+    const vecinas = triangleNeighbourMap(5)
+    expect(new Set(vecinas.get('0:1:0'))).toEqual(new Set(['1:1:0', '2:1:0', '0:2:0', '0:2:1']))
+  })
+
+  it('la pieza entera es un solo tejido: desde una mostacilla se llega a todas', () => {
+    const rounds = 7
+    const vecinas = triangleNeighbourMap(rounds)
+    const vistas = new Set<string>(['0:1:0'])
+    const pila = ['0:1:0']
+    while (pila.length) {
+      for (const v of vecinas.get(pila.pop()!) ?? []) {
+        if (vistas.has(v)) continue
+        vistas.add(v)
+        pila.push(v)
+      }
+    }
+    expect(vistas.size).toBe(triangleBeadCount(rounds))
+  })
+
+  it('la vecindad es mutua: si A se traba con B, B se traba con A', () => {
+    const vecinas = triangleNeighbourMap(6)
+    for (const [key, cerca] of vecinas) {
+      for (const otra of cerca) expect(vecinas.get(otra)).toContain(key)
+    }
   })
 })

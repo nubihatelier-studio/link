@@ -152,6 +152,7 @@ export function CanvasGrid() {
     strokeCell,
     strokeKey,
     pickColorKey,
+    floodFillKey,
     strokeEnd,
     strokeCancel,
     paintLine,
@@ -826,13 +827,15 @@ export function CanvasGrid() {
         // ignore — capture is a nice-to-have (keeps painting past the canvas edge), not required
       }
       const key = triangleKey(bead)
-      if (tool === 'eyedropper') {
-        pendingBeadTap.current = key
+      const borrando = tool === 'eraser'
+      if (!borrando && !activeColor && tool !== 'eyedropper') {
+        pendingColorRequest.current = true
         return
       }
-      const borrando = tool === 'eraser'
-      if (!borrando && !activeColor) {
-        pendingColorRequest.current = true
+      // El cuentagotas y el balde actúan al *levantar* el dedo, como en la
+      // grilla: así un pellizco que empieza sobre el gráfico nunca pinta.
+      if (tool === 'eyedropper' || tool === 'fill') {
+        pendingBeadTap.current = key
         return
       }
       strokeStartedAt.current = performance.now()
@@ -964,6 +967,7 @@ export function CanvasGrid() {
 
     if (esTriangulo) {
       if (!isPointerDown.current) return
+      if (tool !== 'pencil' && tool !== 'eraser') return
       const bead = beadFromEvent(e)
       if (!bead) return
       const key = triangleKey(bead)
@@ -1029,6 +1033,7 @@ export function CanvasGrid() {
       pendingBeadTap.current = null
       if (beadTap) {
         if (tool === 'eyedropper') pickColorKey(beadTap)
+        else if (tool === 'fill') floodFillKey(beadTap, activeColor)
         return
       }
       if (isPointerDown.current) strokeEnd()
