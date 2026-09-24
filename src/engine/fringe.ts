@@ -1,4 +1,4 @@
-import type { FringeData, RowShape, Technique } from './types'
+import { isGridTechnique, type FringeData, type RowShape, type Technique } from './types'
 
 /**
  * How "centered" column `i` of `cols` is, as a value in [0, 1]: 1 exactly at
@@ -33,7 +33,9 @@ export const MAX_FRINGE_LENGTH = 100
 
 /** Peyote's column-major zigzag traversal doesn't have a clean "last body row" to hang a fringe from — brick and loom do. */
 export function isFringeCapable(technique: Technique): boolean {
-  return technique !== 'peyote'
+  // El aro triangular tampoco: no tiene un borde de abajo del que colgar
+  // flecos, se teje en vueltas desde el centro.
+  return isGridTechnique(technique) && technique !== 'peyote'
 }
 
 export function createEmptyFringe(cols: number): FringeData {

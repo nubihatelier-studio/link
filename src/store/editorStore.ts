@@ -404,6 +404,8 @@ interface EditorState {
   strokeBase: ColorMap | null
   strokeStart: () => void
   strokeCell: (row: number, col: number, hex: string | null) => void
+  /** Un paso del trazo por llave — el hermano de `strokeCell` para el aro triangular. */
+  strokeKey: (key: string, hex: string | null) => void
   strokeEnd: () => void
   /** Drops the stroke in progress as if it never happened — no undo step, nothing saved. For a touch that turns out to be the start of a pinch. */
   strokeCancel: () => void
@@ -1277,6 +1279,16 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   },
 
   strokeStart: () => set({ strokeBase: get().cells }),
+
+  strokeKey: (key, hex) => {
+    if (isReadOnlySide(get())) return
+    const { cells } = get()
+    if (cells[key] === (hex ?? undefined)) return
+    const next = { ...cells }
+    if (hex) next[key] = hex
+    else delete next[key]
+    set({ cells: next })
+  },
 
   strokeCell: (row, col, hex) => {
     if (isReadOnlySide(get())) return

@@ -19,6 +19,10 @@ describe('isFringeCapable', () => {
     expect(isFringeCapable('loom')).toBe(true)
     expect(isFringeCapable('peyote')).toBe(false)
   })
+
+  it('el aro triangular tampoco: no tiene borde de abajo', () => {
+    expect(isFringeCapable('triangle')).toBe(false)
+  })
 })
 
 describe('createEmptyFringe', () => {

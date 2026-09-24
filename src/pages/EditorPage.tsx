@@ -36,6 +36,7 @@ import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { ResizeDialog } from '@/components/editor/ResizeDialog'
+import { TriangleRoundsDialog } from '@/components/editor/TriangleRoundsDialog'
 import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
 import { ShoppingListDialog } from '@/components/editor/ShoppingListDialog'
 import { EditorPanelTabs } from '@/components/editor/EditorPanelTabs'
@@ -75,6 +76,7 @@ export function EditorPage() {
     technique,
     cols,
     rows,
+    rounds,
     beadTypeId,
     staggerPhase,
     cells,
@@ -124,6 +126,8 @@ export function EditorPage() {
   const [noteOpen, setNoteOpen] = useState(false)
   /** "Cambiar tamaño" — see ResizeDialog. */
   const [resizeOpen, setResizeOpen] = useState(false)
+  /** "Vueltas", el tamaño del aro triangular — ver TriangleRoundsDialog. */
+  const [roundsOpen, setRoundsOpen] = useState(false)
   /** "Cambiar la mostacilla" — see BeadTypeDialog. */
   const [beadTypeOpen, setBeadTypeOpen] = useState(false)
   /** "Lista de compras" — see ShoppingListDialog. */
@@ -157,8 +161,16 @@ export function EditorPage() {
   // On the right earring of a pair the shape, fringe and loop follow the left
   // one (mirrored) and are edited there — see `PairBar`.
   const onRightEarring = pair !== undefined && side === 'right'
+  /**
+   * El aro triangular se edita acá mismo, con la misma interfaz que el
+   * peyote, pero no es una grilla: no tiene forma del cuerpo, ni flecos, ni
+   * argolla, ni par de aros, y todavía no tiene PDF ni modo tejido. Se
+   * esconde o se apaga lo que no aplica, en vez de dejarlo puesto y roto.
+   */
+  const esTriangulo = technique === 'triangle'
   const fringeCapable = isFringeCapable(technique) && !onRightEarring
   const shapeCapable = isShapeCapable(technique) && !onRightEarring
+  const loopCapable = !onRightEarring && !esTriangulo
 
   useEffect(() => {
     if (!id) return
@@ -376,15 +388,18 @@ export function EditorPage() {
             className="w-full truncate rounded bg-transparent text-lg font-bold outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
           />
           <p className="truncate text-xs text-text-muted">
-            {t.technique[technique]} · {cols}×{rows} · {bead.label} · {beadsLabel}
+            {t.technique[technique]} · {esTriangulo ? t.home.roundCount(rounds) : `${cols}×${rows}`} · {bead.label} ·{' '}
+            {beadsLabel}
           </p>
         </div>
-        <button
-          onClick={() => navigate(`/editor/${id}/weave`)}
-          className="hidden rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold hover:bg-surface-3 sm:block"
-        >
-          {t.editor.weaveMode}
-        </button>
+        {!esTriangulo && (
+          <button
+            onClick={() => navigate(`/editor/${id}/weave`)}
+            className="hidden rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold hover:bg-surface-3 sm:block"
+          >
+            {t.editor.weaveMode}
+          </button>
+        )}
         <button
           onClick={handleBackupPattern}
           aria-label={t.backup.exportPattern}
@@ -418,11 +433,11 @@ export function EditorPage() {
         </IconButton>
         <div className="relative hidden sm:block">
           <IconButton
-            label={t.editor.shareImage}
+            label={esTriangulo ? t.editor.triangleNoExport : t.editor.shareImage}
             active={imageMenuOpen}
             onClick={() => setImageMenuOpen((v) => !v)}
             className="h-9 w-9"
-            disabled={exportingImage}
+            disabled={exportingImage || esTriangulo}
           >
             <Image size={16} />
           </IconButton>
@@ -447,8 +462,8 @@ export function EditorPage() {
           )}
         </div>
         {/* Hidden on the wrapper: `Button`'s own `inline-flex` would win over a `hidden` passed to it. */}
-        <div className="hidden sm:block">
-          <Button onClick={() => setExportDialogOpen(true)} disabled={exporting} className="px-4 py-2 text-sm">
+        <div className="hidden sm:block" title={esTriangulo ? t.editor.triangleNoExport : undefined}>
+          <Button onClick={() => setExportDialogOpen(true)} disabled={exporting || esTriangulo} className="px-4 py-2 text-sm">
             {exporting ? '…' : t.editor.exportPdf}
           </Button>
         </div>
@@ -469,13 +484,28 @@ export function EditorPage() {
               <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-border bg-surface p-2 shadow-lg">
                 <div className="sm:hidden">
                   <MenuHeading>{t.editor.menuExport}</MenuHeading>
-                  <MenuItem disabled={exporting} onClick={() => setExportDialogOpen(true)} close={() => setMoreMenuOpen(false)}>
+                  <MenuItem
+                    disabled={exporting || esTriangulo}
+                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
+                    onClick={() => setExportDialogOpen(true)}
+                    close={() => setMoreMenuOpen(false)}
+                  >
                     {exporting ? '…' : t.editor.exportPdf}
                   </MenuItem>
-                  <MenuItem disabled={exportingImage} onClick={handleExportImage} close={() => setMoreMenuOpen(false)}>
+                  <MenuItem
+                    disabled={exportingImage || esTriangulo}
+                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
+                    onClick={handleExportImage}
+                    close={() => setMoreMenuOpen(false)}
+                  >
                     {t.editor.shareImageDownloadPng}
                   </MenuItem>
-                  <MenuItem disabled={exportingImage} onClick={handleExportInstagramCard} close={() => setMoreMenuOpen(false)}>
+                  <MenuItem
+                    disabled={exportingImage || esTriangulo}
+                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
+                    onClick={handleExportInstagramCard}
+                    close={() => setMoreMenuOpen(false)}
+                  >
                     {t.editor.shareImageInstagram}
                   </MenuItem>
                   <MenuItem onClick={() => setNoteOpen(true)} close={() => setMoreMenuOpen(false)}>
@@ -494,14 +524,24 @@ export function EditorPage() {
 
                 <div className="my-1 h-px bg-border" />
                 <MenuHeading>{t.editor.menuPattern}</MenuHeading>
-                <MenuItem
-                  disabled={side === 'right'}
-                  hint={side === 'right' ? t.editor.resize.rightSide : t.editor.resize.menuHint}
-                  onClick={() => setResizeOpen(true)}
-                  close={() => setMoreMenuOpen(false)}
-                >
-                  {t.editor.resize.menu}
-                </MenuItem>
+                {esTriangulo ? (
+                  <MenuItem
+                    hint={t.editor.triangleRounds.menuHint}
+                    onClick={() => setRoundsOpen(true)}
+                    close={() => setMoreMenuOpen(false)}
+                  >
+                    {t.editor.triangleRounds.menu}
+                  </MenuItem>
+                ) : (
+                  <MenuItem
+                    disabled={side === 'right'}
+                    hint={side === 'right' ? t.editor.resize.rightSide : t.editor.resize.menuHint}
+                    onClick={() => setResizeOpen(true)}
+                    close={() => setMoreMenuOpen(false)}
+                  >
+                    {t.editor.resize.menu}
+                  </MenuItem>
+                )}
                 <MenuItem
                   hint={t.editor.shopping.menuHint}
                   onClick={() => setShoppingOpen(true)}
@@ -557,7 +597,7 @@ export function EditorPage() {
           <div className="mb-2 md:mb-3">
             <ZoomBar />
           </div>
-          <PairBar />
+          {!esTriangulo && <PairBar />}
           <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-surface">
             <CanvasGrid />
           </div>
@@ -565,7 +605,7 @@ export function EditorPage() {
 
         {/* Una pestaña a la vez, con toda la altura para ella — ver EditorPanelTabs. */}
         <aside className="hidden w-80 shrink-0 flex-col border-l border-border md:flex">
-          <EditorPanelTabs shapeCapable={shapeCapable} fringeCapable={fringeCapable} loopCapable={!onRightEarring} />
+          <EditorPanelTabs shapeCapable={shapeCapable} fringeCapable={fringeCapable} loopCapable={loopCapable} />
         </aside>
       </div>
 
@@ -591,7 +631,7 @@ export function EditorPage() {
                 {t.editor.fringe.shortTitle}
               </button>
             )}
-            {!onRightEarring && (
+            {loopCapable && (
               <button
                 onClick={() => setLoopDrawerOpen(true)}
                 className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-3 py-1.5 text-xs font-semibold"
@@ -601,12 +641,14 @@ export function EditorPage() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => navigate(`/editor/${id}/weave`)}
-            className="shrink-0 whitespace-nowrap rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
-          >
-            {t.editor.weaveMode}
-          </button>
+          {!esTriangulo && (
+            <button
+              onClick={() => navigate(`/editor/${id}/weave`)}
+              className="shrink-0 whitespace-nowrap rounded-full bg-accent-500 px-3 py-1.5 text-xs font-semibold text-accent-ink"
+            >
+              {t.editor.weaveMode}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {/* `w-max mx-auto` rather than `justify-center`: a centred row that
@@ -786,6 +828,7 @@ export function EditorPage() {
         <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
       {resizeOpen && <ResizeDialog onClose={() => setResizeOpen(false)} />}
+      {roundsOpen && <TriangleRoundsDialog onClose={() => setRoundsOpen(false)} />}
       {beadTypeOpen && <BeadTypeDialog onClose={() => setBeadTypeOpen(false)} />}
       {shoppingOpen && <ShoppingListDialog onClose={() => setShoppingOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}

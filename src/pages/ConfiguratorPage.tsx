@@ -310,14 +310,15 @@ export function ConfiguratorPage() {
   }
 
   /**
-   * El aro triangular se crea con sus vueltas y se abre en su propia
-   * pantalla: no es una grilla de filas y columnas, así que no pasa por los
-   * pasos de técnica, tamaño y flecos de esta página.
+   * El aro triangular se crea con sus vueltas y se abre en el editor de
+   * siempre: no es una grilla de filas y columnas, así que no pasa por los
+   * pasos de técnica, tamaño y flecos de esta página, pero se edita igual
+   * que cualquier otro patrón.
    */
   function crearTriangulo() {
     const vueltas = 10
     const id = createPattern({ technique: 'triangle', cols: vueltas, rows: vueltas, rounds: vueltas, beadTypeId })
-    navigate(`/triangulo/${id}`)
+    navigate(`/editor/${id}`)
   }
 
   function handleCreate() {

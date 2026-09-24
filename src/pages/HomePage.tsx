@@ -30,14 +30,6 @@ import { UndoToast } from '@/components/shared/UndoToast'
 /** Colors shown as dots on a card; the rest become "+N". */
 const MAX_CARD_COLORS = 4
 
-/**
- * A qué pantalla lleva un patrón: el aro triangular tiene la suya, porque no
- * es una grilla de filas y columnas (ver `engine/trianglePeyote.ts`).
- */
-function abrir(pattern: PatternDoc): string {
-  return pattern.config.technique === 'triangle' ? `/triangulo/${pattern.id}` : `/editor/${pattern.id}`
-}
-
 export function HomePage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -503,7 +495,7 @@ export function HomePage() {
                   <div className="flex min-w-0 flex-1 items-center gap-3">{cardBody}</div>
                 ) : (
                   <button
-                    onClick={() => navigate(abrir(p))}
+                    onClick={() => navigate(`/editor/${p.id}`)}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
                   >
                     {cardBody}

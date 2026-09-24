@@ -146,15 +146,26 @@ export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement
  * Ancho y alto de la pieza, en unidades de mostacilla, sacados de dónde
  * quedaron las mostacillas y no de una fórmula aparte: así el encuadre no se
  * puede desfasar del dibujo.
+ *
+ * Lleva también `minX`/`minY`, la esquina de arriba a la izquierda: las
+ * mostacillas se ubican alrededor del centro (0, 0) y hay coordenadas
+ * negativas, así que quien dibuja las corre por ahí para que la pieza parta
+ * en el origen del lienzo, como la grilla.
  */
-export function triangleBoundsUnits(rounds: number): { width: number; height: number } {
+export function triangleBoundsUnits(rounds: number): { width: number; height: number; minX: number; minY: number } {
   const pts = triangleBeads(rounds).map(triangleBeadPlacement)
-  if (pts.length === 0) return { width: 1, height: 1 }
+  if (pts.length === 0) return { width: 1, height: 1, minX: -0.5, minY: -0.5 }
   const xs = pts.map((p) => p.x)
   const ys = pts.map((p) => p.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
   return {
-    width: Math.max(...xs) - Math.min(...xs) + 1,
-    height: Math.max(...ys) - Math.min(...ys) + 1,
+    width: Math.max(...xs) - minX + 1,
+    height: Math.max(...ys) - minY + 1,
+    // Media mostacilla más afuera: `minX` es el *centro* de la de más a la
+    // izquierda, y el ancho ya cuenta esa mitad de cada lado.
+    minX: minX - 0.5,
+    minY: minY - 0.5,
   }
 }
 

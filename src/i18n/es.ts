@@ -422,6 +422,19 @@ export const t = {
       cancel: 'Cancelar',
       use: 'Usar este color',
     },
+    /** "Vueltas" del aro triangular — ocupa el lugar de "Cambiar tamaño". Ver TriangleRoundsDialog. */
+    triangleRounds: {
+      menu: 'Vueltas',
+      menuHint: 'De qué porte es el aro',
+      title: 'Vueltas',
+      hint: 'El aro crece de a una vuelta desde el centro. Lo pintado se queda donde está: si lo achicas y lo vuelves a agrandar, aparece tal cual.',
+      label: 'Vueltas',
+      perSide: 'Mostacillas en el lado de afuera',
+      total: 'Mostacillas en total',
+      apply: 'Cambiar el porte',
+    },
+    /** Lo que todavía no sabe hacer el aro triangular — ver TrianglePreview en engine/trianglePeyote.ts. */
+    triangleNoExport: 'El aro triangular todavía no sale en el PDF ni en las imágenes',
     clone: 'Clonar lo marcado',
     cloneVertical: 'Una copia bajo la otra',
     cloneHorizontal: 'Una copia al lado de la otra',
@@ -644,21 +657,6 @@ export const t = {
     retry: 'Reintentar',
     protected: 'Almacenamiento protegido',
     atRisk: 'El navegador podría liberar estos datos — descarga un respaldo',
-  },
-  /** Editor del aro triangular, que se teje en vueltas — ver TrianglePreviewPage.tsx. */
-  trianglePreview: {
-    title: 'Aro triangular',
-    subtitle: 'Peyote en vueltas desde el centro',
-    intro: 'Elige un color y toca las mostacillas para pintarlas; se puede arrastrar. Sube las vueltas para agrandar la pieza — lo pintado se queda donde está.',
-    canvasLabel: 'Triángulo: toca una mostacilla para pintarla',
-    rounds: 'Vueltas',
-    perSide: 'Mostacillas en el lado de afuera',
-    total: 'Mostacillas en total',
-    painted: 'Pintadas',
-    changeColor: (name: string) => `${name} · tocar de nuevo para cambiarlo`,
-    erase: 'Borrar',
-    undo: 'Deshacer',
-    note: 'Lo que pintes se guarda con el patrón y aparece en tu biblioteca. Todavía no sale en el PDF ni tiene modo tejido: eso viene después.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

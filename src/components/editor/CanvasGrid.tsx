@@ -3,6 +3,8 @@ import { useEditorStore } from '@/store/editorStore'
 import { cellAtPositionWithFringe, cellPosition, gridBoundsUnits, loopAnchorX } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
+import { triangleBoundsUnits, triangleKey } from '@/engine/trianglePeyote'
+import { drawTriangleCanvas, triangleBeadAtCanvas } from './triangleCanvas'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { lineCells } from '@/engine/line'
 import { usePatternLetterMap } from '@/hooks/usePatternLetters'
@@ -28,6 +30,10 @@ export function CanvasGrid() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPointerDown = useRef(false)
   const lastCell = useRef<{ row: number; col: number } | null>(null)
+  /** La última mostacilla pintada del aro triangular, que no se mide en filas y columnas. */
+  const lastBeadKey = useRef<string | null>(null)
+  /** El cuentagotas del aro triangular actúa al levantar el dedo, como en la grilla. */
+  const pendingBeadTap = useRef<string | null>(null)
   const isFringeSculpting = useRef(false)
   // Line tool supports two gestures: click-cell-then-click-cell (no drag
   // needed), or the classic press-drag-release. `lineArmedByThisPress` is
@@ -120,6 +126,7 @@ export function CanvasGrid() {
     technique,
     cols,
     rows,
+    rounds,
     staggerPhase,
     cells,
     fringe,
@@ -143,6 +150,8 @@ export function CanvasGrid() {
     setSelection,
     strokeStart,
     strokeCell,
+    strokeKey,
+    pickColorKey,
     strokeEnd,
     strokeCancel,
     paintLine,
@@ -168,8 +177,17 @@ export function CanvasGrid() {
   const letterVisibility = useEditorPrefsStore((s) => s.letterVisibility)
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
+  /**
+   * El aro triangular no es una grilla: son tres sectores en vueltas desde el
+   * centro (ver `engine/trianglePeyote.ts`). Se dibuja en este mismo lienzo
+   * para heredar el zoom, el pellizco y la mano, pero se salta todo lo que
+   * habla de filas y columnas — regla, selección, flecos, argolla.
+   */
+  const esTriangulo = technique === 'triangle'
   const bodyBounds = gridBoundsUnits(technique, cols, rows)
-  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  const bounds = esTriangulo
+    ? triangleBoundsUnits(rounds)
+    : gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   // The hanging loop sits *above* row 0, so it can't just widen the grid: it
   // pushes the whole body down instead. `MARGIN` stays the X origin, while
   // every Y coordinate — drawing and hit-testing alike — goes through
@@ -271,6 +289,19 @@ export function CanvasGrid() {
     const x = (clientX - rect.left - MARGIN) / cellPx
     const y = (clientY - rect.top - originY) / cellPx
     return { x, y }
+  }
+
+  /** La mostacilla del aro triangular bajo el puntero, o `null` si cayó en un hueco. */
+  function beadFromEvent(e: { clientX: number; clientY: number }) {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    return triangleBeadAtCanvas(e.clientX - rect.left, e.clientY - rect.top, {
+      rounds,
+      cellPx,
+      originX: MARGIN,
+      originY,
+    })
   }
 
   function cellFromEvent(e: { clientX: number; clientY: number }) {
@@ -377,6 +408,21 @@ export function CanvasGrid() {
     const accent = '#c9a227'
 
     ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+    if (esTriangulo) {
+      drawTriangleCanvas(ctx, {
+        rounds,
+        cells,
+        cellPx,
+        originX: MARGIN,
+        originY,
+        emptyColor,
+        borderColor,
+        letters: shouldShowLetters(letterVisibility, cellPx) ? colorLetters : null,
+        letterFontPx: letterFontSizePx(cellPx),
+      })
+      return
+    }
 
     // rulers
     const maxFringe = maxFringeLength(fringe)
@@ -709,6 +755,8 @@ export function CanvasGrid() {
     pasteFlipH,
     pasteFlipV,
     letterVisibility,
+    esTriangulo,
+    rounds,
   ])
 
   function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -760,6 +808,37 @@ export function CanvasGrid() {
         // ignore — capture is a nice-to-have (keeps dragging past the canvas edge), not required
       }
       panFrom.current = { x: e.clientX, y: e.clientY }
+      isPointerDown.current = true
+      return
+    }
+
+    /**
+     * El aro triangular: lápiz, goma y cuentagotas sobre una mostacilla, sin
+     * filas ni columnas. El pellizco y la mano de más arriba ya pasaron, así
+     * que se mueve y se acerca igual que el peyote.
+     */
+    if (esTriangulo) {
+      const bead = beadFromEvent(e)
+      if (!bead) return
+      try {
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+      } catch {
+        // ignore — capture is a nice-to-have (keeps painting past the canvas edge), not required
+      }
+      const key = triangleKey(bead)
+      if (tool === 'eyedropper') {
+        pendingBeadTap.current = key
+        return
+      }
+      const borrando = tool === 'eraser'
+      if (!borrando && !activeColor) {
+        pendingColorRequest.current = true
+        return
+      }
+      strokeStartedAt.current = performance.now()
+      strokeStart()
+      strokeKey(key, borrando ? null : activeColor)
+      lastBeadKey.current = key
       isPointerDown.current = true
       return
     }
@@ -883,6 +962,17 @@ export function CanvasGrid() {
       return
     }
 
+    if (esTriangulo) {
+      if (!isPointerDown.current) return
+      const bead = beadFromEvent(e)
+      if (!bead) return
+      const key = triangleKey(bead)
+      if (lastBeadKey.current === key) return
+      strokeKey(key, tool === 'eraser' ? null : activeColor)
+      lastBeadKey.current = key
+      return
+    }
+
     if (isFringeSculpting.current) {
       const { col, length } = fringeSculptTargetFromEvent(e)
       if (col >= 0 && col < cols) fringeSculptSetColumn(col, length)
@@ -931,6 +1021,19 @@ export function CanvasGrid() {
     if (pendingColorRequest.current) {
       pendingColorRequest.current = false
       requestColor()
+      return
+    }
+
+    if (esTriangulo) {
+      const beadTap = pendingBeadTap.current
+      pendingBeadTap.current = null
+      if (beadTap) {
+        if (tool === 'eyedropper') pickColorKey(beadTap)
+        return
+      }
+      if (isPointerDown.current) strokeEnd()
+      isPointerDown.current = false
+      lastBeadKey.current = null
       return
     }
 

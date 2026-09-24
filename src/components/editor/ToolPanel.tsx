@@ -37,6 +37,9 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
   { id: 'eyedropper', icon: Pipette, labelKey: 'eyedropper' },
 ]
 
+/** Las que sí tienen sentido en el aro triangular — ver el comentario en `ToolPanel`. */
+const TRIANGLE_TOOLS: Tool[] = ['pencil', 'eraser', 'eyedropper']
+
 interface ToolPanelProps {
   orientation?: 'vertical' | 'horizontal'
   /** Undo / redo at the end of the panel. The phone toolbar pins them outside its scrolling row instead. */
@@ -44,6 +47,14 @@ interface ToolPanelProps {
 }
 
 export function ToolPanel({ orientation = 'vertical', showHistory = true }: ToolPanelProps) {
+  /**
+   * El aro triangular no tiene filas ni columnas, así que no hay rectángulo
+   * que marcar, ni copiar, pegar, clonar, reflejar, borrar área, ni línea
+   * recta o balde, que necesitan vecinos en la grilla. Se esconden en vez de
+   * dejarlas puestas y rotas: quedan el lápiz, la goma, el cuentagotas y la
+   * mano. Ver `engine/trianglePeyote.ts`.
+   */
+  const esTriangulo = useEditorStore((s) => s.technique === 'triangle')
   const {
     tool,
     setTool,
@@ -99,9 +110,11 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
     }
   })
 
+  const tools = esTriangulo ? TOOLS.filter((tl) => TRIANGLE_TOOLS.includes(tl.id)) : TOOLS
+
   return (
     <div className={`flex ${orientation === 'vertical' ? 'flex-col gap-2' : 'flex-row items-center gap-2'}`}>
-      {TOOLS.map((tl) => {
+      {tools.map((tl) => {
         const Icon = tl.icon
         return (
           <IconButton
@@ -126,8 +139,12 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
         <Hand size={18} />
       </IconButton>
 
-      <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
+      {!esTriangulo && (
+        <div className={orientation === 'vertical' ? 'my-2 h-px w-full bg-border' : 'mx-2 h-8 w-px bg-border'} />
+      )}
 
+      {!esTriangulo && (
+        <>
       {/* Marcar, copiar y pegar son los tres pasos de una misma tarea: van
           juntos en su propio grupo, en ese orden, para que se lean como uno.
           Voltear y borrar la selección aparecen dentro del grupo cuando
@@ -162,6 +179,8 @@ export function ToolPanel({ orientation = 'vertical', showHistory = true }: Tool
         <IconButton label={t.editor.eraseSelection} disabled={!selection} onClick={eraseSelection}>
           <Trash2 size={18} />
         </IconButton>
+      )}
+        </>
       )}
 
       {showHistory && (
