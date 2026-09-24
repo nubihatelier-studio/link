@@ -1016,3 +1016,78 @@ describe('editorStore — el peyote triangular', () => {
     expect(usePatternsStore.getState().patterns.tri.config.rounds).toBe(14)
   })
 })
+
+describe('editorStore — guardar al irse la página', () => {
+  const patternId = 'p_guardado'
+
+  beforeEach(() => {
+    usePatternsStore.setState({
+      patterns: {
+        [patternId]: {
+          id: patternId,
+          name: 'Test',
+          config: { technique: 'brick', cols: 4, rows: 4, beadTypeId: 'miyuki-delica-11' },
+          cells: {},
+          createdAt: 0,
+          updatedAt: 0,
+        },
+      },
+      order: [patternId],
+    })
+    useEditorStore.setState({
+      patternId,
+      technique: 'brick',
+      cols: 4,
+      rows: 4,
+      cells: {},
+      fringe: createEmptyFringe(4),
+      rowShape: createRectangleRowShape(4, 4),
+      staggerPhase: 0,
+      side: 'left',
+      pair: undefined,
+      history: [],
+      future: [],
+    })
+  })
+
+  /** Lo pintado todavía no llegó al patrón: el guardado espera 600 ms. */
+  function pintarSinGuardar() {
+    useEditorStore.getState().paintCell(0, 0, '#111111')
+    expect(usePatternsStore.getState().patterns[patternId].cells).toEqual({})
+  }
+
+  it('al esconderse la página guarda la última pincelada', () => {
+    pintarSinGuardar()
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(usePatternsStore.getState().patterns[patternId].cells).toEqual({ '0,0': '#111111' })
+  })
+
+  it('al cerrarse o recargarse también', () => {
+    pintarSinGuardar()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(usePatternsStore.getState().patterns[patternId].cells).toEqual({ '0,0': '#111111' })
+  })
+
+  it('volver a la app no guarda nada de más: sólo al esconderse', () => {
+    pintarSinGuardar()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(usePatternsStore.getState().patterns[patternId].cells).toEqual({})
+  })
+
+  it('la nota también se guarda al irse: hasta ahora no se vaciaba nunca', () => {
+    useEditorStore.getState().setNote('Delica 11/0, hilo Fireline')
+    expect(usePatternsStore.getState().patterns[patternId].note).toBeUndefined()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(usePatternsStore.getState().patterns[patternId].note).toBe('Delica 11/0, hilo Fireline')
+  })
+
+  it('irse dos veces sin pintar nada en medio no vuelve a escribir', () => {
+    pintarSinGuardar()
+    window.dispatchEvent(new Event('pagehide'))
+    const despues = usePatternsStore.getState().patterns[patternId]
+    window.dispatchEvent(new Event('pagehide'))
+    expect(usePatternsStore.getState().patterns[patternId]).toBe(despues)
+  })
+})

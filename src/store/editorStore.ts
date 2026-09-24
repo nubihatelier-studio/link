@@ -478,6 +478,8 @@ function pruneOrphanedCells(
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 let pendingAutosave: (() => void) | null = null
+let noteAutosaveTimer: ReturnType<typeof setTimeout> | null = null
+let pendingNoteAutosave: (() => void) | null = null
 
 /**
  * Saves the working cells 600ms after the last change — to the pattern's own
@@ -496,10 +498,47 @@ function scheduleAutosave(patternId: string, cells: ColorMap, side: EarringSide 
   autosaveTimer = setTimeout(save, 600)
 }
 
-/** Runs a scheduled autosave right away — before anything reads the saved pattern back. */
+/**
+ * Runs every scheduled autosave right away — before anything reads the saved
+ * pattern back. Lo pintado y la nota se guardan los dos con espera, así que
+ * los dos tienen que vaciarse juntos: si no, un respaldo pedido justo después
+ * de escribir una nota salía sin ella.
+ */
 function flushAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   pendingAutosave?.()
+  if (noteAutosaveTimer) clearTimeout(noteAutosaveTimer)
+  pendingNoteAutosave?.()
+}
+
+/**
+ * Guarda lo pendiente cuando la página se va o se esconde.
+ *
+ * El guardado espera 600 ms desde el último cambio, y hasta acá sólo lo
+ * vaciaban acciones de adentro de la app (exportar, guardar como plantilla).
+ * Si en esos 600 ms se cerraba la pestaña, se recargaba, o el sistema mataba
+ * la app instalada porque se pasó a otra, **la última pincelada no llegaba a
+ * escribirse nunca**. En el computador casi no se nota; en el teléfono sí:
+ * pintar una mostacilla y cambiarse a otra aplicación cabe de sobra en medio
+ * segundo.
+ *
+ * Se escuchan los dos eventos a propósito:
+ *
+ * - `visibilitychange` en oculto es el que vale en iOS cuando se pasa a otra
+ *   app. Ahí la página sigue viva, así que el guardado —que es asíncrono—
+ *   alcanza a terminar tranquilo.
+ * - `pagehide` cubre cerrar y recargar. `beforeunload` no se usa: en Safari
+ *   de iOS no es confiable.
+ *
+ * Vaciar de más no cuesta nada: si no hay nada pendiente, `flushAutosave` no
+ * hace nada, así que el bfcache disparando `pagehide` sin matar la página es
+ * inofensivo.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushAutosave)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAutosave()
+  })
 }
 
 /** Tags the step just committed with the slot change that went with it — see `EditorSnapshot.trayChange`. */
@@ -561,12 +600,15 @@ function isReadOnlySide(state: { side: EarringSide; pair: PairData | undefined }
   return state.side === 'right' && state.pair?.mode === 'mirror'
 }
 
-let noteAutosaveTimer: ReturnType<typeof setTimeout> | null = null
 function scheduleNoteAutosave(patternId: string, note: string) {
   if (noteAutosaveTimer) clearTimeout(noteAutosaveTimer)
-  noteAutosaveTimer = setTimeout(() => {
+  const save = () => {
+    noteAutosaveTimer = null
+    pendingNoteAutosave = null
     usePatternsStore.getState().setNote(patternId, note)
-  }, 600)
+  }
+  pendingNoteAutosave = save
+  noteAutosaveTimer = setTimeout(save, 600)
 }
 
 export const useEditorStore = create<EditorState>()((set, get) => {
