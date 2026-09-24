@@ -17,9 +17,9 @@ export interface ExportImageOptions {
   technique: Technique
   cols: number
   rows: number
-  /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
+  /** Sólo el peyote triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
   rounds?: number
-  /** Sólo el aro triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  /** Sólo el peyote triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
   triangleUp?: boolean
   cells: ColorMap
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
@@ -105,7 +105,7 @@ export function renderPatternCanvas(
 ): HTMLCanvasElement {
   const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0, loop } = opts
   /**
-   * El aro triangular no es una grilla: no tiene filas, columnas, fleco ni
+   * El peyote triangular no es una grilla: no tiene filas, columnas, fleco ni
    * argolla. Se dibuja con la misma rutina que el editor
    * (`lib/triangleCanvas.ts`), pero sin las mostacillas sin pintar — como
    * toda imagen que se comparte, muestra la pieza, no el gráfico.
@@ -267,7 +267,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   )
   ctx.font = '400 30px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(245,244,246,0.8)'
-  // El aro triangular se mide en vueltas desde el centro: "10×10" no dice
+  // El peyote triangular se mide en vueltas desde el centro: "10×10" no dice
   // nada de una pieza que no tiene filas ni columnas.
   const forma =
     opts.technique === 'triangle' ? t.home.roundCount(opts.rounds ?? opts.cols) : `${opts.cols}×${opts.rows}`
@@ -328,7 +328,7 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
  * up; the gap between them is two beads wide.
  */
 export function renderExportCanvas(opts: ExportImageOptions, backgroundHex: string, targetLongSidePx: number): HTMLCanvasElement {
-  // El aro triangular todavía no se teje de a pares — ver `pages/EditorPage.tsx`.
+  // El peyote triangular todavía no se teje de a pares — ver `pages/EditorPage.tsx`.
   if (!opts.pair || opts.technique === 'triangle') return renderPatternCanvas(opts, backgroundHex, targetLongSidePx)
 
   const left: Piece = {

@@ -144,7 +144,7 @@ export interface TriangleChartOpts {
 }
 
 /**
- * El gráfico del aro triangular en la hoja.
+ * El gráfico del peyote triangular en la hoja.
  *
  * No lleva regla numerada como la grilla: acá no hay filas ni columnas que
  * contar, y numerar las vueltas alrededor del centro ensucia más de lo que

@@ -41,7 +41,7 @@ import { weaveThreadFactor } from './calibration'
  */
 
 /**
- * Paso entre vueltas del aro triangular, en anchos de mostacilla. Con las
+ * Paso entre vueltas del peyote triangular, en anchos de mostacilla. Con las
  * mostacillas cada dos columnas dentro de una vuelta, éste es el paso que
  * hace que los tres lados se junten justo — ver `engine/trianglePeyote.ts`.
  */
@@ -83,7 +83,7 @@ const BEAD_AXIS_MAP: Record<Technique, { horizontal: 'width' | 'height'; vertica
   loom: { horizontal: 'width', vertical: 'height' },
   peyote: { horizontal: 'height', vertical: 'width' },
   brick: { horizontal: 'width', vertical: 'height' },
-  // El aro triangular acuesta la mostacilla a lo largo de su fila, igual que
+  // El peyote triangular acuesta la mostacilla a lo largo de su fila, igual que
   // peyote; su tamaño en milímetros se calcula aparte (ver trianglePeyote).
   triangle: { horizontal: 'height', vertical: 'width' },
 }
@@ -296,11 +296,11 @@ export function cellPosition(
       return { x: col + xOffset, y: row * pitch }
     }
     case 'triangle':
-      // El aro triangular no es una grilla de filas y columnas: tiene su
+      // El peyote triangular no es una grilla de filas y columnas: tiene su
       // propio motor (`engine/trianglePeyote.ts`) y su propia pantalla. Si
       // alguien llega acá con un triángulo, es que lo mandó por el camino
       // equivocado — mejor enterarse ahora que dibujar cualquier cosa.
-      throw new Error('El aro triangular no usa la grilla de filas y columnas')
+      throw new Error('El peyote triangular no usa la grilla de filas y columnas')
   }
 }
 
@@ -371,7 +371,7 @@ export function gridBoundsUnits(technique: Technique, cols: number, rows: number
  * row's own length instead of assuming every row is `cols` wide.
  */
 export function beadCount(technique: Technique, cols: number, rows: number, rowShape?: RowShape[]): number {
-  // El aro triangular no es una grilla: su cuenta sale de las vueltas, que
+  // El peyote triangular no es una grilla: su cuenta sale de las vueltas, que
   // es lo que guarda en `cols` (ver `PatternConfig.rounds`).
   if (technique === 'triangle') return triangleBeadCount(cols)
   if (!rowShape) return cols * rows
@@ -421,7 +421,7 @@ export function physicalSizeMm(
   loopBeads = 0,
 ) {
   if (technique === 'triangle') {
-    // El aro triangular no se mide por filas y columnas: se mide por dónde
+    // El peyote triangular no se mide por filas y columnas: se mide por dónde
     // quedaron sus mostacillas (`triangleBoundsUnits`, en anchos de
     // mostacilla), que es la misma cuenta con la que se dibuja. `cols` lleva
     // las vueltas — ver `store/patternsStore.ts#setTriangleRounds`.
@@ -474,7 +474,7 @@ export function cellAtPosition(
     }
     case 'triangle':
       // Ver el comentario en `cellPosition`: el triángulo tiene su propio motor.
-      throw new Error('El aro triangular no usa la grilla de filas y columnas')
+      throw new Error('El peyote triangular no usa la grilla de filas y columnas')
   }
 }
 

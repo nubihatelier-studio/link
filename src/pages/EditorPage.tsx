@@ -163,7 +163,7 @@ export function EditorPage() {
   // one (mirrored) and are edited there — see `PairBar`.
   const onRightEarring = pair !== undefined && side === 'right'
   /**
-   * El aro triangular se edita acá mismo, con la misma interfaz que el
+   * El peyote triangular se edita acá mismo, con la misma interfaz que el
    * peyote, pero no es una grilla: no tiene forma del cuerpo, ni flecos, ni
    * argolla, ni par de aros, y todavía no tiene PDF ni modo tejido. Se
    * esconde o se apaga lo que no aplica, en vez de dejarlo puesto y roto.

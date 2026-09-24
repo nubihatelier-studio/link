@@ -165,7 +165,7 @@ describe('EditorPage — conteo de mostacillas en el subtítulo', () => {
 
 const PATTERN_WITH_SHAPE: PatternDoc = {
   id: 'p_3',
-  name: 'Aro triangular',
+  name: 'Peyote triangular',
   config: { technique: 'brick', cols: 4, rows: 2, beadTypeId: 'miyuki-delica-11' },
   cells: {},
   // Triangle: row 0 has 2 cols (centered), row 1 (the last) is full width — 2 + 4 = 6, not 4×2=8.

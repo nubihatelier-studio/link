@@ -346,7 +346,7 @@ describe('exportPatternToPdf', () => {
         { offset: 0, length: 4 },
       ]
       await exportPatternToPdf({
-        name: 'Aro triangular',
+        name: 'Peyote triangular',
         technique: 'brick',
         cols: 4,
         rows: 2,

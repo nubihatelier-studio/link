@@ -73,7 +73,7 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
 }
 
 /**
- * Miniatura de un aro triangular: no es una grilla, así que se dibuja con su
+ * Miniatura de un peyote triangular: no es una grilla, así que se dibuja con su
  * propio motor (`engine/trianglePeyote.ts`). Las vueltas van en
  * `config.cols` — ver `PatternConfig.rounds`.
  */

@@ -37,7 +37,7 @@ const TOOLS: { id: Tool; icon: ComponentType<{ size?: number }>; labelKey: keyof
   { id: 'eyedropper', icon: Pipette, labelKey: 'eyedropper' },
 ]
 
-/** Las que sí tienen sentido en el aro triangular — ver el comentario en `ToolPanel`. */
+/** Las que sí tienen sentido en el peyote triangular — ver el comentario en `ToolPanel`. */
 const TRIANGLE_TOOLS: Tool[] = ['pencil', 'fill', 'eraser', 'eyedropper']
 
 interface ToolPanelProps {
@@ -48,7 +48,7 @@ interface ToolPanelProps {
 
 export function ToolPanel({ orientation = 'vertical', showHistory = true }: ToolPanelProps) {
   /**
-   * El aro triangular no tiene filas ni columnas, así que no hay rectángulo
+   * El peyote triangular no tiene filas ni columnas, así que no hay rectángulo
    * que marcar, ni copiar, pegar, clonar, reflejar, borrar área o línea
    * recta. Se esconden en vez de dejarlas puestas y rotas: quedan el lápiz,
    * el balde, la goma, el cuentagotas y la mano. El balde sí funciona, con

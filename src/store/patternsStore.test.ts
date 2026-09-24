@@ -242,7 +242,7 @@ describe('patternsStore — crear desde una plantilla Nubih', () => {
   })
 })
 
-describe('patternsStore — el aro triangular', () => {
+describe('patternsStore — el peyote triangular', () => {
   beforeEach(() => {
     adapterError = null
     fakeAdapter = createFakeAdapter([])

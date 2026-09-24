@@ -51,7 +51,7 @@ export function floodFillCells(
 }
 
 /**
- * El balde de pintura del aro triangular, que no tiene filas ni columnas: se
+ * El balde de pintura del peyote triangular, que no tiene filas ni columnas: se
  * riega por las mostacillas que de verdad se tocan
  * (`trianglePeyote.ts#triangleNeighbourMap`), incluidas las de las costuras,
  * así que de un toque se pinta la pieza entera y no sólo un sub-triángulo.

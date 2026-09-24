@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +44,12 @@ function createFakeAdapter(): StorageAdapter {
 vi.mock('@/storage', () => ({
   getStorageAdapter: () => Promise.resolve(createFakeAdapter()),
 }))
+
+/**
+ * La sección "2 · Técnica". Hay que acotar la búsqueda ahí: "Peyote" y
+ * "Peyote triangular" son dos tarjetas distintas de esta misma pantalla.
+ */
+const tecnica = () => within(screen.getByRole('region', { name: t.configurator.techniqueStepTitle }))
 
 describe('ConfiguratorPage — plantillas (Corrección 2)', () => {
   beforeEach(() => {
@@ -158,7 +164,7 @@ describe('ConfiguratorPage — forma del cuerpo', () => {
         <ConfiguratorPage />
       </MemoryRouter>,
     )
-    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.brick) }))
+    await user.click(tecnica().getByRole('button', { name: new RegExp(t.technique.brick) }))
     return user
   }
 
@@ -173,10 +179,10 @@ describe('ConfiguratorPage — forma del cuerpo', () => {
     expect(screen.queryByText(t.configurator.bodyShape.title)).not.toBeInTheDocument()
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.brick) }))
+    await user.click(tecnica().getByRole('button', { name: new RegExp(t.technique.brick) }))
     expect(screen.getByText(t.configurator.bodyShape.title)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.peyote) }))
+    await user.click(tecnica().getByRole('button', { name: new RegExp(t.technique.peyote) }))
     expect(screen.queryByText(t.configurator.bodyShape.title)).not.toBeInTheDocument()
   })
 
@@ -303,7 +309,7 @@ describe('ConfiguratorPage — "Aro con flecos": filas siguen a columnas (Correc
 
   it('elegir otra plantilla o técnica no arrastra el seguimiento de filas', async () => {
     const user = await renderAndSelectAroFlecos()
-    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.loom) }))
+    await user.click(tecnica().getByRole('button', { name: new RegExp(t.technique.loom) }))
     // Now on loom, rows must stay put even if columns change.
     fireEvent.change(colsInput(), { target: { value: '5' } })
     expect(rowsInput()).not.toHaveValue(5)
@@ -420,7 +426,7 @@ describe('ConfiguratorPage — crear el par de aros', () => {
 
   it('peyote no ofrece el par', async () => {
     const { user } = await renderPage()
-    await user.click(screen.getByRole('button', { name: new RegExp(t.technique.peyote) }))
+    await user.click(tecnica().getByRole('button', { name: new RegExp(t.technique.peyote) }))
     expect(screen.queryByRole('button', { name: t.configurator.pairAdd })).not.toBeInTheDocument()
   })
 })

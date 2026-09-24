@@ -33,7 +33,7 @@ export const MAX_FRINGE_LENGTH = 100
 
 /** Peyote's column-major zigzag traversal doesn't have a clean "last body row" to hang a fringe from — brick and loom do. */
 export function isFringeCapable(technique: Technique): boolean {
-  // El aro triangular tampoco: no tiene un borde de abajo del que colgar
+  // El peyote triangular tampoco: no tiene un borde de abajo del que colgar
   // flecos, se teje en vueltas desde el centro.
   return isGridTechnique(technique) && technique !== 'peyote'
 }

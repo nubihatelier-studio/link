@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { triangleBeadPlacement, triangleBeads, triangleBoundsUnits, triangleKey } from '@/engine/trianglePeyote'
 export type TemplateId = 'pulsera' | 'aroFlecos' | 'triangulo' | 'personalizado'
 
 interface TemplateIconProps {
@@ -115,26 +116,45 @@ function PersonalizadoIcon({ size = 40, className }: IconProps) {
 }
 
 /**
- * Aro triangular — las mostacillas de las tres vueltas del comienzo, cada
- * una acostada a lo largo de su lado y rodeando el triangulito hueco del
- * medio: lo que distingue a esta técnica de un triángulo cualquiera.
+ * Peyote triangular — la pieza misma, chiquitita: cuatro vueltas desde el
+ * centro, con la punta hacia arriba como salen los patrones nuevos.
+ *
+ * Se dibuja con la geometría de verdad (`engine/trianglePeyote.ts`) en vez de
+ * a ojo, así que el icono no puede terminar mostrando una forma que la app no
+ * hace.
+ *
+ * Es el único de esta familia que va relleno en vez de contorneado, y es a
+ * propósito: en peyote las mostacillas se encajan unas en otras, así que a 40
+ * píxeles sus contornos se cruzan y queda una maraña donde no se lee nada.
+ * Rellenas se lee el triángulo de un vistazo, que es lo que un icono tiene
+ * que hacer.
  */
 function TrianguloIcon({ size = 40, className }: IconProps) {
-  // Tres lados, girados un tercio de vuelta cada uno, con dos vueltas.
-  const beads: ReactElement[] = []
-  const centro = 24
-  for (let vuelta = 1; vuelta <= 2; vuelta++) {
-    const fuera = 6 + (vuelta - 1) * 7
-    for (let lado = 0; lado < 3; lado++) {
-      const giro = (lado * 120 * Math.PI) / 180
-      for (let i = 0; i < vuelta; i++) {
-        const along = (i - (vuelta - 1) / 2) * 8
-        const x = centro + along * Math.cos(giro) + fuera * Math.sin(giro)
-        const y = centro + along * Math.sin(giro) - fuera * Math.cos(giro)
-        beads.push(bead(x, y, 6.4, `${vuelta}-${lado}-${i}`))
-      }
-    }
-  }
+  const rounds = 4
+  const bounds = triangleBoundsUnits(rounds, true)
+  const escala = 42 / Math.max(bounds.width, bounds.height)
+  const centroX = bounds.minX + bounds.width / 2
+  const centroY = bounds.minY + bounds.height / 2
+  const ancho = escala * 0.82
+  const alto = ancho * 0.92
+  const beads: ReactElement[] = triangleBeads(rounds).map((b) => {
+    const { x, y, angle } = triangleBeadPlacement(b, true)
+    const cx = 24 + (x - centroX) * escala
+    const cy = 24 + (y - centroY) * escala
+    return (
+      <rect
+        key={triangleKey(b)}
+        x={cx - ancho / 2}
+        y={cy - alto / 2}
+        width={ancho}
+        height={alto}
+        rx={1}
+        ry={1}
+        fill="currentColor"
+        transform={`rotate(${angle} ${cx} ${cy})`}
+      />
+    )
+  })
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden>
       {beads}

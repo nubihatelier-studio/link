@@ -310,7 +310,7 @@ export function ConfiguratorPage() {
   }
 
   /**
-   * El aro triangular se crea con sus vueltas y se abre en el editor de
+   * El peyote triangular se crea con sus vueltas y se abre en el editor de
    * siempre: no es una grilla de filas y columnas, así que no pasa por los
    * pasos de técnica, tamaño y flecos de esta página, pero se edita igual
    * que cualquier otro patrón.
@@ -468,7 +468,10 @@ export function ConfiguratorPage() {
         </section>
       ) : (
         <>
-          <section className="mb-8">
+          {/* Con nombre propio: "Peyote" y "Peyote triangular" viven en dos
+              secciones distintas de esta misma pantalla, así que la técnica
+              tiene que poder nombrarse sin ambigüedad. */}
+          <section className="mb-8" aria-label={t.configurator.techniqueStepTitle}>
             <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.techniqueStepTitle}</h2>
             <div className="grid grid-cols-3 gap-3">
               {TECHNIQUES.map((tech) => (

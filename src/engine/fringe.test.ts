@@ -20,7 +20,7 @@ describe('isFringeCapable', () => {
     expect(isFringeCapable('peyote')).toBe(false)
   })
 
-  it('el aro triangular tampoco: no tiene borde de abajo', () => {
+  it('el peyote triangular tampoco: no tiene borde de abajo', () => {
     expect(isFringeCapable('triangle')).toBe(false)
   })
 })

@@ -966,10 +966,10 @@ describe('editorStore — cambiar tamaño', () => {
   })
 })
 
-describe('editorStore — el aro triangular', () => {
+describe('editorStore — el peyote triangular', () => {
   const DOC: PatternDoc = {
     id: 'tri',
-    name: 'Aro triangular',
+    name: 'Peyote triangular',
     config: { technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' },
     cells: { '0:3:1': '#111111' },
     palette: ['#111111', null, null, null, null, null],

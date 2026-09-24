@@ -18,7 +18,7 @@ import { beadMetrics, beadPath, contrastTextColor, MIN_BEAD_INSET_PX, MIN_BEAD_R
 const BEAD_HEIGHT = 0.92
 
 /**
- * Cómo se dibuja el aro triangular, en cualquier lienzo.
+ * Cómo se dibuja el peyote triangular, en cualquier lienzo.
  *
  * Vive aparte de `CanvasGrid` porque no hay filas ni columnas que recorrer
  * —son tres sectores en vueltas desde el centro, ver

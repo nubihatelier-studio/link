@@ -101,12 +101,12 @@ interface PatternsState {
   /** Makes the pattern an earring pair, changes how its right earring is kept, or (undefined) makes it a single piece again. */
   setPair: (id: string, pair: PairData | undefined) => void
   /**
-   * Sólo el aro triangular: cuántas vueltas tiene. Lo pintado se conserva —
+   * Sólo el peyote triangular: cuántas vueltas tiene. Lo pintado se conserva —
    * achicar la pieza deja fuera lo que caía en las vueltas que se van, y
    * agrandarla las devuelve tal como estaban.
    */
   setTriangleRounds: (id: string, rounds: number) => void
-  /** Sólo el aro triangular: hacia dónde mira la punta. No mueve ni una mostacilla, sólo gira la pieza. */
+  /** Sólo el peyote triangular: hacia dónde mira la punta. No mueve ni una mostacilla, sólo gira la pieza. */
   setTriangleUp: (id: string, up: boolean) => void
   /**
    * The bead the pattern is woven with. Nothing painted changes — the bead

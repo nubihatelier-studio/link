@@ -87,17 +87,17 @@ interface EditorState {
   cols: number
   rows: number
   /**
-   * Sólo el aro triangular: cuántas vueltas tiene desde el centro. No hay
+   * Sólo el peyote triangular: cuántas vueltas tiene desde el centro. No hay
    * filas ni columnas ahí — ver `engine/trianglePeyote.ts`.
    */
   rounds: number
   /**
-   * Cambia las vueltas del aro triangular. No es un paso de deshacer: no se
+   * Cambia las vueltas del peyote triangular. No es un paso de deshacer: no se
    * pierde nada al achicarlo, lo pintado afuera vuelve tal cual al agrandarlo.
    */
   setRounds: (rounds: number) => void
   /**
-   * Sólo el aro triangular: hacia dónde mira la punta. Tampoco es un paso de
+   * Sólo el peyote triangular: hacia dónde mira la punta. Tampoco es un paso de
    * deshacer — no mueve ni una mostacilla, gira la pieza entera, y el mismo
    * control la devuelve.
    */
@@ -388,9 +388,9 @@ interface EditorState {
    * triangular, cuyas llaves son `engine/trianglePeyote.ts#triangleKey`.
    */
   paintKey: (key: string, hex: string | null) => void
-  /** El cuentagotas por llave — el hermano de `pickColor` para el aro triangular. */
+  /** El cuentagotas por llave — el hermano de `pickColor` para el peyote triangular. */
   pickColorKey: (key: string) => void
-  /** El balde por llave — el hermano de `floodFill` para el aro triangular. */
+  /** El balde por llave — el hermano de `floodFill` para el peyote triangular. */
   floodFillKey: (key: string, hex: string | null) => void
   paintLine: (r0: number, c0: number, r1: number, c1: number, hex: string | null) => void
   pickColor: (row: number, col: number) => void
@@ -413,7 +413,7 @@ interface EditorState {
   strokeBase: ColorMap | null
   strokeStart: () => void
   strokeCell: (row: number, col: number, hex: string | null) => void
-  /** Un paso del trazo por llave — el hermano de `strokeCell` para el aro triangular. */
+  /** Un paso del trazo por llave — el hermano de `strokeCell` para el peyote triangular. */
   strokeKey: (key: string, hex: string | null) => void
   strokeEnd: () => void
   /** Drops the stroke in progress as if it never happened — no undo step, nothing saved. For a touch that turns out to be the start of a pinch. */

@@ -67,7 +67,7 @@ export function beadsThrough(order: WeaveOrder, index: number): number {
  */
 export const WEAVE_ORDER_VERSION: Record<Technique, number> = {
   loom: 1,
-  // El aro triangular todavía no tiene modo tejido: cuando lo tenga, parte
+  // El peyote triangular todavía no tiene modo tejido: cuando lo tenga, parte
   // en 1 porque no hay progreso guardado que invalidar.
   triangle: 1,
   // 3: el cuerpo se teje de arriba hacia abajo. Antes partía por la fila más
@@ -333,7 +333,7 @@ export function buildWeaveOrder(
     case 'peyote':
       return appendLoopStep(buildPeyoteOrder(cols, rows), loopBeadCount)
     case 'triangle':
-      // El aro triangular todavía no tiene modo tejido: se teje en vueltas
+      // El peyote triangular todavía no tiene modo tejido: se teje en vueltas
       // desde el centro, no por filas (ver engine/trianglePeyote.ts). Se
       // devuelve un orden vacío, que es lo que significa "sin progreso": la
       // biblioteca pregunta por el avance de cualquier patrón, así que tirar

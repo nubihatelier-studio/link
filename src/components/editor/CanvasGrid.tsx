@@ -30,9 +30,9 @@ export function CanvasGrid() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPointerDown = useRef(false)
   const lastCell = useRef<{ row: number; col: number } | null>(null)
-  /** La última mostacilla pintada del aro triangular, que no se mide en filas y columnas. */
+  /** La última mostacilla pintada del peyote triangular, que no se mide en filas y columnas. */
   const lastBeadKey = useRef<string | null>(null)
-  /** El cuentagotas del aro triangular actúa al levantar el dedo, como en la grilla. */
+  /** El cuentagotas del peyote triangular actúa al levantar el dedo, como en la grilla. */
   const pendingBeadTap = useRef<string | null>(null)
   const isFringeSculpting = useRef(false)
   // Line tool supports two gestures: click-cell-then-click-cell (no drag
@@ -180,7 +180,7 @@ export function CanvasGrid() {
 
   const cellPx = BASE_CELL_PX * (zoom / 100)
   /**
-   * El aro triangular no es una grilla: son tres sectores en vueltas desde el
+   * El peyote triangular no es una grilla: son tres sectores en vueltas desde el
    * centro (ver `engine/trianglePeyote.ts`). Se dibuja en este mismo lienzo
    * para heredar el zoom, el pellizco y la mano, pero se salta todo lo que
    * habla de filas y columnas — regla, selección, flecos, argolla.
@@ -293,7 +293,7 @@ export function CanvasGrid() {
     return { x, y }
   }
 
-  /** La mostacilla del aro triangular bajo el puntero, o `null` si cayó en un hueco. */
+  /** La mostacilla del peyote triangular bajo el puntero, o `null` si cayó en un hueco. */
   function beadFromEvent(e: { clientX: number; clientY: number }) {
     const canvas = canvasRef.current
     if (!canvas) return null
@@ -818,7 +818,7 @@ export function CanvasGrid() {
     }
 
     /**
-     * El aro triangular: lápiz, goma y cuentagotas sobre una mostacilla, sin
+     * El peyote triangular: lápiz, goma y cuentagotas sobre una mostacilla, sin
      * filas ni columnas. El pellizco y la mano de más arriba ya pasaron, así
      * que se mueve y se acerca igual que el peyote.
      */

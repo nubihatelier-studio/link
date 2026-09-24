@@ -200,7 +200,7 @@ describe('composeInstagramCard', () => {
   }, 15000)
 })
 
-describe('renderPatternCanvas — el aro triangular', () => {
+describe('renderPatternCanvas — el peyote triangular', () => {
   // Como arriba: jsdom no tiene canvas de verdad, así que acá se verifica la
   // cuenta del encuadre; el dibujo se revisó a mano en el navegador.
   it('se encuadra por dónde quedaron sus mostacillas, no por filas y columnas', () => {
@@ -242,7 +242,7 @@ describe('renderPatternCanvas — el aro triangular', () => {
     expect(sinRounds.height).toBe(conRounds.height)
   })
 
-  it('un par no lo parte en dos: el aro triangular todavía no se teje de a pares', () => {
+  it('un par no lo parte en dos: el peyote triangular todavía no se teje de a pares', () => {
     const solo = renderExportCanvas(
       { name: 'x', technique: 'triangle', cols: 8, rows: 8, rounds: 8, cells: {}, beadType: bead },
       '#fff',

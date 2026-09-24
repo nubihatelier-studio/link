@@ -36,7 +36,7 @@ export const t = {
     cardOptions: (name: string) => `Opciones de ${name}`,
     download: 'Descargar',
     colorCount: (n: number) => (n === 1 ? '1 color' : `${n} colores`),
-    /** El aro triangular no se mide en filas y columnas, sino en vueltas desde el centro. */
+    /** El peyote triangular no se mide en filas y columnas, sino en vueltas desde el centro. */
     roundCount: (n: number) => (n === 1 ? '1 vuelta' : `${n} vueltas`),
     unfavorite: (name: string) => `Quitar ${name} de favoritos`,
   },
@@ -70,8 +70,8 @@ export const t = {
     loomDesc: 'Grilla recta, tejido en telar',
     peyoteDesc: 'Filas intercaladas, beads verticales',
     brickDesc: 'Filas escalonadas tipo ladrillo',
-    /** El aro triangular: no es una grilla, son tres sectores — ver engine/trianglePeyote.ts. */
-    triangle: 'Aro triangular',
+    /** El peyote triangular: no es una grilla, son tres sectores — ver engine/trianglePeyote.ts. */
+    triangle: 'Peyote triangular',
     triangleDesc: 'Tres lados que crecen desde el centro',
   },
   configurator: {
@@ -108,7 +108,7 @@ export const t = {
       pulsera: 'Pulsera',
       aroFlecos: 'Aro con flecos',
       /** Peyote en vueltas desde el centro — ver engine/trianglePeyote.ts. */
-      triangulo: 'Aro triangular',
+      triangulo: 'Peyote triangular',
       trianguloDesc: 'Se teje en vueltas desde el centro',
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
@@ -422,12 +422,12 @@ export const t = {
       cancel: 'Cancelar',
       use: 'Usar este color',
     },
-    /** "Forma del aro" triangular — ocupa el lugar de "Cambiar tamaño". Ver TriangleShapeDialog. */
+    /** "Forma del triángulo" — ocupa el lugar de "Cambiar tamaño". Ver TriangleShapeDialog. */
     triangleShape: {
-      menu: 'Forma del aro',
+      menu: 'Forma del triángulo',
       menuHint: 'De qué porte es y hacia dónde apunta',
-      title: 'Forma del aro',
-      hint: 'El aro crece de a una vuelta desde el centro. Nada de esto pierde lo pintado: si lo achicas y lo vuelves a agrandar, aparece tal cual, y dar vuelta la punta gira la pieza entera sin mover una sola mostacilla.',
+      title: 'Forma del triángulo',
+      hint: 'El triángulo crece de a una vuelta desde el centro. Nada de esto pierde lo pintado: si lo achicas y lo vuelves a agrandar, aparece tal cual, y dar vuelta la punta gira la pieza entera sin mover una sola mostacilla.',
       rounds: 'Vueltas',
       tip: 'La punta',
       tipUp: 'Hacia arriba',

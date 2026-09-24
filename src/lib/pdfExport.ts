@@ -22,9 +22,9 @@ export interface ExportPatternOptions {
   technique: Technique
   cols: number
   rows: number
-  /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
+  /** Sólo el peyote triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
   rounds?: number
-  /** Sólo el aro triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  /** Sólo el peyote triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
   triangleUp?: boolean
   cells: ColorMap
   beadType: BeadTypeDef
@@ -445,13 +445,13 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number,
     beadCount(opts.technique, opts.cols, opts.rows, opts.rowShape) +
     totalFringeBeadCount(opts.fringe) +
     loopBeadCount(opts.loop)
-  const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch', triangle: 'Aro triangular' }[
+  const techLabel = { loom: 'Loom', peyote: 'Peyote intercalado', brick: 'Brick stitch', triangle: 'Peyote triangular' }[
     opts.technique
   ]
   // A pair is two earrings of the same size: the size is per earring, the total is the pair's.
   const sizeLabel = `${formatSizeMm(size.widthMm, size.heightMm)}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
   const totalLabel = opts.pair ? t.pdf.pairTotal(total * 2) : `Total: ${total} mostacillas`
-  // El aro triangular se mide en vueltas desde el centro: "10 × 10 mostacillas"
+  // El peyote triangular se mide en vueltas desde el centro: "10 × 10 mostacillas"
   // no dice nada de una pieza que no tiene filas ni columnas.
   const shapeLabel =
     opts.technique === 'triangle'
@@ -610,7 +610,7 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const showLetters = opts.showLetters ?? true
   const base = chartCellMm(opts.technique)
   /**
-   * El aro triangular no es una grilla: su gráfico mide lo que miden sus
+   * El peyote triangular no es una grilla: su gráfico mide lo que miden sus
    * mostacillas (`triangleBoundsUnits`), no filas por columnas, y no tiene
    * fleco, argolla ni par. Todo lo demás de la hoja —encabezado, materiales,
    * hilo, aguja, notas— es exactamente el mismo.

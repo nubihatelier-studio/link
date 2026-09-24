@@ -1,6 +1,6 @@
 import type { LetterAssignment } from './letters'
 /**
- * `triangle` es el aro triangular: no es una grilla de filas y columnas como
+ * `triangle` es el peyote triangular: no es una grilla de filas y columnas como
  * las otras tres, sino tres sectores girados (ver `engine/trianglePeyote.ts`).
  * Por eso lo que vale para un patrón normal —columnas, filas, flecos, forma
  * del cuerpo— no le aplica, y tiene su propia pantalla para editarlo.
@@ -37,10 +37,10 @@ export interface PatternConfig {
   technique: Technique
   cols: number
   rows: number
-  /** Sólo el aro triangular: cuántas vueltas tiene desde el centro. */
+  /** Sólo el peyote triangular: cuántas vueltas tiene desde el centro. */
   rounds?: number
   /**
-   * Sólo el aro triangular: hacia dónde mira la punta. Los aros nuevos parten
+   * Sólo el peyote triangular: hacia dónde mira la punta. Los aros nuevos parten
    * con la punta hacia arriba; ausente significa hacia abajo, que es como se
    * dibujaban todos los que se hicieron antes de que esto existiera — un
    * patrón guardado no cambia de forma solo.
