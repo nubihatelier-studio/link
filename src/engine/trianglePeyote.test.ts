@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   beadsInRound,
+  triangleBeadAt,
   beadsPerSide,
   parseTriangleKey,
   ROUND_PITCH,
@@ -64,5 +65,31 @@ describe('Triángulo de peyote — la clave de una mostacilla', () => {
   it('va y vuelve', () => {
     const bead = { sector: 1, round: 6, index: 4 } as const
     expect(parseTriangleKey(triangleKey(bead))).toEqual(bead)
+  })
+})
+
+describe('Triángulo de peyote — tocar una mostacilla', () => {
+  it('el centro de una mostacilla devuelve esa mostacilla', () => {
+    for (const bead of [
+      { sector: 0, round: 1, index: 0 },
+      { sector: 1, round: 4, index: 2 },
+      { sector: 2, round: 7, index: 6 },
+    ] as const) {
+      const p = triangleBeadPlacement(bead)
+      expect(triangleBeadAt(p.x, p.y, 8)).toEqual(bead)
+    }
+  })
+
+  it('un punto lejos de la pieza no devuelve ninguna', () => {
+    expect(triangleBeadAt(50, 50, 8)).toBeNull()
+  })
+
+  it('el triangulito hueco del centro no es de nadie', () => {
+    expect(triangleBeadAt(0, 0, 8, 0.3)).toBeNull()
+  })
+
+  it('un punto corrido pero dentro de la mostacilla igual la encuentra', () => {
+    const p = triangleBeadPlacement({ sector: 0, round: 5, index: 2 })
+    expect(triangleBeadAt(p.x + 0.2, p.y - 0.15, 8)).toEqual({ sector: 0, round: 5, index: 2 })
   })
 })

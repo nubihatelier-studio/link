@@ -642,12 +642,16 @@ export const t = {
   },
   /** Pantalla de prueba del triángulo en vueltas — ver TrianglePreviewPage.tsx. */
   trianglePreview: {
-    title: 'Triángulo de peyote (prueba)',
-    intro: 'Vamos por partes. Con una vuelta se ven las tres primeras mostacillas —una por lado— rodeando el triangulito hueco del centro. Sube las vueltas para ir viendo cómo crece; la última siempre va con un color por lado y lo ya tejido queda en gris.',
+    title: 'Aro triangular (prueba)',
+    intro: 'Elige un color y toca las mostacillas para pintarlas; se puede arrastrar. Sube las vueltas para agrandar la pieza.',
+    canvasLabel: 'Triángulo: toca una mostacilla para pintarla',
     rounds: 'Vueltas',
     perSide: 'Mostacillas en el lado de afuera',
     total: 'Mostacillas en total',
-    note: 'Todavía no se puede pintar: esto es sólo para mirar la forma.',
+    painted: 'Pintadas',
+    erase: 'Borrar',
+    undo: 'Deshacer',
+    note: 'Esto todavía es una prueba: lo que pintes acá no se guarda ni sale en el PDF. Sirve para probar la técnica con las manos antes de meterla en el editor de verdad.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

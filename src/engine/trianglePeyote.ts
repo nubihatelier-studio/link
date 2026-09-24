@@ -158,6 +158,35 @@ export function triangleBoundsUnits(rounds: number): { width: number; height: nu
   }
 }
 
+/**
+ * La mostacilla que cae bajo un punto, en unidades de mostacilla, o `null`
+ * si el punto cayó en un hueco.
+ *
+ * Se busca la más cercana en vez de resolverlo con una fórmula: la retícula
+ * son tres sectores girados y un punto cerca de una costura pertenece a uno
+ * u otro según dónde caiga exactamente. Con unos cientos de mostacillas esto
+ * es instantáneo, y no puede desfasarse del dibujo porque pregunta por las
+ * mismas posiciones que se dibujan.
+ */
+export function triangleBeadAt(
+  x: number,
+  y: number,
+  rounds: number,
+  maxDistance = 0.6,
+): TriangleBead | null {
+  let mejor: TriangleBead | null = null
+  let mejorDist = maxDistance
+  for (const bead of triangleBeads(rounds)) {
+    const p = triangleBeadPlacement(bead)
+    const d = Math.hypot(p.x - x, p.y - y)
+    if (d < mejorDist) {
+      mejorDist = d
+      mejor = bead
+    }
+  }
+  return mejor
+}
+
 /** La clave con que se guarda una mostacilla pintada. */
 export function triangleKey(bead: TriangleBead): string {
   return `${bead.sector}:${bead.round}:${bead.index}`
