@@ -1,5 +1,5 @@
 import type { BrickDrop, Technique, BeadTypeDef, CellPosition, RowShape } from './types'
-import { triangleBeadCount } from './trianglePeyote'
+import { triangleBeadCount, triangleBoundsUnits } from './trianglePeyote'
 import { loopHeightUnits } from './loop'
 import { weaveThreadFactor } from './calibration'
 
@@ -420,6 +420,15 @@ export function physicalSizeMm(
   maxFringeBeads = 0,
   loopBeads = 0,
 ) {
+  if (technique === 'triangle') {
+    // El aro triangular no se mide por filas y columnas: se mide por dónde
+    // quedaron sus mostacillas (`triangleBoundsUnits`, en anchos de
+    // mostacilla), que es la misma cuenta con la que se dibuja. `cols` lleva
+    // las vueltas — ver `store/patternsStore.ts#setTriangleRounds`.
+    const { width, height } = triangleBoundsUnits(cols)
+    const factor = weaveThreadFactor(technique, bead.id)
+    return { widthMm: width * bead.widthMm, heightMm: height * bead.widthMm * factor }
+  }
   const horizontalMm = beadAxisMm(technique, 'horizontal', bead)
   const verticalMm = beadAxisMm(technique, 'vertical', bead)
   const rowMm = physicalRowMm(technique, bead)

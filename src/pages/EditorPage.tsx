@@ -303,8 +303,9 @@ export function EditorPage() {
     // The saved letter assignment travels with the export, so paper and screen
     // name the same colour the same way — see `engine/letters.ts`.
     const letterAssignment = id ? getPattern(id)?.letters : undefined
-    if (!left) return { technique, cols, rows, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair, letterAssignment }
-    return { ...left, pair: currentPair, letterAssignment }
+    if (!left)
+      return { technique, cols, rows, rounds, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair, letterAssignment }
+    return { ...left, rounds, pair: currentPair, letterAssignment }
   }
 
   /**
@@ -462,8 +463,8 @@ export function EditorPage() {
           )}
         </div>
         {/* Hidden on the wrapper: `Button`'s own `inline-flex` would win over a `hidden` passed to it. */}
-        <div className="hidden sm:block" title={esTriangulo ? t.editor.triangleNoExport : undefined}>
-          <Button onClick={() => setExportDialogOpen(true)} disabled={exporting || esTriangulo} className="px-4 py-2 text-sm">
+        <div className="hidden sm:block">
+          <Button onClick={() => setExportDialogOpen(true)} disabled={exporting} className="px-4 py-2 text-sm">
             {exporting ? '…' : t.editor.exportPdf}
           </Button>
         </div>
@@ -484,12 +485,7 @@ export function EditorPage() {
               <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-border bg-surface p-2 shadow-lg">
                 <div className="sm:hidden">
                   <MenuHeading>{t.editor.menuExport}</MenuHeading>
-                  <MenuItem
-                    disabled={exporting || esTriangulo}
-                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
-                    onClick={() => setExportDialogOpen(true)}
-                    close={() => setMoreMenuOpen(false)}
-                  >
+                  <MenuItem disabled={exporting} onClick={() => setExportDialogOpen(true)} close={() => setMoreMenuOpen(false)}>
                     {exporting ? '…' : t.editor.exportPdf}
                   </MenuItem>
                   <MenuItem

@@ -9,6 +9,8 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { assignLettersAcross, type LetterAssignment, type LetterEntry } from '@/engine/letters'
 import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetrics, contrastTextColor } from './beadStyle'
+import { drawTriangleChart } from './pdfTriangleChart'
+import { triangleBoundsUnits } from '@/engine/trianglePeyote'
 import { describeColor } from './colorName'
 import { formatSizeMm } from '@/engine/units'
 import { shareOrDownloadFile } from './shareFile'
@@ -20,6 +22,8 @@ export interface ExportPatternOptions {
   technique: Technique
   cols: number
   rows: number
+  /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
+  rounds?: number
   cells: ColorMap
   beadType: BeadTypeDef
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
@@ -445,11 +449,13 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number,
   // A pair is two earrings of the same size: the size is per earring, the total is the pair's.
   const sizeLabel = `${formatSizeMm(size.widthMm, size.heightMm)}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
   const totalLabel = opts.pair ? t.pdf.pairTotal(total * 2) : `Total: ${total} mostacillas`
-  doc.text(
-    `${techLabel} · ${opts.cols} × ${opts.rows} mostacillas · ${opts.beadType.label} · ${sizeLabel} · ${totalLabel}`,
-    margin,
-    23,
-  )
+  // El aro triangular se mide en vueltas desde el centro: "10 × 10 mostacillas"
+  // no dice nada de una pieza que no tiene filas ni columnas.
+  const shapeLabel =
+    opts.technique === 'triangle'
+      ? t.home.roundCount(opts.rounds ?? opts.cols)
+      : `${opts.cols} × ${opts.rows} mostacillas`
+  doc.text(`${techLabel} · ${shapeLabel} · ${opts.beadType.label} · ${sizeLabel} · ${totalLabel}`, margin, 23)
   doc.setTextColor(0)
 }
 
@@ -601,8 +607,17 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
   const sections = resolveSections(opts.sections)
   const showLetters = opts.showLetters ?? true
   const base = chartCellMm(opts.technique)
-  const bodyRows = opts.rows + maxFringeLength(opts.fringe)
-  const loopRows = loopReserveUnits(opts.loop)
+  /**
+   * El aro triangular no es una grilla: su gráfico mide lo que miden sus
+   * mostacillas (`triangleBoundsUnits`), no filas por columnas, y no tiene
+   * fleco, argolla ni par. Todo lo demás de la hoja —encabezado, materiales,
+   * hilo, aguja, notas— es exactamente el mismo.
+   */
+  const esTriangulo = opts.technique === 'triangle'
+  const vueltas = opts.rounds ?? opts.cols
+  const triBounds = esTriangulo ? triangleBoundsUnits(vueltas) : null
+  const bodyRows = triBounds ? triBounds.height : opts.rows + maxFringeLength(opts.fringe)
+  const loopRows = esTriangulo ? 0 : loopReserveUnits(opts.loop)
 
   // An earring pair prints both earrings side by side, each under its own
   // label; a single piece prints as it always has.
@@ -616,11 +631,13 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
     staggerPhase: opts.staggerPhase ?? 0,
     loop: opts.loop,
   }
-  const pieces = piecesOf(left, opts.pair)
+  const pieces = esTriangulo ? [left] : piecesOf(left, opts.pair)
   const isPair = pieces.length > 1
-  const pieceWidthUnits = gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe)).width
+  const pieceWidthUnits = triBounds
+    ? triBounds.width
+    : gridBoundsUnits(opts.technique, opts.cols, opts.rows, maxFringeLength(opts.fringe)).width
   // Width the layout has to fit, in cells: one chart, or two plus the gap between them.
-  const chartCols = isPair ? pieceWidthUnits * 2 + PAIR_GAP_CELLS : opts.cols
+  const chartCols = isPair ? pieceWidthUnits * 2 + PAIR_GAP_CELLS : pieceWidthUnits
   // The labels above a pair's charts need room too — expressed in rows, like
   // the loop's reserve, so the layout decision and the cell fit account for it.
   const labelRows = isPair ? PAIR_LABEL_MM / base.h : 0
@@ -642,6 +659,19 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
         doc.setFontSize(8)
         doc.setTextColor(60)
         doc.text(i === 0 ? t.pdf.leftEarring : t.pdf.rightEarring, x, bodyTop - loopRows * cellH - 6)
+      }
+      if (esTriangulo) {
+        drawTriangleChart(doc, {
+          rounds: vueltas,
+          cells: pieceOpts.cells,
+          letterForHex,
+          showLetters: showLetters && Math.min(cellW, cellH) >= MIN_LEGIBLE_CELL_MM,
+          letterFontSize: Math.min(MAX_LETTER_FONT_SIZE, Math.min(cellW, cellH) * 1.6),
+          cellMm: cellW,
+          originX: x,
+          originY: bodyTop,
+        })
+        return
       }
       drawChart(doc, pieceOpts, bodyRows, letterForHex, showLetters, x, bodyTop, cellW, cellH)
       if (piece.loop) drawLoop(doc, pieceOpts, piece.loop, letterForHex, showLetters, x, bodyTop, cellW, cellH)

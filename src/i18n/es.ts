@@ -434,7 +434,7 @@ export const t = {
       apply: 'Cambiar el porte',
     },
     /** Lo que todavía no sabe hacer el aro triangular — ver TrianglePreview en engine/trianglePeyote.ts. */
-    triangleNoExport: 'El aro triangular todavía no sale en el PDF ni en las imágenes',
+    triangleNoExport: 'El aro triangular todavía no sale en las imágenes',
     clone: 'Clonar lo marcado',
     cloneVertical: 'Una copia bajo la otra',
     cloneHorizontal: 'Una copia al lado de la otra',
@@ -678,7 +678,7 @@ export const t = {
     title: 'Exportar PDF',
     subtitle: 'Elige qué incluir en el documento.',
     chart: 'Gráfico',
-    chartHint: 'La grilla del patrón, con letras por color.',
+    chartHint: 'El dibujo del patrón, con letras por color.',
     materials: 'Materiales',
     materialsHint: 'Colores con su nombre y cantidad, hilo estimado y aguja.',
     notes: 'Notas',
