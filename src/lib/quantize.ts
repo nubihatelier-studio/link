@@ -1,23 +1,65 @@
 import { deltaE2000, rgbToLab, type Lab, type RGB } from './color'
 
 /**
+ * Un azar propio, sembrado con los píxeles: la misma foto da siempre la misma
+ * paleta.
+ *
+ * El sembrado de k-means++ necesita azar para repartir los primeros centros,
+ * pero con `Math.random()` la misma foto entregaba colores distintos cada vez
+ * que se abría —y un gráfico distinto en "Foto a patrón"—, según qué píxeles
+ * le tocaran de partida. Casi siempre caía en el mismo reparto, así que se
+ * veía como una rareza que aparece de vez en cuando: un test que falla una de
+ * cada varias corridas, y de tarde en tarde una paleta que no es la de la vez
+ * anterior. Sembrando con la foto misma, el reparto sigue siendo tan variado
+ * como antes, pero es el mismo cada vez.
+ *
+ * `mulberry32`, que es corto, rápido y de sobra para esto: no se le está
+ * pidiendo azar de verdad, sino azar repetible.
+ */
+function seededRandom(seed: number): () => number {
+  let a = seed
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** La huella de una foto: los mismos píxeles y el mismo `k` dan la misma semilla (FNV-1a). */
+function seedFrom(pixels: RGB[], k: number): number {
+  let h = Math.imul(0x811c9dc5 ^ pixels.length, 0x01000193)
+  h = Math.imul(h ^ k, 0x01000193)
+  for (const p of pixels) {
+    h = Math.imul(h ^ p.r, 0x01000193)
+    h = Math.imul(h ^ p.g, 0x01000193)
+    h = Math.imul(h ^ p.b, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/**
  * Simple k-means quantization in Lab space (perceptually closer results than
  * clustering raw RGB). Used to reduce a photo to N dominant colors before
  * mapping each cluster to the nearest catalog swatch.
+ *
+ * Determinista: los mismos píxeles devuelven siempre lo mismo — ver
+ * `seededRandom`.
  */
 export function kMeansQuantize(pixels: RGB[], k: number, maxIterations = 12): { centroids: Lab[]; counts: number[] } {
   if (pixels.length === 0) return { centroids: [], counts: [] }
 
   const labs = pixels.map(rgbToLab)
   const clusterCount = Math.min(k, labs.length)
+  const random = seededRandom(seedFrom(pixels, k))
 
   // k-means++ seeding for stability
   const centroids: Lab[] = []
-  centroids.push(labs[Math.floor(Math.random() * labs.length)])
+  centroids.push(labs[Math.floor(random() * labs.length)])
   while (centroids.length < clusterCount) {
     const distances = labs.map((p) => Math.min(...centroids.map((c) => sqDist(p, c))))
     const sum = distances.reduce((a, b) => a + b, 0)
-    let r = Math.random() * sum
+    let r = random() * sum
     let idx = 0
     for (let i = 0; i < distances.length; i++) {
       r -= distances[i]

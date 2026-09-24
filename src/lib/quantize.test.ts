@@ -2,6 +2,38 @@ import { describe, expect, it } from 'vitest'
 import { rgbToLab, type Lab, type RGB } from './color'
 import { kMeansQuantize, mergeSimilarColors } from './quantize'
 
+describe('kMeansQuantize — la misma foto da siempre lo mismo', () => {
+  /** Una "foto" variada, para que el sembrado tenga de dónde elegir y se note si cambia. */
+  const foto: RGB[] = Array.from({ length: 600 }, (_, i) => ({
+    r: (i * 37) % 256,
+    g: (i * 91) % 256,
+    b: (i * 17) % 256,
+  }))
+
+  it('correrlo muchas veces devuelve exactamente el mismo resultado', () => {
+    const primero = JSON.stringify(kMeansQuantize(foto, 6))
+    for (let i = 0; i < 100; i++) expect(JSON.stringify(kMeansQuantize(foto, 6))).toBe(primero)
+  })
+
+  it('no depende de Math.random: sale igual aunque el azar del navegador esté trucado', () => {
+    const real = Math.random
+    const esperado = JSON.stringify(kMeansQuantize(foto, 5))
+    try {
+      Math.random = () => 0
+      expect(JSON.stringify(kMeansQuantize(foto, 5))).toBe(esperado)
+      Math.random = () => 0.999999
+      expect(JSON.stringify(kMeansQuantize(foto, 5))).toBe(esperado)
+    } finally {
+      Math.random = real
+    }
+  })
+
+  it('fotos distintas siguen dando repartos distintos: la semilla varía con los píxeles', () => {
+    const otra = foto.map((p, i) => (i === 0 ? { r: 1, g: 2, b: 3 } : p))
+    expect(JSON.stringify(kMeansQuantize(otra, 6))).not.toBe(JSON.stringify(kMeansQuantize(foto, 6)))
+  })
+})
+
 describe('kMeansQuantize', () => {
   it('returns nothing for an empty pixel list', () => {
     expect(kMeansQuantize([], 4)).toEqual({ centroids: [], counts: [] })
