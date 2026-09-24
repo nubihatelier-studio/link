@@ -655,9 +655,10 @@ export const t = {
     perSide: 'Mostacillas en el lado de afuera',
     total: 'Mostacillas en total',
     painted: 'Pintadas',
+    changeColor: (name: string) => `${name} · tocar de nuevo para cambiarlo`,
     erase: 'Borrar',
     undo: 'Deshacer',
-    note: 'Lo que pintes se guarda con el patrón y aparece en tu biblioteca. Todavía no sale en el PDF ni tiene modo tejido, y la paleta es fija: eso viene después.',
+    note: 'Lo que pintes se guarda con el patrón y aparece en tu biblioteca. Todavía no sale en el PDF ni tiene modo tejido: eso viene después.',
   },
   pdf: {
     brandFooter: 'Creado con Nubih Creator · @nubih.atelier',

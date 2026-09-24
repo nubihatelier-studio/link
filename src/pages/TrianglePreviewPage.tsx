@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import type { ColorMap } from '@/engine/types'
 import { Eraser, Undo2 } from 'lucide-react'
 import {
   beadsPerSide,
@@ -11,8 +12,8 @@ import {
   triangleKey,
 } from '@/engine/trianglePeyote'
 import { beadMetrics, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX } from '@/lib/beadStyle'
-import { contrastTextColor } from '@/lib/color'
-import { describeColor } from '@/lib/colorName'
+import { trayFor, type Tray } from '@/engine/tray'
+import { TrianglePalette } from '@/components/triangle/TrianglePalette'
 import { SliderField } from '@/components/shared/SliderField'
 import { IconButton } from '@/components/shared/IconButton'
 import { usePatternsStore } from '@/store/patternsStore'
@@ -21,11 +22,10 @@ import { t } from '@/i18n/es'
 
 /** Una mostacilla todavía sin pintar. */
 const SIN_PINTAR = '#d7d2ca'
+/** Un patrón sin nada pintado, siempre el mismo objeto: si fuera uno nuevo cada vez, volvería a dibujar en cada render. */
+const VACIO: ColorMap = {}
 /** Alto de la mostacilla, en anchos: apenas menor que el ancho, como una Delica. */
 const BEAD_HEIGHT = 0.92
-/** Paleta provisoria: seis colores y la goma, hasta que el aro triangular use la bandeja libre. */
-const PALETA = ['#2f6fd0', '#e2b93b', '#8050c0', '#4ab3a5', '#d94f4f', '#faf7f0']
-
 /**
  * Editor del aro triangular de peyote, que se teje en vueltas desde el centro.
  *
@@ -44,13 +44,23 @@ export function TrianglePreviewPage() {
   const setCell = usePatternsStore((s) => s.setCell)
   const setCells = usePatternsStore((s) => s.setCells)
   const setTriangleRounds = usePatternsStore((s) => s.setTriangleRounds)
-  const [color, setColor] = useState(PALETA[0])
+  const setPalette = usePatternsStore((s) => s.setPalette)
+  const [slotElegida, setSlotElegida] = useState(-1)
   const [borrando, setBorrando] = useState(false)
-  /** Lo pintado antes de cada trazo, para poder deshacerlo entero. */
-  const historia = useRef<Record<string, string | undefined>[]>([])
+  /**
+   * Cómo estaba antes de cada trazo y de cada cambio de color, para poder
+   * deshacerlo entero. Va la bandeja además de lo pintado porque cambiar un
+   * color cargado mueve las dos cosas a la vez.
+   */
+  const historia = useRef<{ cells: ColorMap; palette: Tray }[]>([])
   const pintando = useRef(false)
   const rounds = pattern?.config.rounds ?? pattern?.config.cols ?? 10
-  const pintado = pattern?.cells ?? {}
+  const pintado = pattern?.cells ?? VACIO
+  /** La bandeja guardada con el patrón, más lo pintado que ya no esté en ella. */
+  const slots = useMemo(() => trayFor(pattern?.palette, pintado), [pattern?.palette, pintado])
+  /** La casilla con la que se pinta: la elegida, o la primera cargada si esa se vació. */
+  const slotActiva = slots[slotElegida] ? slotElegida : slots.findIndex(Boolean)
+  const color = slots[slotActiva] ?? null
   /** Escala y centro del último dibujo: para saber qué mostacilla se tocó. */
   const vista = useRef({ escala: 1, cx: 0, cy: 0 })
 
@@ -101,13 +111,19 @@ export function TrianglePreviewPage() {
       const bead = triangleBeadAt((clientX - rect.left - cx) / escala, (clientY - rect.top - cy) / escala, rounds)
       if (!bead) return
       if (!id) return
+      // Sin color cargado no se pinta: la bandeja de abajo dice qué hacer.
+      if (!borrando && !color) return
       setCell(id, triangleKey(bead), borrando ? null : color)
     },
     [borrando, color, id, rounds, setCell],
   )
 
+  function recordar() {
+    historia.current = [...historia.current, { cells: { ...pintado }, palette: [...slots] }].slice(-30)
+  }
+
   function empezarTrazo(e: React.PointerEvent) {
-    historia.current = [...historia.current, { ...pintado }].slice(-30)
+    recordar()
     pintando.current = true
     try {
       ;(e.target as Element).setPointerCapture(e.pointerId)
@@ -119,7 +135,9 @@ export function TrianglePreviewPage() {
 
   function deshacer() {
     const previo = historia.current.pop()
-    if (previo && id) setCells(id, previo)
+    if (!previo || !id) return
+    setCells(id, previo.cells)
+    setPalette(id, previo.palette)
   }
 
   const pintadas = Object.values(pintado).filter(Boolean).length
@@ -161,22 +179,18 @@ export function TrianglePreviewPage() {
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {PALETA.map((hex) => (
-          <button
-            key={hex}
-            onClick={() => {
-              setColor(hex)
-              setBorrando(false)
-            }}
-            aria-label={describeColor(hex)}
-            aria-pressed={!borrando && color === hex}
-            className={`h-10 w-10 rounded-full border transition-transform ${
-              !borrando && color === hex ? 'scale-110 border-accent-500 ring-2 ring-accent-500' : 'border-black/10'
-            }`}
-            style={{ backgroundColor: hex, color: contrastTextColor(hex) }}
-          />
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <TrianglePalette
+          patternId={id}
+          slots={slots}
+          cells={pintado}
+          activeSlot={borrando ? -1 : slotActiva}
+          onActiveSlot={(slot) => {
+            setSlotElegida(slot)
+            setBorrando(false)
+          }}
+          onBeforeRecolor={recordar}
+        />
         <IconButton label={t.trianglePreview.erase} active={borrando} onClick={() => setBorrando((v) => !v)}>
           <Eraser size={18} />
         </IconButton>
@@ -184,6 +198,7 @@ export function TrianglePreviewPage() {
           <Undo2 size={18} />
         </IconButton>
       </div>
+      {!color && <p className="mb-4 text-sm text-text-muted">{t.editor.tray.firstColorHint}</p>}
 
       <div className="mb-4">
         <SliderField
