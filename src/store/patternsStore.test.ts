@@ -272,10 +272,30 @@ describe('patternsStore — el aro triangular', () => {
     expect(s.getState().patterns[id].cells['1:9:3']).toBe('#2f6fd0')
   })
 
+  it('dar vuelta la punta no pierde nada de lo pintado', async () => {
+    const s = await store()
+    const id = s.getState().createPattern({ technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' })
+    s.getState().setCell(id, '1:9:3', '#2f6fd0')
+    s.getState().setTriangleUp(id, true)
+    expect(s.getState().patterns[id].config.triangleUp).toBe(true)
+    expect(s.getState().patterns[id].cells['1:9:3']).toBe('#2f6fd0')
+    s.getState().setTriangleUp(id, false)
+    expect(s.getState().patterns[id].config.triangleUp).toBe(false)
+    expect(s.getState().patterns[id].cells['1:9:3']).toBe('#2f6fd0')
+  })
+
+  it('un patrón viejo, sin la marca, apunta hacia abajo: no cambia de forma solo', async () => {
+    const s = await store()
+    const id = s.getState().createPattern({ technique: 'triangle', cols: 10, rows: 10, rounds: 10, beadTypeId: 'delica-11' })
+    expect(s.getState().patterns[id].config.triangleUp).toBeUndefined()
+  })
+
   it('no toca un patrón que no es triangular', async () => {
     const s = await store()
     const id = s.getState().createPattern({ technique: 'loom', cols: 10, rows: 10, beadTypeId: 'delica-11' })
     s.getState().setTriangleRounds(id, 14)
+    s.getState().setTriangleUp(id, true)
     expect(s.getState().patterns[id].config).toMatchObject({ cols: 10, rows: 10 })
+    expect(s.getState().patterns[id].config.triangleUp).toBeUndefined()
   })
 })

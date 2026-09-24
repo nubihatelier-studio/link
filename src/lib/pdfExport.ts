@@ -24,6 +24,8 @@ export interface ExportPatternOptions {
   rows: number
   /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
   rounds?: number
+  /** Sólo el aro triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  triangleUp?: boolean
   cells: ColorMap
   beadType: BeadTypeDef
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
@@ -615,7 +617,8 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
    */
   const esTriangulo = opts.technique === 'triangle'
   const vueltas = opts.rounds ?? opts.cols
-  const triBounds = esTriangulo ? triangleBoundsUnits(vueltas) : null
+  const puntaArriba = opts.triangleUp ?? false
+  const triBounds = esTriangulo ? triangleBoundsUnits(vueltas, puntaArriba) : null
   const bodyRows = triBounds ? triBounds.height : opts.rows + maxFringeLength(opts.fringe)
   const loopRows = esTriangulo ? 0 : loopReserveUnits(opts.loop)
 
@@ -663,6 +666,7 @@ export async function exportPatternToPdf(opts: ExportPatternOptions): Promise<vo
       if (esTriangulo) {
         drawTriangleChart(doc, {
           rounds: vueltas,
+          pointingUp: puntaArriba,
           cells: pieceOpts.cells,
           letterForHex,
           showLetters: showLetters && Math.min(cellW, cellH) >= MIN_LEGIBLE_CELL_MM,

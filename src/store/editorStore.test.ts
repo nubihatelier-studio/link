@@ -999,6 +999,17 @@ describe('editorStore — el aro triangular', () => {
     expect(slots[activeSlot]).toBe('#111111')
   })
 
+  it('la punta se guarda con el patrón y no toca lo pintado', () => {
+    useEditorStore.getState().setTriangleUp(true)
+    expect(useEditorStore.getState().triangleUp).toBe(true)
+    expect(usePatternsStore.getState().patterns.tri.config.triangleUp).toBe(true)
+    expect(useEditorStore.getState().cells['0:3:1']).toBe('#111111')
+  })
+
+  it('al abrirlo, un patrón sin la marca apunta hacia abajo', () => {
+    expect(useEditorStore.getState().triangleUp).toBe(false)
+  })
+
   it('cambiar las vueltas mueve también cols/rows y queda guardado', () => {
     useEditorStore.getState().setRounds(14)
     expect(useEditorStore.getState()).toMatchObject({ rounds: 14, cols: 14, rows: 14 })

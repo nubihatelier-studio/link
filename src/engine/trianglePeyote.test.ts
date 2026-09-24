@@ -8,6 +8,7 @@ import {
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
+  triangleBoundsUnits,
   triangleKey,
   triangleNeighbourMap,
 } from './trianglePeyote'
@@ -56,7 +57,7 @@ describe('Triángulo de peyote — los tres lados', () => {
 
 describe('Triángulo de peyote — el huequito del centro', () => {
   it('las tres primeras dejan un espacio en el medio', () => {
-    const centro = triangleBeads(1).map(triangleBeadPlacement)
+    const centro = triangleBeads(1).map((b) => triangleBeadPlacement(b))
     // Ninguna de las tres cae en el centro: lo rodean.
     for (const p of centro) expect(Math.hypot(p.x, p.y)).toBeGreaterThan(0.2)
   })
@@ -86,7 +87,7 @@ describe('Triángulo de peyote — tocar una mostacilla', () => {
   })
 
   it('el triangulito hueco del centro no es de nadie', () => {
-    expect(triangleBeadAt(0, 0, 8, 0.3)).toBeNull()
+    expect(triangleBeadAt(0, 0, 8, false, 0.3)).toBeNull()
   })
 
   it('un punto corrido pero dentro de la mostacilla igual la encuentra', () => {
@@ -140,5 +141,37 @@ describe('triangleNeighbourMap', () => {
     for (const [key, cerca] of vecinas) {
       for (const otra of cerca) expect(vecinas.get(otra)).toContain(key)
     }
+  })
+})
+
+describe('Triángulo de peyote — hacia dónde mira la punta', () => {
+  it('con la punta hacia arriba la pieza queda media vuelta girada, no espejada', () => {
+    for (const bead of triangleBeads(5)) {
+      const abajo = triangleBeadPlacement(bead)
+      const arriba = triangleBeadPlacement(bead, true)
+      expect(arriba.x).toBeCloseTo(-abajo.x, 10)
+      expect(arriba.y).toBeCloseTo(-abajo.y, 10)
+    }
+  })
+
+  it('mide lo mismo de un lado que del otro: girar no cambia el porte', () => {
+    const abajo = triangleBoundsUnits(9)
+    const arriba = triangleBoundsUnits(9, true)
+    expect(arriba.width).toBeCloseTo(abajo.width, 10)
+    expect(arriba.height).toBeCloseTo(abajo.height, 10)
+  })
+
+  it('apuntando hacia abajo la vuelta 1 queda arriba del centro; hacia arriba, abajo', () => {
+    // El sector 0 es el lado de arriba cuando la punta va hacia abajo.
+    expect(triangleBeadPlacement({ sector: 0, round: 1, index: 0 }).y).toBeLessThan(0)
+    expect(triangleBeadPlacement({ sector: 0, round: 1, index: 0 }, true).y).toBeGreaterThan(0)
+  })
+
+  it('tocar una mostacilla respeta hacia dónde apunta', () => {
+    const bead = { sector: 1 as const, round: 4, index: 2 }
+    const p = triangleBeadPlacement(bead, true)
+    expect(triangleBeadAt(p.x, p.y, 6, true)).toEqual(bead)
+    // En el mismo punto, con la pieza al revés, cae otra mostacilla (o ninguna).
+    expect(triangleBeadAt(p.x, p.y, 6, false)).not.toEqual(bead)
   })
 })

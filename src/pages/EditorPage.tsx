@@ -36,7 +36,7 @@ import { InfoScreen } from '@/components/shared/InfoScreen'
 import { UndoToast } from '@/components/shared/UndoToast'
 import { TemplateCardDialog } from '@/components/templates/TemplateCardDialog'
 import { ResizeDialog } from '@/components/editor/ResizeDialog'
-import { TriangleRoundsDialog } from '@/components/editor/TriangleRoundsDialog'
+import { TriangleShapeDialog } from '@/components/editor/TriangleShapeDialog'
 import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
 import { ShoppingListDialog } from '@/components/editor/ShoppingListDialog'
 import { EditorPanelTabs } from '@/components/editor/EditorPanelTabs'
@@ -77,6 +77,7 @@ export function EditorPage() {
     cols,
     rows,
     rounds,
+    triangleUp,
     beadTypeId,
     staggerPhase,
     cells,
@@ -126,8 +127,8 @@ export function EditorPage() {
   const [noteOpen, setNoteOpen] = useState(false)
   /** "Cambiar tamaño" — see ResizeDialog. */
   const [resizeOpen, setResizeOpen] = useState(false)
-  /** "Vueltas", el tamaño del aro triangular — ver TriangleRoundsDialog. */
-  const [roundsOpen, setRoundsOpen] = useState(false)
+  /** "Forma del aro" triangular: vueltas y hacia dónde apunta — ver TriangleShapeDialog. */
+  const [triangleShapeOpen, setTriangleShapeOpen] = useState(false)
   /** "Cambiar la mostacilla" — see BeadTypeDialog. */
   const [beadTypeOpen, setBeadTypeOpen] = useState(false)
   /** "Lista de compras" — see ShoppingListDialog. */
@@ -304,8 +305,21 @@ export function EditorPage() {
     // name the same colour the same way — see `engine/letters.ts`.
     const letterAssignment = id ? getPattern(id)?.letters : undefined
     if (!left)
-      return { technique, cols, rows, rounds, cells, fringe, rowShape, staggerPhase, loop, pair: currentPair, letterAssignment }
-    return { ...left, rounds, pair: currentPair, letterAssignment }
+      return {
+        technique,
+        cols,
+        rows,
+        rounds,
+        triangleUp,
+        cells,
+        fringe,
+        rowShape,
+        staggerPhase,
+        loop,
+        pair: currentPair,
+        letterAssignment,
+      }
+    return { ...left, rounds, triangleUp, pair: currentPair, letterAssignment }
   }
 
   /**
@@ -512,11 +526,11 @@ export function EditorPage() {
                 <MenuHeading>{t.editor.menuPattern}</MenuHeading>
                 {esTriangulo ? (
                   <MenuItem
-                    hint={t.editor.triangleRounds.menuHint}
-                    onClick={() => setRoundsOpen(true)}
+                    hint={t.editor.triangleShape.menuHint}
+                    onClick={() => setTriangleShapeOpen(true)}
                     close={() => setMoreMenuOpen(false)}
                   >
-                    {t.editor.triangleRounds.menu}
+                    {t.editor.triangleShape.menu}
                   </MenuItem>
                 ) : (
                   <MenuItem
@@ -814,7 +828,7 @@ export function EditorPage() {
         <Toast message={exportError} actionLabel={t.common.close} onAction={() => setExportError(null)} />
       )}
       {resizeOpen && <ResizeDialog onClose={() => setResizeOpen(false)} />}
-      {roundsOpen && <TriangleRoundsDialog onClose={() => setRoundsOpen(false)} />}
+      {triangleShapeOpen && <TriangleShapeDialog onClose={() => setTriangleShapeOpen(false)} />}
       {beadTypeOpen && <BeadTypeDialog onClose={() => setBeadTypeOpen(false)} />}
       {shoppingOpen && <ShoppingListDialog onClose={() => setShoppingOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}

@@ -131,6 +131,8 @@ export function rotatedBead(
 
 export interface TriangleChartOpts {
   rounds: number
+  /** Hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  pointingUp: boolean
   cells: ColorMap
   letterForHex: Map<string, string>
   showLetters: boolean
@@ -150,11 +152,11 @@ export interface TriangleChartOpts {
  * cada mostacilla, para que el gráfico se lea impreso en blanco y negro.
  */
 export function drawTriangleChart(doc: JsPDF, o: TriangleChartOpts): void {
-  const { minX, minY } = triangleBoundsUnits(o.rounds)
+  const { minX, minY } = triangleBoundsUnits(o.rounds, o.pointingUp)
   const m = beadMetrics(o.cellMm, o.cellMm * BEAD_HEIGHT)
   doc.setLineWidth(0.05)
   for (const bead of triangleBeads(o.rounds)) {
-    const { x, y, angle } = triangleBeadPlacement(bead)
+    const { x, y, angle } = triangleBeadPlacement(bead, o.pointingUp)
     const cx = o.originX + (x - minX) * o.cellMm
     const cy = o.originY + (y - minY) * o.cellMm
     const hex = o.cells[triangleKey(bead)]

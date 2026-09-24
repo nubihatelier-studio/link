@@ -39,6 +39,13 @@ export interface PatternConfig {
   rows: number
   /** Sólo el aro triangular: cuántas vueltas tiene desde el centro. */
   rounds?: number
+  /**
+   * Sólo el aro triangular: hacia dónde mira la punta. Los aros nuevos parten
+   * con la punta hacia arriba; ausente significa hacia abajo, que es como se
+   * dibujaban todos los que se hicieron antes de que esto existiera — un
+   * patrón guardado no cambia de forma solo.
+   */
+  triangleUp?: boolean
   beadTypeId: string
   /** 0 or 1, defaults to 0 for legacy patterns. See `geometry.ts#cellPosition`. */
   staggerPhase?: 0 | 1

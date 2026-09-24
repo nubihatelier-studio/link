@@ -29,6 +29,8 @@ const BEAD_HEIGHT = 0.92
  */
 export interface TriangleCanvasOpts {
   rounds: number
+  /** Hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  pointingUp: boolean
   cells: ColorMap
   /** Píxeles por unidad de mostacilla — el zoom del editor. */
   cellPx: number
@@ -51,8 +53,8 @@ export interface TriangleCanvasOpts {
 
 /** Dónde queda una mostacilla dentro del lienzo, en píxeles. */
 function beadRect(bead: TriangleBead, o: TriangleCanvasOpts) {
-  const { x, y } = triangleBeadPlacement(bead)
-  const { minX, minY } = triangleBoundsUnits(o.rounds)
+  const { x, y } = triangleBeadPlacement(bead, o.pointingUp)
+  const { minX, minY } = triangleBoundsUnits(o.rounds, o.pointingUp)
   const m = beadMetrics(o.cellPx, o.cellPx * BEAD_HEIGHT, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
   return {
     cx: o.originX + (x - minX) * o.cellPx,
@@ -62,7 +64,7 @@ function beadRect(bead: TriangleBead, o: TriangleCanvasOpts) {
 }
 
 export function drawTriangleCanvas(ctx: CanvasRenderingContext2D, o: TriangleCanvasOpts): void {
-  const { minX, minY } = triangleBoundsUnits(o.rounds)
+  const { minX, minY } = triangleBoundsUnits(o.rounds, o.pointingUp)
   const m = beadMetrics(o.cellPx, o.cellPx * BEAD_HEIGHT, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
   if (o.letters) {
     ctx.textAlign = 'center'
@@ -70,7 +72,7 @@ export function drawTriangleCanvas(ctx: CanvasRenderingContext2D, o: TriangleCan
     ctx.font = `600 ${o.letterFontPx}px system-ui, sans-serif`
   }
   for (const bead of triangleBeads(o.rounds)) {
-    const { x, y, angle } = triangleBeadPlacement(bead)
+    const { x, y, angle } = triangleBeadPlacement(bead, o.pointingUp)
     const hex = o.cells[triangleKey(bead)]
     if (!hex && !o.emptyColor) continue
     ctx.save()
@@ -107,12 +109,12 @@ export function drawTriangleCanvas(ctx: CanvasRenderingContext2D, o: TriangleCan
 export function triangleBeadAtCanvas(
   clientX: number,
   clientY: number,
-  o: Pick<TriangleCanvasOpts, 'rounds' | 'cellPx' | 'originX' | 'originY'>,
+  o: Pick<TriangleCanvasOpts, 'rounds' | 'pointingUp' | 'cellPx' | 'originX' | 'originY'>,
 ): TriangleBead | null {
-  const { minX, minY } = triangleBoundsUnits(o.rounds)
+  const { minX, minY } = triangleBoundsUnits(o.rounds, o.pointingUp)
   const x = (clientX - o.originX) / o.cellPx + minX
   const y = (clientY - o.originY) / o.cellPx + minY
-  return triangleBeadAt(x, y, o.rounds)
+  return triangleBeadAt(x, y, o.rounds, o.pointingUp)
 }
 
 /** Sólo para las pruebas y el foco del teclado: el rectángulo de una mostacilla en el lienzo. */

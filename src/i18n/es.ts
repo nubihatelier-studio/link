@@ -422,16 +422,19 @@ export const t = {
       cancel: 'Cancelar',
       use: 'Usar este color',
     },
-    /** "Vueltas" del aro triangular — ocupa el lugar de "Cambiar tamaño". Ver TriangleRoundsDialog. */
-    triangleRounds: {
-      menu: 'Vueltas',
-      menuHint: 'De qué porte es el aro',
-      title: 'Vueltas',
-      hint: 'El aro crece de a una vuelta desde el centro. Lo pintado se queda donde está: si lo achicas y lo vuelves a agrandar, aparece tal cual.',
-      label: 'Vueltas',
+    /** "Forma del aro" triangular — ocupa el lugar de "Cambiar tamaño". Ver TriangleShapeDialog. */
+    triangleShape: {
+      menu: 'Forma del aro',
+      menuHint: 'De qué porte es y hacia dónde apunta',
+      title: 'Forma del aro',
+      hint: 'El aro crece de a una vuelta desde el centro. Nada de esto pierde lo pintado: si lo achicas y lo vuelves a agrandar, aparece tal cual, y dar vuelta la punta gira la pieza entera sin mover una sola mostacilla.',
+      rounds: 'Vueltas',
+      tip: 'La punta',
+      tipUp: 'Hacia arriba',
+      tipDown: 'Hacia abajo',
       perSide: 'Mostacillas en el lado de afuera',
       total: 'Mostacillas en total',
-      apply: 'Cambiar el porte',
+      apply: 'Cambiar la forma',
     },
     clone: 'Clonar lo marcado',
     cloneVertical: 'Una copia bajo la otra',

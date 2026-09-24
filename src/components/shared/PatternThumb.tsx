@@ -79,14 +79,15 @@ export function PatternThumb({ pattern, size = 64 }: PatternThumbProps) {
  */
 function dibujarTriangulo(ctx: CanvasRenderingContext2D, pattern: PatternDoc, size: number) {
   const rounds = pattern.config.rounds ?? pattern.config.cols
-  const bounds = triangleBoundsUnits(rounds)
+  const puntaArriba = pattern.config.triangleUp ?? false
+  const bounds = triangleBoundsUnits(rounds, puntaArriba)
   const escala = (size * 0.94) / Math.max(bounds.width, bounds.height)
   ctx.fillStyle = 'rgba(127,127,127,0.08)'
   ctx.fillRect(0, 0, size, size)
   for (const bead of triangleBeads(rounds)) {
     const hex = pattern.cells[triangleKey(bead)]
     if (!hex) continue
-    const { x, y, angle } = triangleBeadPlacement(bead)
+    const { x, y, angle } = triangleBeadPlacement(bead, puntaArriba)
     ctx.save()
     ctx.translate(size / 2 + x * escala, size / 2 + y * escala)
     ctx.rotate((angle * Math.PI) / 180)

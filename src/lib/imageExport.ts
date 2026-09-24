@@ -19,6 +19,8 @@ export interface ExportImageOptions {
   rows: number
   /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
   rounds?: number
+  /** Sólo el aro triangular: hacia dónde mira la punta — ver `engine/types.ts#PatternConfig.triangleUp`. */
+  triangleUp?: boolean
   cells: ColorMap
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
   fringe?: FringeData
@@ -110,9 +112,10 @@ export function renderPatternCanvas(
    */
   const esTriangulo = technique === 'triangle'
   const vueltas = opts.rounds ?? cols
+  const puntaArriba = opts.triangleUp ?? false
   const loopBeads = esTriangulo ? 0 : loopBeadCount(loop)
   const loopRows = esTriangulo ? 0 : loopReserveUnits(loop)
-  const bounds = esTriangulo ? triangleBoundsUnits(vueltas) : gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  const bounds = esTriangulo ? triangleBoundsUnits(vueltas, puntaArriba) : gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const cellPx = computeExportCellPx(bounds.width, bounds.height + loopRows, targetLongSidePx)
   const margin = cellPx * 0.6
   // Extra room reserved above the body for the loop's ring — X stays plain `margin`.
@@ -134,6 +137,7 @@ export function renderPatternCanvas(
   if (esTriangulo) {
     drawTriangleCanvas(ctx, {
       rounds: vueltas,
+      pointingUp: puntaArriba,
       cells,
       cellPx,
       originX: margin,

@@ -127,6 +127,7 @@ export function CanvasGrid() {
     cols,
     rows,
     rounds,
+    triangleUp,
     staggerPhase,
     cells,
     fringe,
@@ -187,7 +188,7 @@ export function CanvasGrid() {
   const esTriangulo = technique === 'triangle'
   const bodyBounds = gridBoundsUnits(technique, cols, rows)
   const bounds = esTriangulo
-    ? triangleBoundsUnits(rounds)
+    ? triangleBoundsUnits(rounds, triangleUp)
     : gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   // The hanging loop sits *above* row 0, so it can't just widen the grid: it
   // pushes the whole body down instead. `MARGIN` stays the X origin, while
@@ -299,6 +300,7 @@ export function CanvasGrid() {
     const rect = canvas.getBoundingClientRect()
     return triangleBeadAtCanvas(e.clientX - rect.left, e.clientY - rect.top, {
       rounds,
+      pointingUp: triangleUp,
       cellPx,
       originX: MARGIN,
       originY,
@@ -413,6 +415,7 @@ export function CanvasGrid() {
     if (esTriangulo) {
       drawTriangleCanvas(ctx, {
         rounds,
+        pointingUp: triangleUp,
         cells,
         cellPx,
         originX: MARGIN,
@@ -758,6 +761,7 @@ export function CanvasGrid() {
     letterVisibility,
     esTriangulo,
     rounds,
+    triangleUp,
   ])
 
   function dist(a: { x: number; y: number }, b: { x: number; y: number }) {

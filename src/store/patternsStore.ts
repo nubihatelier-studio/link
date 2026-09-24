@@ -106,6 +106,8 @@ interface PatternsState {
    * agrandarla las devuelve tal como estaban.
    */
   setTriangleRounds: (id: string, rounds: number) => void
+  /** Sólo el aro triangular: hacia dónde mira la punta. No mueve ni una mostacilla, sólo gira la pieza. */
+  setTriangleUp: (id: string, up: boolean) => void
   /**
    * The bead the pattern is woven with. Nothing painted changes — the bead
    * only decides how many millimetres the finished piece measures (and which
@@ -535,6 +537,18 @@ export const usePatternsStore = create<PatternsState>()((set, get) => ({
       // `cols`/`rows` van con las vueltas: es de donde las lee todo lo que
       // cuenta mostacillas sin saber de triángulos (ver `beadCount`).
       updated = { ...doc, config: { ...doc.config, rounds: n, cols: n, rows: n }, updatedAt: Date.now() }
+      return { patterns: { ...s.patterns, [id]: updated } }
+    })
+    if (updated) persistPattern(updated)
+  },
+
+  setTriangleUp: (id, up) => {
+    let updated: PatternDoc | undefined
+    set((s) => {
+      const doc = s.patterns[id]
+      if (!doc || doc.config.technique !== 'triangle') return s
+      if ((doc.config.triangleUp ?? false) === up) return s
+      updated = { ...doc, config: { ...doc.config, triangleUp: up }, updatedAt: Date.now() }
       return { patterns: { ...s.patterns, [id]: updated } }
     })
     if (updated) persistPattern(updated)

@@ -127,17 +127,21 @@ export function triangleBeads(rounds: number): TriangleBead[] {
  * Es la misma retícula que la app dibuja para peyote —una columna sí y una
  * no, media fila corrida— mirada a lo largo del lado.
  */
-export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement {
+export function triangleBeadPlacement(bead: TriangleBead, pointingUp = false): TriangleBeadPlacement {
   const { sector, round, index } = bead
   const n = beadsInRound(round)
   // Cada dos columnas, centradas en la bisectriz del lado.
   const along = (index - (n - 1) / 2) * 2
   const out = roundDistance(round)
-  const giro = (sector * 120 * Math.PI) / 180
+  // Con la punta hacia arriba la pieza va media vuelta girada. Es un giro, no
+  // un espejo: el tejido es el mismo, colgado del otro lado. Por eso basta con
+  // sumarle 180° y todo lo demás —vecinas, huecos, costuras— queda igual.
+  const media = pointingUp ? 180 : 0
+  const giro = ((sector * 120 + media) * Math.PI) / 180
   return {
     x: along * Math.cos(giro) + out * Math.sin(giro),
     y: along * Math.sin(giro) - out * Math.cos(giro),
-    angle: sector * 120,
+    angle: (sector * 120 + media) % 360,
     sector,
   }
 }
@@ -152,8 +156,11 @@ export function triangleBeadPlacement(bead: TriangleBead): TriangleBeadPlacement
  * negativas, así que quien dibuja las corre por ahí para que la pieza parta
  * en el origen del lienzo, como la grilla.
  */
-export function triangleBoundsUnits(rounds: number): { width: number; height: number; minX: number; minY: number } {
-  const pts = triangleBeads(rounds).map(triangleBeadPlacement)
+export function triangleBoundsUnits(
+  rounds: number,
+  pointingUp = false,
+): { width: number; height: number; minX: number; minY: number } {
+  const pts = triangleBeads(rounds).map((bead) => triangleBeadPlacement(bead, pointingUp))
   if (pts.length === 0) return { width: 1, height: 1, minX: -0.5, minY: -0.5 }
   const xs = pts.map((p) => p.x)
   const ys = pts.map((p) => p.y)
@@ -183,12 +190,13 @@ export function triangleBeadAt(
   x: number,
   y: number,
   rounds: number,
+  pointingUp = false,
   maxDistance = 0.6,
 ): TriangleBead | null {
   let mejor: TriangleBead | null = null
   let mejorDist = maxDistance
   for (const bead of triangleBeads(rounds)) {
-    const p = triangleBeadPlacement(bead)
+    const p = triangleBeadPlacement(bead, pointingUp)
     const d = Math.hypot(p.x - x, p.y - y)
     if (d < mejorDist) {
       mejorDist = d

@@ -96,6 +96,13 @@ interface EditorState {
    * pierde nada al achicarlo, lo pintado afuera vuelve tal cual al agrandarlo.
    */
   setRounds: (rounds: number) => void
+  /**
+   * Sólo el aro triangular: hacia dónde mira la punta. Tampoco es un paso de
+   * deshacer — no mueve ni una mostacilla, gira la pieza entera, y el mismo
+   * control la devuelve.
+   */
+  triangleUp: boolean
+  setTriangleUp: (up: boolean) => void
   beadTypeId: string
   /**
    * Changes the bead an existing pattern is woven with (see
@@ -596,6 +603,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   cols: 20,
   rows: 20,
   rounds: 0,
+  triangleUp: false,
   beadTypeId: 'miyuki-delica-11',
   staggerPhase: 0,
   setRounds: (rounds) => {
@@ -606,6 +614,13 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     // mostacillas sin saber de triángulos (ver `engine/geometry.ts#beadCount`).
     set({ rounds: n, cols: n, rows: n })
     if (patternId) usePatternsStore.getState().setTriangleRounds(patternId, n)
+  },
+
+  setTriangleUp: (up) => {
+    const { patternId, triangleUp } = get()
+    if (up === triangleUp) return
+    set({ triangleUp: up })
+    if (patternId) usePatternsStore.getState().setTriangleUp(patternId, up)
   },
 
   setBeadType: (beadTypeId) => {
@@ -1118,6 +1133,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       cols: doc.config.cols,
       rows: doc.config.rows,
       rounds: doc.config.rounds ?? doc.config.cols,
+      triangleUp: doc.config.triangleUp ?? false,
       beadTypeId: doc.config.beadTypeId,
       cells: { ...doc.cells },
       fringe: normalizeFringe(doc.fringe, doc.config.cols),

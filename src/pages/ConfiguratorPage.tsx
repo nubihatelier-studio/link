@@ -317,7 +317,16 @@ export function ConfiguratorPage() {
    */
   function crearTriangulo() {
     const vueltas = 10
-    const id = createPattern({ technique: 'triangle', cols: vueltas, rows: vueltas, rounds: vueltas, beadTypeId })
+    const id = createPattern({
+      technique: 'triangle',
+      cols: vueltas,
+      rows: vueltas,
+      rounds: vueltas,
+      // Los aros nuevos parten con la punta hacia arriba; se da vuelta desde
+      // "Forma del aro" en el menú "⋯".
+      triangleUp: true,
+      beadTypeId,
+    })
     navigate(`/editor/${id}`)
   }
 
