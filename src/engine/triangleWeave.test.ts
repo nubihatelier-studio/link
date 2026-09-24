@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTriangleWeaveOrder, triangleWeaveKeys } from './triangleWeave'
+import { buildTriangleWeaveOrder, triangleThreadPath, triangleWeaveKeys } from './triangleWeave'
 import { triangleBeadCount, triangleKey, triangleNeighbourMap } from './trianglePeyote'
 
 describe('En qué orden se teje un peyote triangular', () => {
@@ -74,5 +74,74 @@ describe('En qué orden se teje un peyote triangular', () => {
   it('una pieza de una sola vuelta son sólo las tres del centro', () => {
     expect(buildTriangleWeaveOrder(1)).toHaveLength(1)
     expect(buildTriangleWeaveOrder(0)).toEqual([])
+  })
+})
+
+describe('Por dónde pasa la aguja', () => {
+  const rounds = 7
+  const orden = buildTriangleWeaveOrder(rounds)
+  const camino = triangleThreadPath(orden, orden.length - 1)
+
+  it('cada mostacilla por la que pasa ya estaba puesta antes de llegar ahí', () => {
+    const puestas = new Set<string>()
+    for (const parada of camino) {
+      const llave = triangleKey(parada.bead)
+      if (parada.kind === 'through') {
+        expect(puestas.has(llave), `pasa por ${llave} antes de ensartarla`).toBe(true)
+      } else {
+        puestas.add(llave)
+      }
+    }
+  })
+
+  it('la aguja nunca salta: cada tramo va entre mostacillas que se tocan', () => {
+    const vecinas = triangleNeighbourMap(rounds)
+    for (let i = 1; i < camino.length; i++) {
+      const a = triangleKey(camino[i - 1].bead)
+      const b = triangleKey(camino[i].bead)
+      expect(vecinas.get(a), `de ${a} a ${b} el hilo salta al aire`).toContain(b)
+    }
+  })
+
+  it('entre las dos de una esquina no pasa por ninguna: se toman juntas', () => {
+    for (const paso of orden.filter((p) => p.isCorner)) {
+      const hasta = triangleThreadPath(orden, orden.indexOf(paso))
+      const ultimas = hasta.slice(-2)
+      expect(ultimas.map((p) => p.kind)).toEqual(['new', 'new'])
+      expect(ultimas.map((p) => triangleKey(p.bead))).toEqual(paso.beads.map(triangleKey))
+    }
+  })
+
+  it('ensarta cada mostacilla una sola vez, y el camino las trae todas', () => {
+    const nuevas = camino.filter((p) => p.kind === 'new').map((p) => triangleKey(p.bead))
+    expect(nuevas).toEqual(triangleWeaveKeys(orden))
+  })
+
+  it('al dar la vuelta pasa por la primera de la vuelta que termina, que quedó en la esquina', () => {
+    // El primer paso de la vuelta 4 viene precedido por un paso por lo ya puesto.
+    const iVuelta4 = orden.findIndex((p) => p.round === 4)
+    const hasta = triangleThreadPath(orden, iVuelta4)
+    const antesDeLaEsquina = hasta[hasta.length - 3]
+    expect(antesDeLaEsquina.kind).toBe('through')
+    expect(antesDeLaEsquina.round).toBe(3)
+    // Es justo la primera que se ensartó en la vuelta 3.
+    const primeraDeLa3 = orden.find((p) => p.round === 3)!.beads[0]
+    expect(triangleKey(antesDeLaEsquina.bead)).toBe(triangleKey(primeraDeLa3))
+  })
+
+  it('al salir del aro del centro no pasa por nada: la aguja ya está ahí', () => {
+    const hasta = triangleThreadPath(orden, 1)
+    expect(hasta.filter((p) => p.kind === 'through')).toHaveLength(0)
+  })
+
+  it('usa cada mostacilla de la vuelta anterior exactamente una vez por vuelta', () => {
+    for (let round = 3; round <= rounds; round++) {
+      const iPrimero = orden.findIndex((p) => p.round === round)
+      const iUltimo = orden.map((p) => p.round).lastIndexOf(round)
+      const deEstaVuelta = triangleThreadPath(orden, iUltimo).filter((p) => p.step >= iPrimero)
+      const pasadas = deEstaVuelta.filter((p) => p.kind === 'through' && p.round === round - 1).map((p) => triangleKey(p.bead))
+      expect(new Set(pasadas).size).toBe(pasadas.length)
+      expect(pasadas).toHaveLength(triangleBeadCount(round - 1) - triangleBeadCount(round - 2))
+    }
   })
 })
