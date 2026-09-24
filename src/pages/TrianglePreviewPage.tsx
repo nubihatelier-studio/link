@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   beadsPerSide,
-  ROUND_PITCH,
   triangleBeadCount,
   triangleBeadPlacement,
   triangleBeads,
@@ -16,6 +15,8 @@ import { t } from '@/i18n/es'
 const COLORES = ['#2f6fd0', '#e2b93b', '#8050c0']
 /** Las vueltas que ya no son la primera van en gris: lo que importa es la nueva. */
 const YA_TEJIDO = '#c9c3ba'
+/** Alto de la mostacilla, en anchos: apenas menor que el ancho, como una Delica. */
+const BEAD_HEIGHT = 0.92
 
 /**
  * Prueba a la vista del triángulo de peyote, antes de construir nada
@@ -57,10 +58,12 @@ export function TrianglePreviewPage() {
     // Parada cruzada a su fila: angosta a lo largo de la fila y más alta
     // que el paso entre filas, que es lo que hace que una fila se encaje en
     // la de al lado, igual que en un gráfico de peyote.
-    // Las mismas proporciones con que la app dibuja una mostacilla de peyote
-    // en el editor: su celda es de un ancho por el paso entre filas, y la
-    // mostacilla va con la holgura de siempre (lib/beadStyle.ts).
-    const m = beadMetrics(escala, escala * ROUND_PITCH, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
+    // La mostacilla ocupa su celda entera, no sólo el alto de la vuelta:
+    // dentro de una vuelta van cada dos columnas, así que el espacio de al
+    // lado lo llena la vuelta siguiente, que entra medio paso más arriba.
+    // Dibujarla aplastada al paso entre vueltas dejaba rayas blancas entre
+    // filas que en el tejido no existen.
+    const m = beadMetrics(escala, escala * BEAD_HEIGHT, MIN_BEAD_INSET_PX, MIN_BEAD_RADIUS_PX)
 
     for (const bead of triangleBeads(rounds)) {
       const { x, y, angle, sector } = triangleBeadPlacement(bead)
