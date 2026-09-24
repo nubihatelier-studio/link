@@ -18,12 +18,14 @@ import { beadMetrics, beadPath, contrastTextColor, MIN_BEAD_INSET_PX, MIN_BEAD_R
 const BEAD_HEIGHT = 0.92
 
 /**
- * El aro triangular dentro del lienzo del editor.
+ * Cómo se dibuja el aro triangular, en cualquier lienzo.
  *
  * Vive aparte de `CanvasGrid` porque no hay filas ni columnas que recorrer
  * —son tres sectores en vueltas desde el centro, ver
- * `engine/trianglePeyote.ts`— pero se dibuja en el mismo lienzo y con el
- * mismo zoom, así que los dedos hacen exactamente lo mismo que en el peyote.
+ * `engine/trianglePeyote.ts`— y vive en `lib/` porque lo usan los tres que
+ * dibujan la pieza: el editor, el PNG y la tarjeta de Instagram. Una sola
+ * rutina, así que lo que se ve en pantalla y lo que se comparte no se pueden
+ * desfasar.
  */
 export interface TriangleCanvasOpts {
   rounds: number
@@ -33,8 +35,15 @@ export interface TriangleCanvasOpts {
   /** Dónde parte la pieza en el lienzo, en píxeles. */
   originX: number
   originY: number
-  emptyColor: string
-  borderColor: string
+  /**
+   * Con qué se dibuja una mostacilla sin pintar, o `null` para no dibujarla:
+   * el lienzo del editor muestra la retícula entera para saber dónde tocar, y
+   * las imágenes que se comparten muestran sólo la pieza (ver
+   * `lib/imageExport.ts`).
+   */
+  emptyColor: string | null
+  /** El hilito del contorno, o `null` para dejar la mostacilla sin borde. */
+  borderColor: string | null
   /** Letra por color, o null cuando las letras están apagadas o no caben. */
   letters: Map<string, string> | null
   letterFontPx: number
@@ -63,17 +72,20 @@ export function drawTriangleCanvas(ctx: CanvasRenderingContext2D, o: TriangleCan
   for (const bead of triangleBeads(o.rounds)) {
     const { x, y, angle } = triangleBeadPlacement(bead)
     const hex = o.cells[triangleKey(bead)]
+    if (!hex && !o.emptyColor) continue
     ctx.save()
     ctx.translate(o.originX + (x - minX) * o.cellPx, o.originY + (y - minY) * o.cellPx)
     // Cada sector va girado: la mostacilla se cruza sobre su vuelta, no a lo largo.
     ctx.rotate((angle * Math.PI) / 180)
     ctx.beginPath()
     beadPath(ctx, -m.width / 2, -m.height / 2, m.width, m.height, m.radius)
-    ctx.fillStyle = hex ?? o.emptyColor
+    ctx.fillStyle = hex ?? o.emptyColor!
     ctx.fill()
-    ctx.strokeStyle = o.borderColor
-    ctx.lineWidth = 1
-    ctx.stroke()
+    if (o.borderColor) {
+      ctx.strokeStyle = o.borderColor
+      ctx.lineWidth = 1
+      ctx.stroke()
+    }
     ctx.restore()
 
     // La letra se dibuja derecha aunque la mostacilla esté girada: se lee, no se decora.

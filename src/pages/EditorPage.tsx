@@ -434,11 +434,11 @@ export function EditorPage() {
         </IconButton>
         <div className="relative hidden sm:block">
           <IconButton
-            label={esTriangulo ? t.editor.triangleNoExport : t.editor.shareImage}
+            label={t.editor.shareImage}
             active={imageMenuOpen}
             onClick={() => setImageMenuOpen((v) => !v)}
             className="h-9 w-9"
-            disabled={exportingImage || esTriangulo}
+            disabled={exportingImage}
           >
             <Image size={16} />
           </IconButton>
@@ -488,20 +488,10 @@ export function EditorPage() {
                   <MenuItem disabled={exporting} onClick={() => setExportDialogOpen(true)} close={() => setMoreMenuOpen(false)}>
                     {exporting ? '…' : t.editor.exportPdf}
                   </MenuItem>
-                  <MenuItem
-                    disabled={exportingImage || esTriangulo}
-                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
-                    onClick={handleExportImage}
-                    close={() => setMoreMenuOpen(false)}
-                  >
+                  <MenuItem disabled={exportingImage} onClick={handleExportImage} close={() => setMoreMenuOpen(false)}>
                     {t.editor.shareImageDownloadPng}
                   </MenuItem>
-                  <MenuItem
-                    disabled={exportingImage || esTriangulo}
-                    hint={esTriangulo ? t.editor.triangleNoExport : undefined}
-                    onClick={handleExportInstagramCard}
-                    close={() => setMoreMenuOpen(false)}
-                  >
+                  <MenuItem disabled={exportingImage} onClick={handleExportInstagramCard} close={() => setMoreMenuOpen(false)}>
                     {t.editor.shareImageInstagram}
                   </MenuItem>
                   <MenuItem onClick={() => setNoteOpen(true)} close={() => setMoreMenuOpen(false)}>

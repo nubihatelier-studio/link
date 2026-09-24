@@ -7,6 +7,8 @@ import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_
 import { letterMap, type LetterAssignment } from '@/engine/letters'
 import { piecesOf, type Piece } from '@/engine/pair'
 import { beadMetricsPx, beadPath as roundRect, contrastTextColor } from './beadStyle'
+import { drawTriangleCanvas } from './triangleCanvas'
+import { triangleBoundsUnits } from '@/engine/trianglePeyote'
 import { shareOrDownloadFile } from './shareFile'
 import { t } from '@/i18n/es'
 
@@ -15,6 +17,8 @@ export interface ExportImageOptions {
   technique: Technique
   cols: number
   rows: number
+  /** Sólo el aro triangular: sus vueltas desde el centro. Ausente, se usa `cols`. */
+  rounds?: number
   cells: ColorMap
   /** Absent/undefined is treated as "no fringe" — see `engine/fringe.ts`. */
   fringe?: FringeData
@@ -98,9 +102,17 @@ export function renderPatternCanvas(
   letters?: Map<string, string>,
 ): HTMLCanvasElement {
   const { technique, cols, rows, cells, fringe, rowShape, staggerPhase = 0, loop } = opts
-  const loopBeads = loopBeadCount(loop)
-  const loopRows = loopReserveUnits(loop)
-  const bounds = gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
+  /**
+   * El aro triangular no es una grilla: no tiene filas, columnas, fleco ni
+   * argolla. Se dibuja con la misma rutina que el editor
+   * (`lib/triangleCanvas.ts`), pero sin las mostacillas sin pintar — como
+   * toda imagen que se comparte, muestra la pieza, no el gráfico.
+   */
+  const esTriangulo = technique === 'triangle'
+  const vueltas = opts.rounds ?? cols
+  const loopBeads = esTriangulo ? 0 : loopBeadCount(loop)
+  const loopRows = esTriangulo ? 0 : loopReserveUnits(loop)
+  const bounds = esTriangulo ? triangleBoundsUnits(vueltas) : gridBoundsUnits(technique, cols, rows, maxFringeLength(fringe))
   const cellPx = computeExportCellPx(bounds.width, bounds.height + loopRows, targetLongSidePx)
   const margin = cellPx * 0.6
   // Extra room reserved above the body for the loop's ring — X stays plain `margin`.
@@ -118,6 +130,21 @@ export function renderPatternCanvas(
 
   const letterForHex = letters ?? letterMap({ technique, cols, rows, cells, fringe, rowShape, loop }, opts.letterAssignment)
   const showLetters = (opts.showLetters ?? true) && cellPx >= 16
+
+  if (esTriangulo) {
+    drawTriangleCanvas(ctx, {
+      rounds: vueltas,
+      cells,
+      cellPx,
+      originX: margin,
+      originY: topMargin,
+      emptyColor: null,
+      borderColor: null,
+      letters: (opts.showLetters ?? true) && cellPx >= 16 ? letterForHex : null,
+      letterFontPx: Math.max(9, cellPx * 0.42),
+    })
+    return canvas
+  }
 
   // Same bead style as the editor — see lib/beadStyle.ts.
   const { inset, radius, width: beadW, height: beadH } = beadMetricsPx(cellPx, technique)
@@ -236,8 +263,12 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   )
   ctx.font = '400 30px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(245,244,246,0.8)'
+  // El aro triangular se mide en vueltas desde el centro: "10×10" no dice
+  // nada de una pieza que no tiene filas ni columnas.
+  const forma =
+    opts.technique === 'triangle' ? t.home.roundCount(opts.rounds ?? opts.cols) : `${opts.cols}×${opts.rows}`
   ctx.fillText(
-    `${t.technique[opts.technique]} · ${opts.cols}×${opts.rows} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm${opts.pair ? ` · ${t.editor.pair.pairShort}` : ''}`,
+    `${t.technique[opts.technique]} · ${forma} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm${opts.pair ? ` · ${t.editor.pair.pairShort}` : ''}`,
     INSTAGRAM_CARD_WIDTH / 2,
     180,
   )
@@ -293,7 +324,8 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
  * up; the gap between them is two beads wide.
  */
 export function renderExportCanvas(opts: ExportImageOptions, backgroundHex: string, targetLongSidePx: number): HTMLCanvasElement {
-  if (!opts.pair) return renderPatternCanvas(opts, backgroundHex, targetLongSidePx)
+  // El aro triangular todavía no se teje de a pares — ver `pages/EditorPage.tsx`.
+  if (!opts.pair || opts.technique === 'triangle') return renderPatternCanvas(opts, backgroundHex, targetLongSidePx)
 
   const left: Piece = {
     technique: opts.technique,

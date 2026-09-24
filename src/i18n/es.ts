@@ -433,8 +433,6 @@ export const t = {
       total: 'Mostacillas en total',
       apply: 'Cambiar el porte',
     },
-    /** Lo que todavía no sabe hacer el aro triangular — ver TrianglePreview en engine/trianglePeyote.ts. */
-    triangleNoExport: 'El aro triangular todavía no sale en las imágenes',
     clone: 'Clonar lo marcado',
     cloneVertical: 'Una copia bajo la otra',
     cloneHorizontal: 'Una copia al lado de la otra',

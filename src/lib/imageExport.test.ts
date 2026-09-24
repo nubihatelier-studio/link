@@ -6,8 +6,10 @@ import {
   computeExportCellPx,
   INSTAGRAM_CARD_HEIGHT,
   INSTAGRAM_CARD_WIDTH,
+  renderExportCanvas,
   renderPatternCanvas,
 } from './imageExport'
+import { triangleBoundsUnits } from '@/engine/trianglePeyote'
 
 const bead = getBeadType('miyuki-delica-11')
 
@@ -196,4 +198,61 @@ describe('composeInstagramCard', () => {
     expect(metal.width).toBe(INSTAGRAM_CARD_WIDTH)
     expect(metal.height).toBe(INSTAGRAM_CARD_HEIGHT)
   }, 15000)
+})
+
+describe('renderPatternCanvas — el aro triangular', () => {
+  // Como arriba: jsdom no tiene canvas de verdad, así que acá se verifica la
+  // cuenta del encuadre; el dibujo se revisó a mano en el navegador.
+  it('se encuadra por dónde quedaron sus mostacillas, no por filas y columnas', () => {
+    const bounds = triangleBoundsUnits(10)
+    const canvas = renderPatternCanvas(
+      { name: 'x', technique: 'triangle', cols: 10, rows: 10, rounds: 10, cells: {}, beadType: bead },
+      '#ffffff',
+      400,
+    )
+    const cellPx = computeExportCellPx(bounds.width, bounds.height, 400)
+    const margin = cellPx * 0.6
+    expect(canvas.width).toBe(Math.ceil(bounds.width * cellPx + margin * 2))
+    expect(canvas.height).toBe(Math.ceil(bounds.height * cellPx + margin * 2))
+  })
+
+  it('el lienzo sale más ancho que alto, como el triángulo: no cuadrado como una grilla de 10 × 10', () => {
+    const canvas = renderPatternCanvas(
+      { name: 'x', technique: 'triangle', cols: 10, rows: 10, rounds: 10, cells: {}, beadType: bead },
+      '#fff',
+      400,
+    )
+    const bounds = triangleBoundsUnits(10)
+    expect(bounds.width).toBeGreaterThan(bounds.height)
+    expect(canvas.width).toBeGreaterThan(canvas.height)
+  })
+
+  it('sin `rounds` se cae a `cols`, que es donde el patrón guarda sus vueltas', () => {
+    const conRounds = renderPatternCanvas(
+      { name: 'x', technique: 'triangle', cols: 9, rows: 9, rounds: 9, cells: {}, beadType: bead },
+      '#fff',
+      400,
+    )
+    const sinRounds = renderPatternCanvas(
+      { name: 'x', technique: 'triangle', cols: 9, rows: 9, cells: {}, beadType: bead },
+      '#fff',
+      400,
+    )
+    expect(sinRounds.width).toBe(conRounds.width)
+    expect(sinRounds.height).toBe(conRounds.height)
+  })
+
+  it('un par no lo parte en dos: el aro triangular todavía no se teje de a pares', () => {
+    const solo = renderExportCanvas(
+      { name: 'x', technique: 'triangle', cols: 8, rows: 8, rounds: 8, cells: {}, beadType: bead },
+      '#fff',
+      400,
+    )
+    const conPar = renderExportCanvas(
+      { name: 'x', technique: 'triangle', cols: 8, rows: 8, rounds: 8, cells: {}, beadType: bead, pair: { mode: 'mirror' } },
+      '#fff',
+      400,
+    )
+    expect(conPar.width).toBe(solo.width)
+  })
 })

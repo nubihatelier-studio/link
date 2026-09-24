@@ -4,7 +4,7 @@ import { cellAtPositionWithFringe, cellPosition, gridBoundsUnits, loopAnchorX } 
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey, parseCellKey } from '@/engine/cellKey'
 import { triangleBoundsUnits, triangleKey } from '@/engine/trianglePeyote'
-import { drawTriangleCanvas, triangleBeadAtCanvas } from './triangleCanvas'
+import { drawTriangleCanvas, triangleBeadAtCanvas } from '@/lib/triangleCanvas'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
 import { lineCells } from '@/engine/line'
 import { usePatternLetterMap } from '@/hooks/usePatternLetters'
