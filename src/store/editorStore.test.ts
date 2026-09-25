@@ -3,6 +3,7 @@ import { createEmptyFringe } from '@/engine/fringe'
 import { isShiftedRow, type StaggerPhase } from '@/engine/geometry'
 import { createRectangleRowShape, createShapedRowShape, preferredRowsFor } from '@/engine/shape'
 import type { FringeData, LoopData, PatternDoc, RowShape } from '@/engine/types'
+import { triangleBeadCount } from '@/engine/trianglePeyote'
 import { usePatternsStore } from '@/store/patternsStore'
 import { useWeaveStore } from '@/store/weaveStore'
 import { useEditorStore } from './editorStore'
@@ -1089,5 +1090,43 @@ describe('editorStore — guardar al irse la página', () => {
     const despues = usePatternsStore.getState().patterns[patternId]
     window.dispatchEvent(new Event('pagehide'))
     expect(usePatternsStore.getState().patterns[patternId]).toBe(despues)
+  })
+})
+
+describe('editorStore — el degradado del peyote triangular', () => {
+  const AZUL = '#2f6fd0'
+  const DORADO = '#e2b93b'
+  const patternId = 'p_tri_degradado'
+
+  beforeEach(() => {
+    const doc: PatternDoc = {
+      id: patternId,
+      name: 'Triángulo',
+      config: { technique: 'triangle', cols: 6, rows: 6, rounds: 6, triangleUp: true, beadTypeId: 'miyuki-delica-11' },
+      cells: {},
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    usePatternsStore.setState({ patterns: { [patternId]: doc }, order: [patternId] })
+    useEditorStore.getState().loadPattern(doc)
+  })
+
+  it('no revienta: antes pedía la posición a la grilla, que el triángulo no tiene', () => {
+    expect(() => useEditorStore.getState().applyGradient([AZUL, DORADO], 'fromCenter')).not.toThrow()
+  })
+
+  it('pinta la pieza entera con llaves del triángulo, no de filas y columnas', () => {
+    useEditorStore.getState().applyGradient([AZUL, DORADO], 'fromCenter')
+    const cells = useEditorStore.getState().cells
+    expect(Object.keys(cells)).toHaveLength(triangleBeadCount(6))
+    expect(Object.keys(cells).every((k) => k.split(':').length === 3)).toBe(true)
+    expect(new Set(Object.values(cells))).toEqual(new Set([AZUL, DORADO]))
+  })
+
+  it('es un paso de deshacer, como cualquier otra pintada', () => {
+    useEditorStore.getState().applyGradient([AZUL, DORADO], 'vertical')
+    expect(Object.keys(useEditorStore.getState().cells).length).toBeGreaterThan(0)
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().cells).toEqual({})
   })
 })

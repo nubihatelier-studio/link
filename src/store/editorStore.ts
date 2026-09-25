@@ -10,7 +10,8 @@ import { normalizeLoop } from '@/engine/loop'
 import { dropOf, effectiveStaggerPhase, flipStagger, isShiftedRow, staggerOf, stitchRowOf, type StaggerPhase } from '@/engine/geometry'
 import { leftPieceOf, rightEarring, splitPair, type Piece } from '@/engine/pair'
 import { createRectangleRowShape, createShapedRowShape, detectPreset, minTaperWidth, normalizeRowShape, recenterRowShape } from '@/engine/shape'
-import { computeGradientCells, type GradientDirection } from '@/engine/gradient'
+import { computeGradientCells, computeGradientFromTargets, type GradientDirection } from '@/engine/gradient'
+import { triangleBeadPlacement, triangleBeads, triangleKey } from '@/engine/trianglePeyote'
 import { replaceColorInCells, selectionForColor, swapColorsInCells } from '@/lib/palette'
 import { clampZoom } from '@/lib/zoomScale'
 import { activeAfterEmptying, fillSlot, loadColor, slotOf, TRAY_SIZE, trayFor, withoutUnpainted, type Tray } from '@/engine/tray'
@@ -1318,6 +1319,29 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
   applyGradient: (stops, direction) => {
     const { cells, cols, rows, fringe, rowShape, technique, selection, colorSelectionMask, staggerPhase } = get()
+    // El peyote triangular no tiene filas ni columnas: sus mostacillas se
+    // ubican con su propia geometría y se guardan con su propia llave. Pedirle
+    // la posición a la grilla tiraba un error y el botón reventaba.
+    if (technique === 'triangle') {
+      const { rounds, triangleUp } = get()
+      const objetivos = triangleBeads(rounds).map((bead) => {
+        const p = triangleBeadPlacement(bead, triangleUp)
+        return {
+          key: triangleKey(bead),
+          x: p.x,
+          y: p.y,
+          // Dos números que cambian a lo ancho de la pieza, para que el
+          // tramado de los bordes no salga a rayas.
+          ditherRow: bead.round,
+          ditherCol: bead.index + bead.sector * 3,
+          // "Desde el centro" sigue las vueltas, que es como crece la pieza.
+          ring: bead.round,
+        }
+      })
+      const pintado = computeGradientFromTargets(objetivos, stops, direction, 0.6)
+      if (Object.keys(pintado).length > 0) get().commit({ ...cells, ...pintado })
+      return
+    }
     const targets: { row: number; col: number }[] = []
     if (selection) {
       for (let r = selection.r0; r <= selection.r1; r++) {

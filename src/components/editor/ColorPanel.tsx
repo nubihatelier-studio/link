@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpDown,
   ChevronRight,
+  Circle,
   ImagePlus,
 } from 'lucide-react'
 import { useEditorStore } from '@/store/editorStore'
@@ -29,7 +30,15 @@ export function ColorPanel({
   } = useEditorStore()
   /** The gradient's colors in order, once the weaver has changed them; null follows the pattern's colors in letter order. */
   const [gradientStops, setGradientStops] = useState<string[] | null>(null)
-  const [gradientDirection, setGradientDirection] = useState<GradientDirection>('vertical')
+  /** El peyote triangular no tiene grilla: su degradado se calcula aparte y trae una dirección propia. */
+  const isTriangle = useEditorStore((st) => st.technique === 'triangle')
+  /**
+   * `null` es "todavía no elige": recién ahí manda la que le queda natural a
+   * la técnica. No se puede resolver al montar el panel, porque se arma antes
+   * de que el patrón termine de cargar y ahí la técnica todavía no se sabe.
+   */
+  const [chosenDirection, setGradientDirection] = useState<GradientDirection | null>(null)
+  const gradientDirection: GradientDirection = chosenDirection ?? (isTriangle ? 'fromCenter' : 'vertical')
 
   const palette = usePatternLetters()
   const slots = useEditorStore((st) => st.slots)
@@ -119,6 +128,7 @@ export function ColorPanel({
 
       {gradientChoices.length >= 2 && (
         <GradientSection
+          isTriangle={isTriangle}
           choices={gradientChoices}
           stops={stops}
           colorLetters={colorLetters}
@@ -139,6 +149,7 @@ export function ColorPanel({
  * flips the order.
  */
 function GradientSection({
+  isTriangle,
   choices,
   stops,
   colorLetters,
@@ -147,6 +158,7 @@ function GradientSection({
   onSetDirection,
   onApply,
 }: {
+  isTriangle: boolean
   choices: string[]
   stops: string[]
   colorLetters: Record<string, string>
@@ -156,6 +168,9 @@ function GradientSection({
   onApply: () => void
 }) {
   const directions: { value: GradientDirection; icon: typeof ArrowDown; label: string }[] = [
+    // "Desde el centro" va primera en el peyote triangular: es la que le queda
+    // natural a una pieza que se teje justamente en vueltas desde el medio.
+    ...(isTriangle ? [{ value: 'fromCenter' as const, icon: Circle, label: t.gradient.directionFromCenter }] : []),
     { value: 'vertical', icon: ArrowDown, label: t.gradient.directionVertical },
     { value: 'diagonalDR', icon: ArrowDownRight, label: t.gradient.directionDiagonalDR },
     { value: 'diagonalDL', icon: ArrowDownLeft, label: t.gradient.directionDiagonalDL },
@@ -185,7 +200,7 @@ function GradientSection({
   return (
     <section>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t.gradient.title}</h3>
-      <p className="mb-3 text-xs text-text-muted">{t.gradient.hint}</p>
+      <p className="mb-3 text-xs text-text-muted">{isTriangle ? t.gradient.hintTriangle : t.gradient.hint}</p>
 
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold text-text-muted">{t.gradient.stops}</p>
@@ -203,7 +218,9 @@ function GradientSection({
           chip(hex, () => onSetStops(stops.filter((h) => h !== hex)), t.gradient.removeStop(colorLetters[hex] ?? describeColor(hex), i + 1), i + 1),
         )}
       </div>
-      <p className="mt-2 text-[11px] text-text-muted">{t.gradient.stopsHint}</p>
+      <p className="mt-2 text-[11px] text-text-muted">
+        {direction === 'fromCenter' ? t.gradient.stopsHintFromCenter : t.gradient.stopsHint}
+      </p>
 
       {remaining.length > 0 && (
         <>

@@ -707,9 +707,13 @@ export const t = {
   gradient: {
     title: 'Degradado',
     hint: 'Se aplica a la selección actual, o a todo el patrón (cuerpo y fleco) si no hay nada seleccionado.',
+    /** El peyote triangular no tiene selección ni fleco: el degradado siempre cae sobre la pieza entera. */
+    hintTriangle: 'Se aplica a todo el triángulo.',
     /** Los colores por los que pasa el degradado, en orden — ver engine/gradient.ts. */
     stops: 'Colores, en orden',
     stopsHint: 'Una franja por color, de arriba hacia abajo. Toca un color para quitarlo.',
+    /** Con "Desde el centro" las franjas no van de arriba abajo sino hacia afuera. */
+    stopsHintFromCenter: 'Una franja por color, del centro hacia afuera. Toca un color para quitarlo.',
     add: 'Agregar',
     reverse: 'Invertir',
     removeStop: (color: string, n: number) => `Quitar ${color} (${n}.º) del degradado`,
@@ -718,6 +722,8 @@ export const t = {
     directionVertical: 'Vertical',
     directionDiagonalDR: 'Diagonal ↘',
     directionDiagonalDL: 'Diagonal ↙',
+    /** Sólo el peyote triangular: en anillos desde el medio, que es como se teje. */
+    directionFromCenter: 'Desde el centro',
     apply: 'Aplicar degradado',
     needsTwoColors: 'Elige al menos 2 colores para armar un degradado.',
   },
