@@ -113,6 +113,13 @@ export const t = {
       personalizado: 'Personalizado',
       personalizadoDesc: 'Empieza desde cero',
     },
+    /** El paso de tamaño del peyote triangular: se mide en vueltas, no en filas y columnas. */
+    triangle: {
+      title: 'Tamaño del triángulo',
+      rounds: 'Vueltas',
+      hint: 'El triángulo crece de a una vuelta desde el centro. Después lo puedes cambiar en el editor, en "⋯" → Forma del triángulo, sin perder lo pintado.',
+      perSide: (n: number) => (n === 1 ? '1 mostacilla por lado' : `${n} mostacillas por lado`),
+    },
     /** Plantillas que vienen con la app — ver data/nubihTemplates.ts. */
     nubihTemplatesTitle: 'Plantillas Nubih',
     /** Plantillas guardadas por quien teje desde el editor — ver engine/template.ts. */

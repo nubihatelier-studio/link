@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
-import { beadsPerSide, triangleBeadCount } from '@/engine/trianglePeyote'
+import { beadsPerSide, MAX_TRIANGLE_ROUNDS, triangleBeadCount } from '@/engine/trianglePeyote'
 import { SliderField } from '@/components/shared/SliderField'
 import { SelectableCard } from '@/components/shared/SelectableCard'
 import { Button } from '@/components/shared/Button'
 import { t } from '@/i18n/es'
-
-/** Hasta dónde llega el deslizador — más allá de esto ya no es un aro. */
-const MAX_ROUNDS = 30
 
 /**
  * "Forma del aro": de qué porte es y hacia dónde mira la punta. Ocupa el
@@ -60,7 +57,7 @@ export function TriangleShapeDialog({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-text-muted">{t.editor.triangleShape.hint}</p>
         </div>
 
-        <SliderField label={t.editor.triangleShape.rounds} value={vueltas} min={1} max={MAX_ROUNDS} onChange={setVueltas} />
+        <SliderField label={t.editor.triangleShape.rounds} value={vueltas} min={1} max={MAX_TRIANGLE_ROUNDS} onChange={setVueltas} />
 
         <div>
           <p className="mb-2 text-sm font-semibold">{t.editor.triangleShape.tip}</p>

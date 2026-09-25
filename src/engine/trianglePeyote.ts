@@ -89,6 +89,12 @@ export function beadsInRound(round: number): number {
   return k
 }
 
+/**
+ * Hasta dónde llega el deslizador de vueltas, al crear la pieza y en "Forma
+ * del triángulo" — más allá de esto ya no es un aro.
+ */
+export const MAX_TRIANGLE_ROUNDS = 30
+
 /** Cuántas mostacillas tiene la pieza entera. */
 export function triangleBeadCount(rounds: number): number {
   let total = 0

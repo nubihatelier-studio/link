@@ -3,6 +3,7 @@ import type { BrickDrop, FringeData, LoopData, PatternConfig, PatternDoc, RowSha
 import { isPaintableCell, maxFringeLength, normalizeFringe } from '@/engine/fringe'
 import { effectiveStaggerPhase, staggerOf, withStagger } from '@/engine/geometry'
 import { cellKey } from '@/engine/cellKey'
+import { triangleBeads, triangleKey } from '@/engine/trianglePeyote'
 import { PatternThumb } from './PatternThumb'
 
 /** Tono de la silueta: un gris cálido que se lee igual en claro y en oscuro. */
@@ -38,6 +39,8 @@ interface PiecePreviewProps {
   fringeLengths?: number[] | null
   rowShape?: RowShape[] | null
   loop?: LoopData
+  /** Peyote triangular: hacia dónde apunta. Las vueltas van en `cols`. */
+  triangleUp?: boolean
   size?: number
 }
 
@@ -49,8 +52,15 @@ interface PiecePreviewProps {
  * Se pintan todas las mostacillas que la pieza va a tener, de un solo tono:
  * acá no hay colores todavía y lo que importa es la forma.
  */
-export function PiecePreview({ technique, cols, rows, drop = 1, fringeLengths, rowShape, loop, size = 96 }: PiecePreviewProps) {
+export function PiecePreview({ technique, cols, rows, drop = 1, fringeLengths, rowShape, loop, triangleUp, size = 96 }: PiecePreviewProps) {
   const doc = useMemo<PatternDoc>(() => {
+    if (technique === 'triangle') {
+      // No es una grilla: todas sus mostacillas, vuelta por vuelta, por llave.
+      const cells: PatternDoc['cells'] = {}
+      for (const bead of triangleBeads(cols)) cells[triangleKey(bead)] = SILUETA
+      const config: PatternConfig = { technique, cols, rows: cols, rounds: cols, triangleUp, beadTypeId: 'miyuki-delica-11' }
+      return { id: 'preview', name: '', config, cells, createdAt: 0, updatedAt: 0 }
+    }
     const fringe: FringeData | undefined = fringeLengths
       ? { lengths: fringeLengths, turnBeads: fringeLengths.map((len) => len > 0) }
       : undefined
@@ -61,7 +71,7 @@ export function PiecePreview({ technique, cols, rows, drop = 1, fringeLengths, r
       technique === 'brick' ? staggerOf(0, drop) : effectiveStaggerPhase({ technique, cols }),
     )
     return { id: 'preview', name: '', config, cells, fringe, rowShape: shape, loop, createdAt: 0, updatedAt: 0 }
-  }, [technique, cols, rows, drop, fringeLengths, rowShape, loop])
+  }, [technique, cols, rows, drop, fringeLengths, rowShape, loop, triangleUp])
 
   return <PatternThumb pattern={doc} size={size} />
 }

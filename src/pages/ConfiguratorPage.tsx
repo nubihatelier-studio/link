@@ -13,6 +13,7 @@ import {
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { loopBeadCount } from '@/engine/loop'
+import { beadsPerSide, MAX_TRIANGLE_ROUNDS } from '@/engine/trianglePeyote'
 import { isPairCapable } from '@/engine/pair'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
@@ -215,6 +216,9 @@ export function ConfiguratorPage() {
    * through a path that doesn't explicitly clear it.
    */
   const [templateFringeLengths, setTemplateFringeLengths] = useState<number[] | null>(null)
+  /** Peyote triangular: su tamaño son las vueltas desde el centro, no filas y columnas. */
+  const [vueltas, setVueltas] = useState(10)
+  const esTriangulo = selectedTemplate === 'triangulo'
 
   const bead = getBeadType(beadTypeId)
   const fringeActive = isFringeCapable(technique) && fringeEnabled
@@ -310,13 +314,17 @@ export function ConfiguratorPage() {
   }
 
   /**
-   * El peyote triangular se crea con sus vueltas y se abre en el editor de
-   * siempre: no es una grilla de filas y columnas, así que no pasa por los
-   * pasos de técnica, tamaño y flecos de esta página, pero se edita igual
-   * que cualquier otro patrón.
+   * El peyote triangular no es una grilla de filas y columnas, así que no
+   * pasa por los pasos de técnica, tamaño y flecos de esta página: elegirlo
+   * cambia lo de abajo por su propio paso, las vueltas. Se crea con esas
+   * vueltas y se abre en el editor de siempre.
    */
+  function elegirTriangulo() {
+    setUserTemplateId(null)
+    setSelectedTemplate('triangulo')
+  }
+
   function crearTriangulo() {
-    const vueltas = 10
     const id = createPattern({
       technique: 'triangle',
       cols: vueltas,
@@ -342,6 +350,30 @@ export function ConfiguratorPage() {
     // tweak keeps that symmetry instead of silently drifting lopsided.
     navigate(`/editor/${id}`, selectedTemplate === 'aroFlecos' ? { state: { fringeSymmetricDefault: true } } : undefined)
   }
+
+  const beadTypeSection = (
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.beadType}</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {BEAD_TYPES.map((b) => (
+            <SelectableCard
+              key={b.id}
+              selected={beadTypeId === b.id}
+              onClick={() => setBeadTypeId(b.id)}
+              className="flex flex-col gap-1"
+            >
+              <p className="font-semibold">{b.label}</p>
+              <p className="text-xs text-text-muted">
+                {b.widthMm} × {b.heightMm} mm
+              </p>
+            </SelectableCard>
+          ))}
+        </div>
+      </section>
+  )
+
+  const triangleSize = physicalSizeMm('triangle', vueltas, vueltas, bead)
+  const triangleTotal = beadCount('triangle', vueltas, vueltas)
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-4 pb-32 pt-[calc(2rem+env(safe-area-inset-top))] sm:px-8">
@@ -369,14 +401,12 @@ export function ConfiguratorPage() {
                 label={template.label}
                 description={template.description}
               />
-              {/* Va aquí, al lado del aro con flecos, porque es la otra pieza
-                  de aro. Todavía no se puede pintar: por ahora lleva a la
-                  pantalla donde se mira cómo queda (TrianglePreviewPage). */}
+              {/* Va aquí, al lado del aro con flecos, porque es la otra pieza de aro. */}
               {template.id === 'aroFlecos' && (
                 <IconSelectableCard
-                  selected={false}
-                  onClick={crearTriangulo}
-                  icon={<TemplateIcon templateId="triangulo" className="text-text-muted" />}
+                  selected={esTriangulo}
+                  onClick={elegirTriangulo}
+                  icon={<TemplateIcon templateId="triangulo" className={esTriangulo ? 'text-accent-500' : 'text-text-muted'} />}
                   label={t.configurator.templates.triangulo}
                   description={t.configurator.templates.trianguloDesc}
                 />
@@ -466,6 +496,35 @@ export function ConfiguratorPage() {
             </p>
           </div>
         </section>
+      ) : esTriangulo ? (
+        <>
+          <section className="mb-8 flex flex-col gap-3" aria-label={t.configurator.triangle.title}>
+            <h2 className="text-sm font-semibold text-text-muted">{t.configurator.triangle.title}</h2>
+            <SliderField
+              label={t.configurator.triangle.rounds}
+              value={vueltas}
+              min={1}
+              max={MAX_TRIANGLE_ROUNDS}
+              onChange={(next) => setVueltas(Math.max(1, Math.min(MAX_TRIANGLE_ROUNDS, next)))}
+            />
+            <p className="text-xs text-text-muted">{t.configurator.triangle.hint}</p>
+          </section>
+
+          {beadTypeSection}
+
+          {/* Parte con la punta hacia arriba, como sale en el editor. */}
+          <Card className="mb-8 flex flex-col items-center gap-1 bg-surface-3 py-5 text-center">
+            <div className="mb-2" aria-label={t.configurator.preview}>
+              <PiecePreview technique="triangle" cols={vueltas} rows={vueltas} triangleUp size={104} />
+            </div>
+            <p className="text-2xl font-bold">{triangleTotal.toLocaleString('es')}</p>
+            <p className="text-sm text-text-muted">{triangleTotal === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
+            <p className="text-sm text-text-muted">{t.configurator.triangle.perSide(beadsPerSide(vueltas))}</p>
+            <p className="mt-2 text-sm text-text-muted">
+              {t.configurator.estimatedSize}: {formatSizeMm(triangleSize.widthMm, triangleSize.heightMm, unit)}
+            </p>
+          </Card>
+        </>
       ) : (
         <>
           {/* Con nombre propio: "Peyote" y "Peyote triangular" viven en dos
@@ -612,24 +671,7 @@ export function ConfiguratorPage() {
             </section>
           )}
 
-          <section className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold text-text-muted">{t.configurator.beadType}</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {BEAD_TYPES.map((b) => (
-                <SelectableCard
-                  key={b.id}
-                  selected={beadTypeId === b.id}
-                  onClick={() => setBeadTypeId(b.id)}
-                  className="flex flex-col gap-1"
-                >
-                  <p className="font-semibold">{b.label}</p>
-                  <p className="text-xs text-text-muted">
-                    {b.widthMm} × {b.heightMm} mm
-                  </p>
-                </SelectableCard>
-              ))}
-            </div>
-          </section>
+          {beadTypeSection}
 
           {isFringeCapable(technique) && (
             <section className="mb-8">
@@ -781,7 +823,7 @@ export function ConfiguratorPage() {
       )}
 
       <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-2xl justify-center bg-gradient-to-t from-canvas via-canvas to-transparent pt-6 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-8">
-        <Button fullWidth onClick={userTemplate ? createFromUserTemplate : handleCreate}>
+        <Button fullWidth onClick={userTemplate ? createFromUserTemplate : esTriangulo ? crearTriangulo : handleCreate}>
           {t.configurator.createButton}
         </Button>
       </div>
