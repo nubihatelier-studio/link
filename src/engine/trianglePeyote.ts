@@ -109,9 +109,26 @@ export function triangleBeadCount(rounds: number): number {
   return total
 }
 
-/** Cuántas mostacillas tiene el lado de afuera de una pieza de `rounds` vueltas. */
+/** Cuántas mostacillas trae la vuelta de afuera por cada lado, en una pieza de `rounds` vueltas. */
 export function beadsPerSide(rounds: number): number {
   return beadsInRound(rounds)
+}
+
+/**
+ * Cuántas mostacillas se ven en un lado de la pieza terminada, que no son las
+ * mismas.
+ *
+ * El borde queda dentado: sobre un lado se alternan las de la vuelta de
+ * afuera y las de la anterior, encajadas en sus huecos. Por eso son
+ * `2·vueltas − 1` — en un aro de 11 vueltas, las 11 de la última más las 10
+ * del hueco: 21, que es lo que se cuenta en una pieza de verdad.
+ *
+ * Es la medida que tiene sentido para quien teje: **los tres lados son
+ * iguales**, así que una pieza se describe por su lado y no por un ancho y un
+ * alto distintos.
+ */
+export function triangleSideBeads(rounds: number): number {
+  return rounds < 1 ? 0 : 2 * rounds - 1
 }
 
 /** Todas las mostacillas, en el orden en que se tejen: vuelta por vuelta desde el centro. */

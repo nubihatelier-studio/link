@@ -1,5 +1,5 @@
 import type { BrickDrop, Technique, BeadTypeDef, CellPosition, RowShape } from './types'
-import { triangleBeadCount, triangleBoundsUnits } from './trianglePeyote'
+import { triangleBeadCount, triangleBoundsUnits, triangleSideBeads } from './trianglePeyote'
 import { loopHeightUnits } from './loop'
 import { weaveThreadFactor } from './calibration'
 
@@ -412,6 +412,18 @@ export function beadCount(technique: Technique, cols: number, rows: number, rowS
  * `loopHeightUnits`'s own estimate instead of the row pitch (a metal loop
  * or no loop at all contributes 0 either way).
  */
+/**
+ * Cuánto mide **un lado** de un peyote triangular terminado.
+ *
+ * Es la medida que usa quien teje: los tres lados son iguales, así que la
+ * pieza se describe por su lado y no por un ancho y un alto distintos, que
+ * además confunden —el rectángulo que la encierra es más ancho que el lado,
+ * porque las mostacillas de las esquinas van giradas y sobresalen—.
+ */
+export function triangleSideMm(rounds: number, bead: BeadTypeDef): number {
+  return triangleSideBeads(rounds) * beadAxisMm('triangle', 'horizontal', bead) * weaveThreadFactor('triangle', bead.id)
+}
+
 export function physicalSizeMm(
   technique: Technique,
   cols: number,

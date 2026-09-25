@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
-import { physicalSizeMm } from '@/engine/geometry'
-import { formatSizeMm } from '@/engine/units'
+import { physicalSizeMm, triangleSideMm } from '@/engine/geometry'
+import { formatMeasurement, formatSizeMm } from '@/engine/units'
 import { maxFringeLength } from '@/engine/fringe'
 import { loopBeadCount } from '@/engine/loop'
 import { SelectableCard } from '@/components/shared/SelectableCard'
@@ -18,7 +18,7 @@ import { t } from '@/i18n/es'
  * is to show that measurement before and after.
  */
 export function BeadTypeDialog({ onClose }: { onClose: () => void }) {
-  const { technique, cols, rows, beadTypeId, fringe, loop, pair, setBeadType } = useEditorStore()
+  const { technique, cols, rows, rounds, beadTypeId, fringe, loop, pair, setBeadType } = useEditorStore()
   const [chosen, setChosen] = useState(beadTypeId)
 
   useEffect(() => {
@@ -30,6 +30,8 @@ export function BeadTypeDialog({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   const sizeOf = (id: string) => {
+    // El peyote triangular tiene los tres lados iguales: se dice por su lado.
+    if (technique === 'triangle') return t.home.perSide(formatMeasurement(triangleSideMm(rounds, getBeadType(id)), 'mm'))
     const { widthMm, heightMm } = physicalSizeMm(technique, cols, rows, getBeadType(id), maxFringeLength(fringe), loopBeadCount(loop))
     return formatSizeMm(widthMm, heightMm)
   }

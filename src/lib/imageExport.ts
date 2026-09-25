@@ -1,6 +1,6 @@
 import type { BeadTypeDef, ColorMap, FringeData, LoopData, PairData, RowShape, Technique } from '@/engine/types'
 import { loadImage, WORDMARK_SRC } from './loadImage'
-import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm, type StaggerPhase } from '@/engine/geometry'
+import { cellPosition, gridBoundsUnits, loopAnchorX, physicalSizeMm, triangleSideMm, type StaggerPhase } from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -271,8 +271,13 @@ export async function composeInstagramCard(opts: ExportImageOptions): Promise<HT
   // nada de una pieza que no tiene filas ni columnas.
   const forma =
     opts.technique === 'triangle' ? t.home.roundCount(opts.rounds ?? opts.cols) : `${opts.cols}×${opts.rows}`
+  // El peyote triangular tiene los tres lados iguales: se dice por su lado.
+  const medida =
+    opts.technique === 'triangle'
+      ? t.home.perSide(`${triangleSideMm(opts.rounds ?? opts.cols, opts.beadType).toFixed(0)} mm`)
+      : `${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm`
   ctx.fillText(
-    `${t.technique[opts.technique]} · ${forma} · ${size.widthMm.toFixed(0)}×${size.heightMm.toFixed(0)} mm${opts.pair ? ` · ${t.editor.pair.pairShort}` : ''}`,
+    `${t.technique[opts.technique]} · ${forma} · ${medida}${opts.pair ? ` · ${t.editor.pair.pairShort}` : ''}`,
     INSTAGRAM_CARD_WIDTH / 2,
     180,
   )

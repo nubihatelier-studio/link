@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { BrickDrop, FringeData, LoopData, MeasurementUnit, Technique } from '@/engine/types'
-import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm, staggerOf } from '@/engine/geometry'
+import { beadCount, physicalSizeMm, gridFromPhysicalSizeMm, staggerOf, triangleSideMm} from '@/engine/geometry'
 import {
   createFringeLengths,
   createFringeLengthsForShape,
@@ -13,11 +13,11 @@ import {
 } from '@/engine/fringe'
 import { createShapedRowShape, isShapeCapable, preferredRowsFor, type BodyShapePreset } from '@/engine/shape'
 import { loopBeadCount } from '@/engine/loop'
-import { beadsPerSide, MAX_TRIANGLE_ROUNDS } from '@/engine/trianglePeyote'
+import { MAX_TRIANGLE_ROUNDS, triangleSideBeads } from '@/engine/trianglePeyote'
 import { isPairCapable } from '@/engine/pair'
 import { CALIBRATION_SAMPLE } from '@/engine/calibration'
 import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
-import { toMm, fromMm, formatSizeMm } from '@/engine/units'
+import { toMm, fromMm, formatSizeMm, formatMeasurement} from '@/engine/units'
 import { usePatternsStore } from '@/store/patternsStore'
 import { t } from '@/i18n/es'
 import { Button } from '@/components/shared/Button'
@@ -372,7 +372,6 @@ export function ConfiguratorPage() {
       </section>
   )
 
-  const triangleSize = physicalSizeMm('triangle', vueltas, vueltas, bead)
   const triangleTotal = beadCount('triangle', vueltas, vueltas)
 
   return (
@@ -519,9 +518,10 @@ export function ConfiguratorPage() {
             </div>
             <p className="text-2xl font-bold">{triangleTotal.toLocaleString('es')}</p>
             <p className="text-sm text-text-muted">{triangleTotal === 1 ? t.configurator.totalBeadsOne : t.configurator.totalBeads}</p>
-            <p className="text-sm text-text-muted">{t.configurator.triangle.perSide(beadsPerSide(vueltas))}</p>
+            <p className="text-sm text-text-muted">{t.configurator.triangle.perSide(triangleSideBeads(vueltas))}</p>
+            {/* Los tres lados son iguales: la pieza se dice por su lado, no por un ancho y un alto. */}
             <p className="mt-2 text-sm text-text-muted">
-              {t.configurator.estimatedSize}: {formatSizeMm(triangleSize.widthMm, triangleSize.heightMm, unit)}
+              {t.configurator.estimatedSize}: {t.home.perSide(formatMeasurement(triangleSideMm(vueltas, bead), unit))}
             </p>
           </Card>
         </>

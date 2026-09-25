@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
-import { beadsPerSide, MAX_TRIANGLE_ROUNDS, triangleBeadCount } from '@/engine/trianglePeyote'
+import { MAX_TRIANGLE_ROUNDS, triangleBeadCount, triangleSideBeads } from '@/engine/trianglePeyote'
+import { triangleSideMm } from '@/engine/geometry'
+import { formatMeasurement } from '@/engine/units'
+import { getBeadType } from '@/data/beadTypes'
 import { SliderField } from '@/components/shared/SliderField'
 import { SelectableCard } from '@/components/shared/SelectableCard'
 import { Button } from '@/components/shared/Button'
@@ -24,6 +27,7 @@ export function TriangleShapeDialog({ onClose }: { onClose: () => void }) {
   const setTriangleUp = useEditorStore((s) => s.setTriangleUp)
   const [vueltas, setVueltas] = useState(rounds)
   const [puntaArriba, setPuntaArriba] = useState(triangleUp)
+  const bead = getBeadType(useEditorStore.getState().beadTypeId)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -82,8 +86,12 @@ export function TriangleShapeDialog({ onClose }: { onClose: () => void }) {
 
         <dl className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-sm">
           <div className="flex justify-between gap-3">
+            <dt className="text-text-muted">{t.editor.triangleShape.sideSize}</dt>
+            <dd className="font-semibold tabular-nums">{formatMeasurement(triangleSideMm(vueltas, bead), 'mm')}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
             <dt className="text-text-muted">{t.editor.triangleShape.perSide}</dt>
-            <dd className="font-semibold tabular-nums">{beadsPerSide(vueltas)}</dd>
+            <dd className="font-semibold tabular-nums">{triangleSideBeads(vueltas)}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-text-muted">{t.editor.triangleShape.total}</dt>

@@ -2,7 +2,16 @@ import type { ColorMap, FringeData, LoopData, PairData, RowShape, Technique } fr
 import { loadPng, WORDMARK_SRC, type PngFile } from './loadImage'
 import type { BeadTypeDef } from '@/engine/types'
 import type { jsPDF as JsPDF } from 'jspdf'
-import { cellPosition, physicalSizeMm, beadCount, gridBoundsUnits, loopAnchorX, rowPitch, type StaggerPhase } from '@/engine/geometry'
+import {
+  cellPosition,
+  physicalSizeMm,
+  triangleSideMm,
+  beadCount,
+  gridBoundsUnits,
+  loopAnchorX,
+  rowPitch,
+  type StaggerPhase,
+} from '@/engine/geometry'
 import { isPaintableCell, maxFringeLength, totalFringeBeadCount } from '@/engine/fringe'
 import { cellKey } from '@/engine/cellKey'
 import { loopBeadCount, loopBeadOffsets, loopReserveUnits, METAL_LOOP_INDICATOR_UNITS } from '@/engine/loop'
@@ -12,7 +21,7 @@ import { beadMetrics, contrastTextColor } from './beadStyle'
 import { drawTriangleChart } from './pdfTriangleChart'
 import { triangleBoundsUnits } from '@/engine/trianglePeyote'
 import { describeColor } from './colorName'
-import { formatSizeMm } from '@/engine/units'
+import { formatMeasurement, formatSizeMm } from '@/engine/units'
 import { shareOrDownloadFile } from './shareFile'
 import { estimateThreadMeters, suggestedNeedle } from './materials'
 import { t } from '@/i18n/es'
@@ -449,7 +458,13 @@ function drawHeaderBlock(doc: JsPDF, opts: ExportPatternOptions, margin: number,
     opts.technique
   ]
   // A pair is two earrings of the same size: the size is per earring, the total is the pair's.
-  const sizeLabel = `${formatSizeMm(size.widthMm, size.heightMm)}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
+  // El peyote triangular tiene los tres lados iguales, así que se dice por su
+  // lado: "27.3 mm por lado" en vez de un ancho y un alto que no se parecen.
+  const medida =
+    opts.technique === 'triangle'
+      ? t.home.perSide(formatMeasurement(triangleSideMm(opts.rounds ?? opts.cols, opts.beadType), 'mm'))
+      : formatSizeMm(size.widthMm, size.heightMm)
+  const sizeLabel = `${medida}${opts.pair ? ` ${t.pdf.eachEarring}` : ''}`
   const totalLabel = opts.pair ? t.pdf.pairTotal(total * 2) : `Total: ${total} mostacillas`
   // El peyote triangular se mide en vueltas desde el centro: "10 × 10 mostacillas"
   // no dice nada de una pieza que no tiene filas ni columnas.

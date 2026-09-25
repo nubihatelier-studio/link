@@ -11,6 +11,7 @@ import {
   triangleBoundsUnits,
   triangleKey,
   triangleNeighbourMap,
+  triangleSideBeads,
 } from './trianglePeyote'
 
 describe('Triángulo de peyote — medido contra una pieza terminada', () => {
@@ -197,5 +198,21 @@ describe('El porte de la pieza', () => {
     const arriba = triangleBoundsUnits(9, true)
     expect(arriba.width).toBeCloseTo(abajo.width, 10)
     expect(arriba.height).toBeCloseTo(abajo.height, 10)
+  })
+})
+
+describe('Cuánto mide un lado', () => {
+  it('el borde es dentado: la vuelta de afuera más las encajadas entre ellas', () => {
+    // Un aro de 11 vueltas muestra 21 mostacillas por lado, que es lo que se
+    // cuenta en la pieza de la tejedora.
+    expect(triangleSideBeads(11)).toBe(21)
+    expect(triangleSideBeads(1)).toBe(1)
+    expect(triangleSideBeads(0)).toBe(0)
+  })
+
+  it('son más que las de la última vuelta sola: esa cuenta se queda corta', () => {
+    for (const rounds of [4, 9, 11, 20]) {
+      expect(triangleSideBeads(rounds)).toBeGreaterThan(beadsPerSide(rounds))
+    }
   })
 })

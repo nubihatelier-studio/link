@@ -36,8 +36,10 @@ export const t = {
     cardOptions: (name: string) => `Opciones de ${name}`,
     download: 'Descargar',
     colorCount: (n: number) => (n === 1 ? '1 color' : `${n} colores`),
-    /** El peyote triangular no se mide en filas y columnas, sino en vueltas desde el centro. */
+    /** El peyote triangular tiene los tres lados iguales: se describe por su lado, no por ancho × alto. */
     roundCount: (n: number) => (n === 1 ? '1 vuelta' : `${n} vueltas`),
+    /** "27.3 mm por lado" — cómo se dice el porte de un peyote triangular. */
+    perSide: (medida: string) => `${medida} por lado`,
     unfavorite: (name: string) => `Quitar ${name} de favoritos`,
   },
   /** La barra de abajo de las pantallas principales. */
@@ -118,6 +120,7 @@ export const t = {
       title: 'Tamaño del triángulo',
       rounds: 'Vueltas',
       hint: 'El triángulo crece de a una vuelta desde el centro. Después lo puedes cambiar en el editor, en "⋯" → Forma del triángulo, sin perder lo pintado.',
+      /** Las que se ven en un lado de la pieza terminada — ver `triangleSideBeads`. */
       perSide: (n: number) => (n === 1 ? '1 mostacilla por lado' : `${n} mostacillas por lado`),
     },
     /** Plantillas que vienen con la app — ver data/nubihTemplates.ts. */
@@ -439,8 +442,10 @@ export const t = {
       tip: 'La punta',
       tipUp: 'Hacia arriba',
       tipDown: 'Hacia abajo',
-      perSide: 'Mostacillas en el lado de afuera',
+      perSide: 'Mostacillas por lado',
       total: 'Mostacillas en total',
+      /** Los tres lados son iguales, así que basta con decir cuánto mide uno. */
+      sideSize: 'Cuánto mide un lado',
       apply: 'Cambiar la forma',
     },
     clone: 'Clonar lo marcado',
