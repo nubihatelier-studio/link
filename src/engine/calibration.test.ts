@@ -66,15 +66,32 @@ describe('tabla de calibración — cobertura y honestidad', () => {
 })
 
 describe('la muestra del peyote triangular', () => {
-  it('el factor sale de la medida, no de un número elegido a mano', () => {
-    const { measuredWidthMm, widthUnits, technique, beadTypeId } = TRIANGLE_CALIBRATION_SAMPLE
-    expect(weaveThreadFactor(technique, beadTypeId)).toBeCloseTo(measuredWidthMm / (widthUnits * 1.3), 10)
+  it('el factor sale de las dos medidas juntas, no de una sola ni de un número a mano', () => {
+    const { measuredWidthMm, measuredHeightMm, widthUnits, heightUnits, technique, beadTypeId } =
+      TRIANGLE_CALIBRATION_SAMPLE
+    expect(weaveThreadFactor(technique, beadTypeId)).toBeCloseTo(
+      (measuredWidthMm + measuredHeightMm) / ((widthUnits + heightUnits) * 1.3),
+      10,
+    )
   })
 
-  it('el aro de la muestra sale con la medida que tiene de verdad, al décimo de milímetro', () => {
-    const { rounds, measuredWidthMm } = TRIANGLE_CALIBRATION_SAMPLE
-    const { widthMm } = physicalSizeMm('triangle', rounds, rounds, getBeadType('miyuki-delica-11'))
-    expect(widthMm).toBeCloseTo(measuredWidthMm, 1)
+  it('su aro dice que la geometría pelada ya estaba bien: el factor es prácticamente 1', () => {
+    const { technique, beadTypeId } = TRIANGLE_CALIBRATION_SAMPLE
+    expect(weaveThreadFactor(technique, beadTypeId)).toBeGreaterThan(0.99)
+    expect(weaveThreadFactor(technique, beadTypeId)).toBeLessThan(1.01)
+  })
+
+  it('el aro de la muestra queda a menos de un milímetro de las dos medidas', () => {
+    const { rounds, measuredWidthMm, measuredHeightMm } = TRIANGLE_CALIBRATION_SAMPLE
+    const { widthMm, heightMm } = physicalSizeMm('triangle', rounds, rounds, getBeadType('miyuki-delica-11'))
+    expect(Math.abs(widthMm - measuredWidthMm)).toBeLessThan(1)
+    expect(Math.abs(heightMm - measuredHeightMm)).toBeLessThan(1)
+  })
+
+  it('el triángulo es equilátero: una escala sola, nunca una por eje', () => {
+    const bead = getBeadType('miyuki-delica-11')
+    const { widthMm, heightMm } = physicalSizeMm('triangle', 11, 11, bead)
+    expect(widthMm / heightMm).toBeCloseTo(2 / Math.sqrt(3), 4)
   })
 
   it('el ancho crece parejo con las vueltas: el doble de vueltas, casi el doble de pieza', () => {

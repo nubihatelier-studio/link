@@ -57,6 +57,13 @@ export interface TriangleBeadPlacement {
 export const ROUND_PITCH = 1 / Math.sqrt(3)
 
 /**
+ * Alto de la mostacilla, en anchos: apenas menor que el ancho, como una
+ * Delica de pie. Lo usan el lienzo, el PDF y las imágenes para dibujarla, y
+ * `triangleBoundsUnits` para saber cuánto sobresale una girada.
+ */
+export const BEAD_HEIGHT_UNITS = 0.92
+
+/**
  * A qué distancia del centro va la primera vuelta, con el ancho de la
  * mostacilla como unidad.
  *
@@ -166,21 +173,41 @@ export function triangleBoundsUnits(
   rounds: number,
   pointingUp = false,
 ): { width: number; height: number; minX: number; minY: number } {
-  const pts = triangleBeads(rounds).map((bead) => triangleBeadPlacement(bead, pointingUp))
-  if (pts.length === 0) return { width: 1, height: 1, minX: -0.5, minY: -0.5 }
-  const xs = pts.map((p) => p.x)
-  const ys = pts.map((p) => p.y)
-  const minX = Math.min(...xs)
-  const minY = Math.min(...ys)
-  return {
-    width: Math.max(...xs) - minX + 1,
-    height: Math.max(...ys) - minY + 1,
-    // Media mostacilla más afuera: `minX` es el *centro* de la de más a la
-    // izquierda, y el ancho ya cuenta esa mitad de cada lado.
-    minX: minX - 0.5,
-    minY: minY - 0.5,
+  if (rounds < 1) return { width: 1, height: 1, minX: -0.5, minY: -0.5 }
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const bead of triangleBeads(rounds)) {
+    const { x, y, angle } = triangleBeadPlacement(bead, pointingUp)
+    const rad = (angle * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    // Las cuatro esquinas de la mostacilla, ya giradas. Antes se sumaba media
+    // unidad a cada lado, como si todas estuvieran derechas: en las esquinas
+    // del triángulo, donde van giradas 120° y 240°, eso dejaba afuera un
+    // pedazo y la pieza salía más chica de lo que es. Con las esquinas de
+    // verdad la razón entre ancho y alto da **2/√3 exacto**, que es lo que
+    // tiene que dar: los tres lados son iguales.
+    for (const [dx, dy] of ESQUINAS_DE_LA_MOSTACILLA) {
+      const px = x + dx * cos - dy * sin
+      const py = y + dx * sin + dy * cos
+      if (px < minX) minX = px
+      if (px > maxX) maxX = px
+      if (py < minY) minY = py
+      if (py > maxY) maxY = py
+    }
   }
+  return { width: maxX - minX, height: maxY - minY, minX, minY }
 }
+
+/** Las cuatro esquinas de una mostacilla sin girar, en unidades — ver `BEAD_HEIGHT_UNITS`. */
+const ESQUINAS_DE_LA_MOSTACILLA: [number, number][] = [
+  [-0.5, -BEAD_HEIGHT_UNITS / 2],
+  [0.5, -BEAD_HEIGHT_UNITS / 2],
+  [0.5, BEAD_HEIGHT_UNITS / 2],
+  [-0.5, BEAD_HEIGHT_UNITS / 2],
+]
 
 /**
  * La mostacilla que cae bajo un punto, en unidades de mostacilla, o `null`

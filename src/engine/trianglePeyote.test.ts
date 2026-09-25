@@ -175,3 +175,27 @@ describe('Triángulo de peyote — hacia dónde mira la punta', () => {
     expect(triangleBeadAt(p.x, p.y, 6, false)).not.toEqual(bead)
   })
 })
+
+describe('El porte de la pieza', () => {
+  it('es equilátero: ancho sobre alto da 2/√3, porque los tres lados son el mismo tejido girado', () => {
+    for (const rounds of [3, 7, 11, 20]) {
+      const b = triangleBoundsUnits(rounds)
+      expect(b.width / b.height, `${rounds} vueltas`).toBeCloseTo(2 / Math.sqrt(3), 6)
+    }
+  })
+
+  it('cuenta la mostacilla girada, no media unidad a ojo', () => {
+    // En las esquinas van giradas 120° y 240°: sobresalen más que media unidad,
+    // y sumar media dejaba la pieza más chica de lo que es.
+    const b = triangleBoundsUnits(11)
+    expect(b.width).toBeGreaterThan(22.3)
+    expect(b.height).toBeGreaterThan(19.3)
+  })
+
+  it('dar vuelta la punta no cambia el porte', () => {
+    const abajo = triangleBoundsUnits(9)
+    const arriba = triangleBoundsUnits(9, true)
+    expect(arriba.width).toBeCloseTo(abajo.width, 10)
+    expect(arriba.height).toBeCloseTo(abajo.height, 10)
+  })
+})

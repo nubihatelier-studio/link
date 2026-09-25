@@ -39,29 +39,41 @@ import type { Technique } from './types'
 /**
  * ## La muestra del peyote triangular
  *
- * triangle · Miyuki Delica 11/0 · 11 vueltas → **28 mm de ancho**, medido con
- * regla sobre un aro terminado de la tejedora (foto del 2026-09-25).
+ * triangle · Miyuki Delica 11/0 · 11 vueltas → **28 mm de ancho y 26 de
+ * alto**, medidos con regla sobre un aro terminado de la tejedora (fotos del
+ * 2026-09-25).
  *
  * El borde de arriba de esa pieza lleva 21 mostacillas —las 11 de la vuelta
  * de afuera y las 10 encajadas entre ellas—, contadas en la foto, que es lo
  * que confirma que son 11 vueltas.
  *
- * Teoría pelada: 22.039 unidades × 1.3 mm (el largo de la Delica, que es el
- * paso entre dos mostacillas de una misma vuelta) = **28.65 mm**. La pieza de
- * verdad mide 28, así que el hilo la aprieta un poco: 28 / 28.65 = **0.977**.
+ * ### Por qué no se le hace caso exacto a las dos medidas
  *
- * Es una corrección chica —medio milímetro en una pieza de casi tres
- * centímetros, del orden del error de medir con regla— pero va igual, porque
- * el punto de esta tabla es que los milímetros salgan de piezas de verdad y
- * no de la aritmética.
+ * Un triángulo tejido así es **equilátero por construcción**: los tres lados
+ * son iguales porque los tres sectores son el mismo tejido girado, y por eso
+ * `triangleBoundsUnits` da una razón de 2/√3 = 1.1547 clavada. Una pieza de
+ * 28 de ancho tiene 24.2 de alto; una de 26 de alto tiene 30 de ancho. Sus
+ * dos números no pueden ser los dos de la misma pieza plana: 28/26 = 1.077.
+ *
+ * Así que no se calibra cada eje por su lado, que sería inventar una pieza
+ * que se deforma. Se busca la escala que mejor cae en las dos:
+ *
+ *     (28 + 26) / (29.0 + 25.1 teóricos a 1.3 mm) = **0.997**
+ *
+ * O sea: prácticamente 1. **Su aro dice que la geometría pelada ya estaba
+ * bien.** Las dos lecturas quedan a menos de un milímetro de lo calculado,
+ * una por debajo y la otra por arriba — la dispersión de medir a mano una
+ * pieza chica apoyada en una regla, en dos direcciones distintas.
  */
 export const TRIANGLE_CALIBRATION_SAMPLE = {
   technique: 'triangle' as Technique,
   beadTypeId: 'miyuki-delica-11',
   rounds: 11,
   measuredWidthMm: 28,
-  /** `triangleBoundsUnits(11).width`, en unidades de retícula. */
-  widthUnits: 22.039,
+  measuredHeightMm: 26,
+  /** `triangleBoundsUnits(11)`, en unidades de retícula. */
+  widthUnits: 22.336,
+  heightUnits: 19.344,
 } as const
 
 export const CALIBRATION_SAMPLE = {
@@ -126,9 +138,9 @@ const WEAVE_THREAD_FACTOR: Record<string, WeaveCalibration> = {
   'loom:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de loom en Delica 11/0.'),
   'brick:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de brick en Delica 11/0.'),
   'triangle:miyuki-delica-11': measured(
-    TRIANGLE_CALIBRATION_SAMPLE.measuredWidthMm,
-    TRIANGLE_CALIBRATION_SAMPLE.widthUnits * 1.3,
-    'Aro triangular de 11 vueltas medido con regla: 28 mm de ancho contra 28.65 teóricos.',
+    TRIANGLE_CALIBRATION_SAMPLE.measuredWidthMm + TRIANGLE_CALIBRATION_SAMPLE.measuredHeightMm,
+    (TRIANGLE_CALIBRATION_SAMPLE.widthUnits + TRIANGLE_CALIBRATION_SAMPLE.heightUnits) * 1.3,
+    'Aro triangular de 11 vueltas medido con regla: 28 × 26 mm contra 29.0 × 25.1 teóricos. Da 0.997, o sea que la geometría pelada ya estaba bien.',
   ),
 
   // ── Rocalla 11/0 ──────────────────────────────────────────────────────
