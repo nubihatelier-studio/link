@@ -3,6 +3,7 @@ import { BEAD_TYPES, getBeadType } from '@/data/beadTypes'
 import type { Technique } from './types'
 import {
   CALIBRATION_SAMPLE,
+  TRIANGLE_CALIBRATION_SAMPLE,
   calibrationKeys,
   isCalibrated,
   THEORETICAL_FACTOR,
@@ -11,7 +12,7 @@ import {
 } from './calibration'
 import { physicalSizeMm } from './geometry'
 
-const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick']
+const TECHNIQUES: Technique[] = ['loom', 'peyote', 'brick', 'triangle']
 
 describe('tabla de calibración — cobertura y honestidad', () => {
   it('cubre las tres técnicas por cada tipo de mostacilla del catálogo', () => {
@@ -50,12 +51,38 @@ describe('tabla de calibración — cobertura y honestidad', () => {
     }
   })
 
-  it('hoy la única combinación calibrada contra pieza real es la de la muestra', () => {
+  it('las calibradas contra pieza real son exactamente las dos muestras que hay', () => {
     const calibrated = calibrationKeys().filter((k) => {
       const [technique, beadTypeId] = k.split(':')
       return isCalibrated(technique as Technique, beadTypeId)
     })
-    expect(calibrated).toEqual([`${CALIBRATION_SAMPLE.technique}:${CALIBRATION_SAMPLE.beadTypeId}`])
+    expect(new Set(calibrated)).toEqual(
+      new Set([
+        `${CALIBRATION_SAMPLE.technique}:${CALIBRATION_SAMPLE.beadTypeId}`,
+        `${TRIANGLE_CALIBRATION_SAMPLE.technique}:${TRIANGLE_CALIBRATION_SAMPLE.beadTypeId}`,
+      ]),
+    )
+  })
+})
+
+describe('la muestra del peyote triangular', () => {
+  it('el factor sale de la medida, no de un número elegido a mano', () => {
+    const { measuredWidthMm, widthUnits, technique, beadTypeId } = TRIANGLE_CALIBRATION_SAMPLE
+    expect(weaveThreadFactor(technique, beadTypeId)).toBeCloseTo(measuredWidthMm / (widthUnits * 1.3), 10)
+  })
+
+  it('el aro de la muestra sale con la medida que tiene de verdad, al décimo de milímetro', () => {
+    const { rounds, measuredWidthMm } = TRIANGLE_CALIBRATION_SAMPLE
+    const { widthMm } = physicalSizeMm('triangle', rounds, rounds, getBeadType('miyuki-delica-11'))
+    expect(widthMm).toBeCloseTo(measuredWidthMm, 1)
+  })
+
+  it('el ancho crece parejo con las vueltas: el doble de vueltas, casi el doble de pieza', () => {
+    const bead = getBeadType('miyuki-delica-11')
+    const once = physicalSizeMm('triangle', 11, 11, bead).widthMm
+    const veintidos = physicalSizeMm('triangle', 22, 22, bead).widthMm
+    expect(veintidos / once).toBeGreaterThan(1.9)
+    expect(veintidos / once).toBeLessThan(2.1)
   })
 })
 

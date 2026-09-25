@@ -36,6 +36,34 @@ import type { Technique } from './types'
  * `geometry.ts#BEAD_AXIS_MAP`). Then move its row in the table below from
  * `theoretical()` to `measured()` with the sample's numbers.
  */
+/**
+ * ## La muestra del peyote triangular
+ *
+ * triangle · Miyuki Delica 11/0 · 11 vueltas → **28 mm de ancho**, medido con
+ * regla sobre un aro terminado de la tejedora (foto del 2026-09-25).
+ *
+ * El borde de arriba de esa pieza lleva 21 mostacillas —las 11 de la vuelta
+ * de afuera y las 10 encajadas entre ellas—, contadas en la foto, que es lo
+ * que confirma que son 11 vueltas.
+ *
+ * Teoría pelada: 22.039 unidades × 1.3 mm (el largo de la Delica, que es el
+ * paso entre dos mostacillas de una misma vuelta) = **28.65 mm**. La pieza de
+ * verdad mide 28, así que el hilo la aprieta un poco: 28 / 28.65 = **0.977**.
+ *
+ * Es una corrección chica —medio milímetro en una pieza de casi tres
+ * centímetros, del orden del error de medir con regla— pero va igual, porque
+ * el punto de esta tabla es que los milímetros salgan de piezas de verdad y
+ * no de la aritmética.
+ */
+export const TRIANGLE_CALIBRATION_SAMPLE = {
+  technique: 'triangle' as Technique,
+  beadTypeId: 'miyuki-delica-11',
+  rounds: 11,
+  measuredWidthMm: 28,
+  /** `triangleBoundsUnits(11).width`, en unidades de retícula. */
+  widthUnits: 22.039,
+} as const
+
 export const CALIBRATION_SAMPLE = {
   technique: 'peyote' as Technique,
   beadTypeId: 'miyuki-delica-11',
@@ -97,6 +125,11 @@ const WEAVE_THREAD_FACTOR: Record<string, WeaveCalibration> = {
   ),
   'loom:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de loom en Delica 11/0.'),
   'brick:miyuki-delica-11': theoretical('Falta tejer y medir una muestra de brick en Delica 11/0.'),
+  'triangle:miyuki-delica-11': measured(
+    TRIANGLE_CALIBRATION_SAMPLE.measuredWidthMm,
+    TRIANGLE_CALIBRATION_SAMPLE.widthUnits * 1.3,
+    'Aro triangular de 11 vueltas medido con regla: 28 mm de ancho contra 28.65 teóricos.',
+  ),
 
   // ── Rocalla 11/0 ──────────────────────────────────────────────────────
   // Ninguna medida todavía. Además, la rocalla es redonda e irregular entre
@@ -105,6 +138,7 @@ const WEAVE_THREAD_FACTOR: Record<string, WeaveCalibration> = {
   'peyote:rocalla-11': theoretical('Falta tejer y medir una muestra de peyote en rocalla 11/0.'),
   'loom:rocalla-11': theoretical('Falta tejer y medir una muestra de loom en rocalla 11/0.'),
   'brick:rocalla-11': theoretical('Falta tejer y medir una muestra de brick en rocalla 11/0.'),
+  'triangle:rocalla-11': theoretical('Falta tejer y medir un peyote triangular en rocalla 11/0.'),
 }
 
 function factorKey(technique: Technique, beadTypeId: string): string {

@@ -422,12 +422,22 @@ export function physicalSizeMm(
 ) {
   if (technique === 'triangle') {
     // El peyote triangular no se mide por filas y columnas: se mide por dónde
-    // quedaron sus mostacillas (`triangleBoundsUnits`, en anchos de
-    // mostacilla), que es la misma cuenta con la que se dibuja. `cols` lleva
-    // las vueltas — ver `store/patternsStore.ts#setTriangleRounds`.
+    // quedaron sus mostacillas (`triangleBoundsUnits`), que es la misma cuenta
+    // con la que se dibuja. `cols` lleva las vueltas — ver
+    // `store/patternsStore.ts#setTriangleRounds`.
+    //
+    // La unidad de esa retícula es el paso entre dos mostacillas de una misma
+    // vuelta, o sea **el largo de la mostacilla**, por donde pasa el hilo —
+    // lo mismo que separa dos mostacillas de una fila de peyote, y lo que dice
+    // `BEAD_AXIS_MAP`. Acá se usaba el diámetro y la pieza salía un cuarto más
+    // grande de lo que es: un aro de 11 vueltas daba 35 mm cuando el de
+    // verdad, medido con regla, mide 28.
+    //
+    // Los tres lados son iguales, así que ancho y alto comparten escala: una
+    // corrección a un solo eje deformaría una pieza que no se deforma.
     const { width, height } = triangleBoundsUnits(cols)
-    const factor = weaveThreadFactor(technique, bead.id)
-    return { widthMm: width * bead.widthMm, heightMm: height * bead.widthMm * factor }
+    const unidadMm = beadAxisMm(technique, 'horizontal', bead) * weaveThreadFactor(technique, bead.id)
+    return { widthMm: width * unidadMm, heightMm: height * unidadMm }
   }
   const horizontalMm = beadAxisMm(technique, 'horizontal', bead)
   const verticalMm = beadAxisMm(technique, 'vertical', bead)
