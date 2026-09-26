@@ -39,6 +39,7 @@ import { ResizeDialog } from '@/components/editor/ResizeDialog'
 import { TriangleShapeDialog } from '@/components/editor/TriangleShapeDialog'
 import { BeadTypeDialog } from '@/components/editor/BeadTypeDialog'
 import { ShoppingListDialog } from '@/components/editor/ShoppingListDialog'
+import { SizeGuideDialog } from '@/components/shared/SizeGuideDialog'
 import { EditorPanelTabs } from '@/components/editor/EditorPanelTabs'
 import { suggestDifficulty } from '@/engine/difficulty'
 import type { TemplateMeta } from '@/engine/template'
@@ -127,6 +128,8 @@ export function EditorPage() {
   const [noteOpen, setNoteOpen] = useState(false)
   /** "Cambiar tamaño" — see ResizeDialog. */
   const [resizeOpen, setResizeOpen] = useState(false)
+  /** "Guía de tallas" — see SizeGuideDialog. */
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
   /** "Forma del aro" triangular: vueltas y hacia dónde apunta — ver TriangleShapeDialog. */
   const [triangleShapeOpen, setTriangleShapeOpen] = useState(false)
   /** "Cambiar la mostacilla" — see BeadTypeDialog. */
@@ -574,6 +577,11 @@ export function EditorPage() {
                 </MenuItem>
 
                 <div className="my-1 h-px bg-border" />
+                <MenuItem hint={t.sizeGuide.menuHint} onClick={() => setSizeGuideOpen(true)} close={() => setMoreMenuOpen(false)}>
+                  {t.sizeGuide.menu}
+                </MenuItem>
+
+                <div className="my-1 h-px bg-border" />
                 <MenuHeading>{t.feedback.title}</MenuHeading>
                 <FeedbackMenuItems
                   context={{ technique, cols, rows }}
@@ -827,6 +835,7 @@ export function EditorPage() {
       {triangleShapeOpen && <TriangleShapeDialog onClose={() => setTriangleShapeOpen(false)} />}
       {beadTypeOpen && <BeadTypeDialog onClose={() => setBeadTypeOpen(false)} />}
       {shoppingOpen && <ShoppingListDialog onClose={() => setShoppingOpen(false)} />}
+      {sizeGuideOpen && <SizeGuideDialog onClose={() => setSizeGuideOpen(false)} />}
       {exportDialogOpen && <ExportPdfDialog onCancel={() => setExportDialogOpen(false)} onConfirm={handleExport} />}
     </div>
   )

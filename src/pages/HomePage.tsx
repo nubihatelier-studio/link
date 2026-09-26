@@ -22,6 +22,7 @@ import { APP_VERSION } from '@/version'
 import { MainNav } from '@/components/shared/MainNav'
 import { FeedbackMenuItems } from '@/components/shared/FeedbackMenuItems'
 import { ShareAppDialog } from '@/components/shared/ShareAppDialog'
+import { SizeGuideDialog } from '@/components/shared/SizeGuideDialog'
 import { IconButton } from '@/components/shared/IconButton'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { PatternThumb } from '@/components/shared/PatternThumb'
@@ -52,6 +53,7 @@ export function HomePage() {
   const [reminderDismissed, setReminderDismissed] = useState(false)
   /** "Compartir la app": el link para quien todavía no la tiene — ver ShareAppDialog. */
   const [shareOpen, setShareOpen] = useState(false)
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   // Right after duplicating, the new card's name field is focused and
   // pre-selected instead of leaving it as "X (copia)" for someone to notice
@@ -266,6 +268,15 @@ export function HomePage() {
                       className="rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
                     >
                       {t.share.title}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setSizeGuideOpen(true)
+                      }}
+                      className="rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-surface-2"
+                    >
+                      {t.sizeGuide.menu}
                     </button>
 
                     <div className="my-1 h-px bg-border" />
@@ -558,6 +569,7 @@ export function HomePage() {
       </p>
 
       {shareOpen && <ShareAppDialog onClose={() => setShareOpen(false)} />}
+      {sizeGuideOpen && <SizeGuideDialog onClose={() => setSizeGuideOpen(false)} />}
       <MainNav />
 
       {pendingDelete && (
