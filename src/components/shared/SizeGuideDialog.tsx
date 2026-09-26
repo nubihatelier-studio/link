@@ -158,7 +158,7 @@ export function SizeGuideDialog({ onClose }: { onClose: () => void }) {
             <Titulo id="collares" tag={g.necklaces.tag}>
               {g.necklaces.title}
             </Titulo>
-            <div className="grid items-center gap-3 sm:grid-cols-[180px_1fr]">
+            <div className="grid items-center gap-3 sm:grid-cols-[200px_1fr]">
               <DibujoCollares />
               <Caja>
                 <table className="w-full text-sm">
@@ -415,17 +415,26 @@ function Pasos({ titulo, pasos }: { titulo: string; pasos: readonly string[] }) 
   )
 }
 
-/** Un torso con los cinco largos de collar, cada uno donde cae. */
+/**
+ * Un torso con los cinco largos de collar, cada uno donde cae.
+ *
+ * El número va justo bajo el punto más bajo de su collar y de su mismo color:
+ * los collares van uno dentro de otro, así que a un costado siempre caería
+ * encima del siguiente. Cada curva sale de sus dos hombros (`y0`) y su
+ * punto de control (`cy`); lo más bajo de una curva así queda en el medio,
+ * a (y0 + cy) / 2.
+ */
 function DibujoCollares() {
   const curvas = [
-    { d: 'M78 38 Q110 58 142 38', cm: 35, x: 146, y: 44 },
-    { d: 'M70 60 Q110 98 150 60', cm: 42, x: 154, y: 82 },
-    { d: 'M64 66 Q110 130 156 66', cm: 50, x: 160, y: 104 },
-    { d: 'M60 70 Q110 175 160 70', cm: 70, x: 164, y: 130 },
-    { d: 'M58 72 Q110 215 162 72', cm: 80, x: 168, y: 160 },
+    { cm: 35, x0: 78, y0: 38, cy: 58 },
+    { cm: 42, x0: 70, y0: 60, cy: 98 },
+    { cm: 50, x0: 64, y0: 66, cy: 130 },
+    { cm: 70, x0: 60, y0: 70, cy: 175 },
+    { cm: 80, x0: 58, y0: 72, cy: 215 },
   ]
+  const color = (i: number) => (i < 2 ? 'text-accent-500' : i < 4 ? 'text-accent-700' : 'text-text-muted')
   return (
-    <svg viewBox="0 0 220 230" role="img" aria-label={g.necklaces.diagram} className="mx-auto w-full max-w-[180px]">
+    <svg viewBox="0 0 220 230" role="img" aria-label={g.necklaces.diagram} className="mx-auto w-full max-w-[240px]">
       <path
         d="M70 0 C70 40 72 55 60 70 L20 95 L20 230 L200 230 L200 95 L160 70 C148 55 150 40 150 0"
         fill="none"
@@ -436,15 +445,24 @@ function DibujoCollares() {
       {curvas.map((c, i) => (
         <path
           key={c.cm}
-          d={c.d}
+          d={`M${c.x0} ${c.y0} Q110 ${c.cy} ${220 - c.x0} ${c.y0}`}
           fill="none"
           stroke="currentColor"
           strokeWidth="3"
-          className={i < 2 ? 'text-accent-500' : i < 4 ? 'text-accent-700' : 'text-text-muted'}
+          className={color(i)}
         />
       ))}
-      {curvas.map((c) => (
-        <text key={c.cm} x={c.x} y={c.y} fontSize="11" fontWeight="700" fill="currentColor" className="text-text-muted">
+      {curvas.map((c, i) => (
+        <text
+          key={c.cm}
+          x="110"
+          y={(c.y0 + c.cy) / 2 + 12}
+          textAnchor="middle"
+          fontSize="11"
+          fontWeight="700"
+          fill="currentColor"
+          className={color(i)}
+        >
           {c.cm}
         </text>
       ))}
